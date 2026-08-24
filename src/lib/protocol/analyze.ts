@@ -80,6 +80,22 @@ Then return the structured review.`,
   ];
 }
 
+/**
+ * SDK error messages often carry the raw JSON body. Pull out the human-readable
+ * part so a wall of JSON never reaches the screen.
+ *
+ * Exported for testing only.
+ */
+export function apiMessage(error: { message: string }): string {
+  const match = error.message.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if (!match) return error.message;
+  try {
+    return JSON.parse(`"${match[1]}"`);
+  } catch {
+    return match[1];
+  }
+}
+
 export async function analyzeProtocol(
   protocol: ExtractedProtocol,
   options: { onProgress?: (note: string) => void } = {},
@@ -189,10 +205,21 @@ export async function analyzeProtocol(
       throw new AnalysisError("Rate limited by the Anthropic API. Wait a moment and try again.", error);
     }
     if (error instanceof Anthropic.BadRequestError) {
-      throw new AnalysisError(`The API rejected the request: ${error.message}`, error);
+      // Billing failures arrive as a 400 with the reason buried in a JSON blob.
+      // Say the actionable thing instead of putting that on screen.
+      if (/credit balance is too low/i.test(error.message)) {
+        throw new AnalysisError(
+          "The Anthropic account has no credit left. Add credits at console.anthropic.com/settings/billing, then try again. (API credits are separate from a Claude.ai subscription.)",
+          error,
+        );
+      }
+      throw new AnalysisError(`The API rejected the request: ${apiMessage(error)}`, error);
     }
     if (error instanceof Anthropic.APIError) {
-      throw new AnalysisError(`Anthropic API error ${error.status}: ${error.message}`, error);
+      throw new AnalysisError(
+        `Anthropic API error ${error.status}: ${apiMessage(error)}`,
+        error,
+      );
     }
     throw new AnalysisError(
       error instanceof Error ? error.message : "The analysis failed.",
