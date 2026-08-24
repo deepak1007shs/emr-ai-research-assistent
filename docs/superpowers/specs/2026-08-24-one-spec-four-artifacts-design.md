@@ -78,15 +78,65 @@ first-class roles is what lets the gate *refuse* them in an adjustment set. A
 schema whose only category is "covariate" will happily let you adjust away the
 effect you are measuring.
 
-**Derived values are computed, never captured.** A `derived` variable names
-`derived_from` and a formula and has no CRF block. The gate expands it to its raw
-ingredients when checking what the form must capture — so "length of stay"
-reaches the shell table while "date of surgery" and "date of discharge" reach the
-form, with no way to forget one.
+**Raw and rich in, derived out.** See the section below — this is the rule that
+decides what appears on which document.
 
 **One concept, one wording.** `label` is the single authoritative string. Two
 objects sharing a label is an error. This is what literally delivers "no mismatch
 of a single line": there is only one line, stored once.
+
+## Raw and rich in, derived out
+
+The CRF collects **raw** data. Anything computed — a difference, a ratio, a
+score, a grade, a band — is a derivation, and derivations live in the SAP (with
+their formula stated) and in the shell tables where the study reports them. No
+derived value ever appears as a field to be filled in.
+
+Two failure modes this prevents, both irreversible once data collection starts:
+
+**Capturing the answer instead of the ingredients.** A form with a "Length of
+stay (days)" box invites a data collector to do arithmetic in their head, and the
+dataset then has no way to audit it. Capture *date of surgery* and *date of
+discharge*; the SAP states `length_of_stay = discharge − surgery`, and the shell
+table prints "Length of stay (days), median (IQR)". One number, three documents,
+computed once.
+
+**Capturing coarse where rich is available — the "rich" half of the rule.** A
+form that records *age band 50–65* instead of *date of birth*, *hypertensive
+yes/no* instead of the blood-pressure reading, or *Fontaine grade* instead of the
+findings that determine it, has destroyed information no analysis can recover. If
+the guide later wants age as a continuous predictor, or a different cut-point,
+the data is simply gone. **Always capture at the finest granularity available;
+banding and grading are derivations.**
+
+Scores follow the same rule. A CRF collects the *items* of GAD-7, PHQ-9, EQ-5D or
+a MUST assessment; the total, index or category is derived. This also means a
+scoring error is fixable after the fact, and a second scoring convention can be
+applied to the same data.
+
+### How the schema carries it
+
+A variable is either **captured** — it has a `crf` block — or **derived** — it has
+`derived_from`, a `derivation` formula, a `derivation_kind`
+(`formula` / `score` / `band` / `index`), and **no `crf` block**. There is no
+third option, and nothing is both.
+
+The gate expands every derivation to its raw ingredients when it computes what
+the form must capture, so a variable that reaches a table always drags its inputs
+onto the CRF automatically.
+
+### Invariants this adds
+
+| Code | Rule |
+|---|---|
+| `VAR05` | A derived variable must not carry a `crf` block. |
+| `VAR06` | It must name `derived_from` and a `derivation`. |
+| `VAR07` | Every `derived_from` id resolves, and the chain terminates in captured variables — a derivation whose ingredients are never collected is unbuildable. |
+| `VAR08` | No cycles in a derivation chain. |
+| `VAR11` | A `band` derivation's source must be a **continuous captured** variable. |
+| `VAR12` | **WARN** — a categorical variable whose categories are numeric ranges and which has no `derived_from` is a band being collected as a band. Capture the number instead. |
+| `VAR13` | A `score` derivation must list every component item, and each component must have a CRF field. |
+| `SAP01` | Every derived variable used by any analysis or table appears in the SAP's derivations section with its formula. |
 
 ## The gate
 
@@ -113,13 +163,17 @@ Four pure functions, one shared formatting library so two renderers cannot forma
 the same field differently.
 
 - **CRF** — sections in order; every field as `Field / Variable | Field type |
-  Response`; options pre-printed; units shown; derived variables marked and not
-  fillable.
+  Response`; options pre-printed; units shown. **Captured variables only** —
+  derived values do not appear at all, because a form is for recording what was
+  observed, not what can be computed from it.
 - **SAP** — study at a glance, objectives as answerable questions, variable
-  table, analysis map, general rules, populations, multiplicity, sensitivity.
+  table, **derivations** (every computed variable and score, with its formula and
+  source fields), analysis map, general rules, populations, multiplicity,
+  sensitivity.
 - **Shell Tables** — `Table N. Title`, blocks in order, empty cells, every
   analytical table closing with `Test applied: …`, unadjusted and adjusted side
-  by side, a 95% CI on every effect column.
+  by side, a 95% CI on every effect column. Rows may be derived variables and
+  scores where the study reports them.
 
 **A renderer that needs a fact the spec lacks is a schema bug.** Extend the
 schema; never let a renderer supply a default. The moment one does, there is a
