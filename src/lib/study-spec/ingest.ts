@@ -4,7 +4,13 @@ import { loadKnowledge } from "../protocol/knowledge.ts";
 import { EFFORT, MODEL } from "../protocol/analyze.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { ExtractedProtocol } from "../protocol/extract.ts";
-import { STUDY_SPEC_JSON_SCHEMA } from "./ingest-schema.ts";
+import {
+  STAGE1_SCHEMA,
+  STAGE1B_SCHEMA,
+  STAGE1C_SCHEMA,
+  STAGE2_SCHEMA,
+  STAGE3_SCHEMA,
+} from "./ingest-schema.ts";
 import type { StudySpec } from "./types.ts";
 
 const require = createRequire(import.meta.url);
@@ -180,42 +186,106 @@ defines the study as it will now be run. Where the protocol is silent, choose th
 standard answer a methodologist would choose, and record the choice in open_items so the
 guide can see it and object.`;
 
-function userContent(
-  protocol: ExtractedProtocol,
-  repair?: { previous: string; findings: string },
-): Anthropic.MessageParam["content"] {
-  const instruction = repair
-    ? `The specification you produced was rejected by the validator. Fix exactly these
-problems and return the whole corrected specification.
+const STAGES = [
+  {
+    key: "stage1",
+    schema: STAGE1_SCHEMA,
+    note: "Classifying the design and the population",
+    instruction: `Build the first part of the specification: what kind of study this is.
 
-${repair.findings}
+Classify the design with Reference 1 and record in design_detail the facts that
+design requires: a case-control needs its matching variables and ratio, a cluster
+trial its ICC and cluster size, a cohort its follow-up schedule and censoring
+rule, any randomised design its sequence generation, allocation concealment and
+blinding.
 
-Your previous attempt:
-${repair.previous}`
-    : `Build the study specification for the protocol above ("${protocol.filename}").
+Then the time points (ids beginning tp_), each with a real window: "day 30" is
+unusable, "day 30 +/- 3" is a protocol. Then eligibility (ids beginning elg_),
+as discrete checkable criteria that leave no gap between inclusion and exclusion.`,
+  },
+  {
+    key: "stage1b",
+    schema: STAGE1B_SCHEMA,
+    note: "Turning objectives into outcomes",
+    instruction: `Now the questions the study asks.
 
-Work in this order:
-1. Classify the design with Reference 1, and record the facts that design requires.
-2. Turn every objective into outcomes, and every outcome into the variables that measure it.
-3. Decide for each variable whether it is CAPTURED on the form or DERIVED from captured
-   values. Collect raw and rich: dates rather than durations, the reading rather than
-   yes/no, the score's items rather than its total, the number rather than the band.
-4. Write the analyses, then the tables that report them.
-5. Reproduce the sample size with its inputs and their sources.
+Exactly one primary objective, phrased as a question. The primary objective needs
+all five ICH E9(R1) estimand attributes, including the intercurrent-event strategy
+that says what happens when a patient stops treatment, gets rescue therapy or dies
+before the endpoint.
 
-Every objective needs an outcome, every outcome needs source variables, and every
-variable must end in a CRF field, directly or through its derivation chain.`;
+Then the outcomes, exactly one primary. Give each its definition, instrument, the
+time point it is measured at, its data type and subtype, and the summary statistic
+a table will carry. You will name the variables in a later step, so give each
+outcome the source_variable_ids you intend to create, beginning var_.
 
+Ids begin obj_ and out_.`,
+  },
+  {
+    key: "stage1c",
+    schema: STAGE1C_SCHEMA,
+    note: "Reproducing the sample size and the analysis rules",
+    instruction: `Now the size of the study and the rules the analysis runs under.
+
+Reproduce the sample size the protocol states: the formula, every input with the
+source it came from, alpha, power, the attrition allowance and the resulting n. It
+must be powered on the primary outcome. Where the protocol gives no source for a
+number, say so rather than inventing one.
+
+Then the analysis populations (ids pop_, exactly one primary, required for any
+interventional design), the multiplicity rule for each outcome family, any
+sensitivity analyses (ids sen_), the missing-data plan, and anything the guide
+must still decide as open_items (ids open_).`,
+  },
+  {
+    key: "stage2",
+    schema: STAGE2_SCHEMA,
+    note: "Deciding what the form collects and what is computed",
+    instruction: `Now the variables and the form.
+
+Every variable an outcome names must exist here, and every variable must be either
+CAPTURED (crf.collected true, with a section, a field type and an answer space) or
+DERIVED (role derived, with derived_from, a formula and a kind; crf.collected false).
+
+Collect raw and rich. Dates rather than durations. The reading rather than a
+yes/no. A score's items rather than its total. The number rather than the band.
+Any value that can be computed must be derived, never a box someone fills in.
+
+Also give every variable used as a categorical predictor a reference_level, and
+give every clinical category set its definition_source and definition_reference
+(quote the protocol, or name the standard: ISGPS, Clavien-Dindo, CDC, KDIGO, ASA).
+
+Create the crf_sections, ids beginning sec_, one per baseline block and one per
+follow-up visit, each tied to a timepoint you already defined.`,
+  },
+  {
+    key: "stage3",
+    schema: STAGE3_SCHEMA,
+    note: "Writing the analyses and the tables",
+    instruction: `Finally the analyses and the tables.
+
+One analysis per outcome, ids beginning ana_. Never put a mediator or a collider
+in a covariate list: adjusting for one removes the effect being measured. A Cox
+model must declare its proportional-hazards check.
+
+Then the tables, ids beginning tbl_, numbered contiguously from 1, blocks in order
+(descriptive, primary, secondary, exploratory, sensitivity), sensitivity last.
+Never label a column Model 1 or Model 2. Put unadjusted and adjusted side by side,
+each with a 95% CI, and name the test applied on every analytical table.`,
+  },
+] as const;
+
+function protocolBlock(protocol: ExtractedProtocol): Anthropic.ContentBlockParam {
   if (protocol.kind === "pdf") {
-    return [
-      { type: "document", source: { type: "base64", media_type: "application/pdf", data: protocol.base64 } },
-      { type: "text", text: instruction },
-    ];
+    return {
+      type: "document",
+      source: { type: "base64", media_type: "application/pdf", data: protocol.base64 },
+    };
   }
-  return [
-    { type: "text", text: `<protocol filename="${protocol.filename}">\n${protocol.text}\n</protocol>` },
-    { type: "text", text: instruction },
-  ];
+  return {
+    type: "text",
+    text: `<protocol filename="${protocol.filename}">\n${protocol.text}\n</protocol>`,
+  };
 }
 
 export type IngestResult = {
@@ -226,11 +296,14 @@ export type IngestResult = {
   usage: TokenUsage;
 };
 
+/**
+ * Runs the three stages in order, each seeing what the one before produced, then
+ * validates the assembled specification and repairs it once if the gate objects.
+ */
 export async function draftStudySpec(
   protocol: ExtractedProtocol,
   options: {
     onProgress?: (note: string) => void;
-    /** Fires as tokens accumulate, so the caller can show the bill growing. */
     onUsage?: (usage: TokenUsage) => void;
   } = {},
 ): Promise<IngestResult> {
@@ -241,38 +314,42 @@ export async function draftStudySpec(
   const client = new Anthropic();
   const knowledge = loadKnowledge();
   const totals: TokenUsage = {
-    input_tokens: 0, output_tokens: 0,
-    cache_creation_input_tokens: 0, cache_read_input_tokens: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: 0,
   };
+  let lastModel = MODEL;
 
-  async function ask(repair?: { previous: string; findings: string }) {
+  async function ask(
+    schema: Record<string, unknown>,
+    instruction: string,
+    soFar: Record<string, unknown> | null,
+  ): Promise<Record<string, unknown>> {
+    const content: Anthropic.ContentBlockParam[] = [protocolBlock(protocol)];
+    if (soFar) {
+      content.push({
+        type: "text",
+        text: `What you have decided so far, which the rest must be consistent with:\n${JSON.stringify(soFar)}`,
+      });
+    }
+    content.push({ type: "text", text: instruction });
+
+    const spent = { ...totals };
     const stream = client.messages.stream({
       model: MODEL,
-      max_tokens: 64000,
+      max_tokens: 32000,
       thinking: { type: "adaptive" },
-      output_config: { effort: EFFORT, format: { type: "json_schema", schema: STUDY_SPEC_JSON_SCHEMA } },
+      output_config: { effort: EFFORT, format: { type: "json_schema", schema } },
       system: [
         { type: "text", text: ROLE },
         { type: "text", text: knowledge, cache_control: { type: "ephemeral", ttl: "1h" } },
       ],
-      messages: [{ role: "user", content: userContent(protocol, repair) }],
+      messages: [{ role: "user", content }],
     });
 
-    // Two calls may run (draft, then repair), so the running total carries the
-    // tokens already spent plus this call's output as it streams.
-    const spent = { ...totals };
     stream.on("streamEvent", (event) => {
-      if (event.type === "message_start") {
-        const u = event.message.usage;
-        options.onUsage?.({
-          input_tokens: spent.input_tokens + (u.input_tokens ?? 0),
-          output_tokens: spent.output_tokens,
-          cache_creation_input_tokens:
-            spent.cache_creation_input_tokens + (u.cache_creation_input_tokens ?? 0),
-          cache_read_input_tokens:
-            spent.cache_read_input_tokens + (u.cache_read_input_tokens ?? 0),
-        });
-      } else if (event.type === "message_delta") {
+      if (event.type === "message_delta") {
         options.onUsage?.({
           ...spent,
           output_tokens: spent.output_tokens + (event.usage.output_tokens ?? 0),
@@ -281,39 +358,52 @@ export async function draftStudySpec(
     });
 
     const message = await stream.finalMessage();
+    lastModel = message.model;
     totals.input_tokens += message.usage.input_tokens;
     totals.output_tokens += message.usage.output_tokens;
     totals.cache_creation_input_tokens += message.usage.cache_creation_input_tokens ?? 0;
     totals.cache_read_input_tokens += message.usage.cache_read_input_tokens ?? 0;
 
     if (message.stop_reason === "max_tokens") {
-      throw new IngestError("The specification was cut off before it finished.");
+      throw new IngestError("A stage was cut off before it finished.");
     }
     const text = message.content
       .filter((b): b is Anthropic.TextBlock => b.type === "text")
       .map((b) => b.text)
       .join("");
-    return { text, model: message.model };
+    return JSON.parse(text) as Record<string, unknown>;
   }
 
-  options.onProgress?.("Reading the protocol and drafting the specification");
-  const first = await ask();
-  let spec = normalise(JSON.parse(first.text));
+  let model: Record<string, unknown> = {};
+  for (const stage of STAGES) {
+    options.onProgress?.(stage.note);
+    // Each stage sees the running result, so the chain stays consistent.
+    const part = await ask(stage.schema, stage.instruction, Object.keys(model).length ? model : null);
+    model = { ...model, ...part };
+  }
+
+  options.onProgress?.("Checking the specification");
+  let spec = normalise(model);
   let result = validate(spec);
   let repaired = false;
 
   if (!result.ok) {
+    const errors = result.findings.filter((f) => f.severity === "ERROR");
+    options.onProgress?.(`Fixing ${errors.length} problem(s) the gate found`);
     // The gate's messages already say what to do, so hand them straight back.
-    options.onProgress?.(`Fixing ${result.findings.filter((f) => f.severity === "ERROR").length} problem(s) the gate found`);
-    const findings = result.findings
-      .filter((f) => f.severity === "ERROR")
-      .map((f) => `${f.code} at ${f.path}: ${f.message}`)
-      .join("\n");
-    const second = await ask({ previous: JSON.stringify(spec), findings });
-    spec = normalise(JSON.parse(second.text));
-    result = validate(spec);
-    repaired = true;
+    const repairInstruction = `The specification was rejected by the validator. Return the
+analyses and tables again, corrected so that these problems are gone. Change nothing else.
+
+${errors.map((f) => `${f.code} at ${f.path}: ${f.message}`).join("\n")}`;
+    try {
+      const fixed = await ask(STAGE3_SCHEMA, repairInstruction, model);
+      spec = normalise({ ...model, ...fixed });
+      result = validate(spec);
+      repaired = true;
+    } catch {
+      // A failed repair leaves the original draft and its findings intact.
+    }
   }
 
-  return { spec, findings: result.findings, repaired, model: first.model, usage: totals };
+  return { spec, findings: result.findings, repaired, model: lastModel, usage: totals };
 }

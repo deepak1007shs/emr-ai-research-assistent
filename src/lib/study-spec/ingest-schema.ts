@@ -49,7 +49,15 @@ const ROLES = [
   "precision", "stratifier", "derived", "administrative", "eligibility", "censoring", "matching",
 ];
 
-export const STUDY_SPEC_JSON_SCHEMA = obj({
+/**
+ * Stage 1 — the study and its questions.
+ *
+ * The whole specification in one strict schema is rejected by the API: "the
+ * compiled grammar is too large". So ingest runs in three stages that follow the
+ * traceability chain, each with a schema small enough to compile, and each able
+ * to see what the stage before it produced.
+ */
+export const STAGE1_SCHEMA = obj({
   study: obj({
     title: { ...str, description: "The corrected full title, not the protocol's own wording if that was wrong." },
     design: { type: "string", enum: DESIGNS },
@@ -81,7 +89,10 @@ export const STUDY_SPEC_JSON_SCHEMA = obj({
     inclusion: arrayOf(obj({ id: { ...str, description: "Begins elg_" }, text: str }), "Discrete, individually checkable criteria."),
     exclusion: arrayOf(obj({ id: { ...str, description: "Begins elg_" }, text: str }), "Must not leave a gap: if inclusion is ASA I-II, exclusion must be ASA III or above, so no patient is covered by neither."),
   }),
+});
 
+/** Stage B — the questions the study asks, and the size needed to answer them. */
+export const STAGE1B_SCHEMA = obj({
   objectives: arrayOf(
     obj({
       id: { ...str, description: "Begins obj_" },
@@ -121,7 +132,39 @@ export const STUDY_SPEC_JSON_SCHEMA = obj({
     }),
     "Exactly one primary outcome.",
   ),
+});
 
+/** Stage B2 — how big the study must be, and the rules the analysis runs under. */
+export const STAGE1C_SCHEMA = obj({
+  sample_size: obj({
+    formula: {
+      type: "string",
+      enum: ["single_proportion", "single_mean", "two_proportions", "two_means", "paired_means",
+        "case_control_or", "correlation", "sensitivity_specificity", "time_to_event",
+        "cluster_adjusted", "non_inferiority_means", "other"],
+    },
+    inputs: arrayOf(obj({ name: str, value: num, source: { ...str, description: "Where the number came from. Say 'not stated in the protocol' when it is absent." } }), "Every input the formula needs."),
+    alpha: num,
+    power: num,
+    attrition: num,
+    n_per_group: int,
+    n_total: int,
+    powered_outcome_id: { ...str, description: "Must be the primary outcome." },
+  }),
+
+  populations: arrayOf(obj({ id: { ...str, description: "Begins pop_" }, label: str, definition: str, primary: { type: "boolean" }, used_for: str }), "Required for interventional designs; exactly one primary."),
+  multiplicity: arrayOf(obj({ family: str, method: str, note: str }), "One entry per outcome family."),
+  sensitivity_analyses: arrayOf(obj({ id: { ...str, description: "Begins sen_" }, label: str, purpose: str, method: str }), "May be empty."),
+  missing_data: obj({
+    expected_mechanism: { type: "string", enum: ["MCAR", "MAR", "MNAR", "unknown"] },
+    primary_method: str,
+    sensitivity_method: str,
+  }),
+  open_items: arrayOf(obj({ id: { ...str, description: "Begins open_" }, question: str, owner: str }), "Decisions the investigator or guide must still make. May be empty."),
+});
+
+/** Stage C — the variables and where they sit on the form. */
+export const STAGE2_SCHEMA = obj({
   variables: arrayOf(
     obj({
       id: { ...str, description: "Begins var_" },
@@ -150,6 +193,14 @@ export const STUDY_SPEC_JSON_SCHEMA = obj({
     "The CRF collects raw and rich data. A derived value has collected false and no field. Never capture a band where the number is available, or a total where the items are.",
   ),
 
+  crf_sections: arrayOf(
+    obj({ id: { ...str, description: "Begins sec_" }, title: str, order: int, timepoint_id: str }),
+    "One section per baseline block, and one per follow-up visit.",
+  ),
+});
+
+/** Stage D — how each outcome is analysed and reported. */
+export const STAGE3_SCHEMA = obj({
   analyses: arrayOf(
     obj({
       id: { ...str, description: "Begins ana_" },
@@ -181,35 +232,4 @@ export const STUDY_SPEC_JSON_SCHEMA = obj({
     }),
     "Numbered contiguously from 1, blocks in order.",
   ),
-
-  crf_sections: arrayOf(
-    obj({ id: { ...str, description: "Begins sec_" }, title: str, order: int, timepoint_id: str }),
-    "One section per baseline block, and one per follow-up visit.",
-  ),
-
-  sample_size: obj({
-    formula: {
-      type: "string",
-      enum: ["single_proportion", "single_mean", "two_proportions", "two_means", "paired_means",
-        "case_control_or", "correlation", "sensitivity_specificity", "time_to_event",
-        "cluster_adjusted", "non_inferiority_means", "other"],
-    },
-    inputs: arrayOf(obj({ name: str, value: num, source: { ...str, description: "Where the number came from. Say 'not stated in the protocol' when it is absent." } }), "Every input the formula needs."),
-    alpha: num,
-    power: num,
-    attrition: num,
-    n_per_group: int,
-    n_total: int,
-    powered_outcome_id: { ...str, description: "Must be the primary outcome." },
-  }),
-
-  populations: arrayOf(obj({ id: { ...str, description: "Begins pop_" }, label: str, definition: str, primary: { type: "boolean" }, used_for: str }), "Required for interventional designs; exactly one primary."),
-  multiplicity: arrayOf(obj({ family: str, method: str, note: str }), "One entry per outcome family."),
-  sensitivity_analyses: arrayOf(obj({ id: { ...str, description: "Begins sen_" }, label: str, purpose: str, method: str }), "May be empty."),
-  missing_data: obj({
-    expected_mechanism: { type: "string", enum: ["MCAR", "MAR", "MNAR", "unknown"] },
-    primary_method: str,
-    sensitivity_method: str,
-  }),
-  open_items: arrayOf(obj({ id: { ...str, description: "Begins open_" }, question: str, owner: str }), "Decisions the investigator or guide must still make. May be empty."),
 });

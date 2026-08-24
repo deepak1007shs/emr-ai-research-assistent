@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { normalise } from "./ingest.ts";
-import { STUDY_SPEC_JSON_SCHEMA } from "./ingest-schema.ts";
+import { STAGE1_SCHEMA } from "./ingest-schema.ts";
 
 /**
  * The model's shape is flatter than the stored spec, because strict structured
  * outputs cannot express an optional key. These tests pin the conversion.
  */
-describe("STUDY_SPEC_JSON_SCHEMA", () => {
+describe("STAGE1_SCHEMA", () => {
   it("is strict all the way down, as structured outputs require", () => {
     const walk = (node: unknown, path: string): void => {
       if (!node || typeof node !== "object") return;
@@ -22,7 +22,7 @@ describe("STUDY_SPEC_JSON_SCHEMA", () => {
       }
       if (n.type === "array") walk(n.items, `${path}[]`);
     };
-    walk(STUDY_SPEC_JSON_SCHEMA, "root");
+    walk(STAGE1_SCHEMA, "root");
   });
 });
 
