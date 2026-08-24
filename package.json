@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "spec:validate": "node src/lib/study-spec/validate_study_spec.js src/lib/study-spec/example_study_spec.json --final",
+    "spec:mutate": "node src/lib/study-spec/test_invariants.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

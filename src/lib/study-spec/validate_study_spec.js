@@ -87,6 +87,7 @@ function checkShape(node, schema, path, findings, root) {
   }
 
   if (s.type === 'object') {
+    // `$ownedBy` marks a requirement Layer 2 enforces with a better message.
     for (const key of s.required || []) {
       if (node[key] === undefined) {
         findings.push(
@@ -185,6 +186,9 @@ function buildIndex(spec) {
 
 const GROUPS = [
   require('./invariants/referential'),
+  require('./invariants/objectives'),
+  require('./invariants/outcomes'),
+  require('./invariants/variables'),
 ];
 
 /* ---------- the gate -------------------------------------------------- */
