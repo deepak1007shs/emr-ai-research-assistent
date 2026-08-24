@@ -186,9 +186,16 @@ function buildIndex(spec) {
 
 const GROUPS = [
   require('./invariants/referential'),
+  require('./invariants/design'),
+  require('./invariants/structure'),
   require('./invariants/objectives'),
   require('./invariants/outcomes'),
   require('./invariants/variables'),
+  require('./invariants/sample_size'),
+  require('./invariants/adjustment'),
+  require('./invariants/tests'),
+  require('./invariants/tables'),
+  require('./invariants/crf'),
 ];
 
 /* ---------- the gate -------------------------------------------------- */

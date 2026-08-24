@@ -106,6 +106,165 @@ const MUTATIONS = [
     mutate: (s) => { delete variable(s, 'var_date_surgery').definition_reference; return s; } },
   { code: 'VAR17', why: 'a categorical predictor with no reference level',
     mutate: (s) => { delete variable(s, 'var_sex').reference_level; return s; } },
+
+  // --- design
+  { code: 'STU02', why: 'a randomised trial that never says who was blinded',
+    mutate: (s) => { delete s.study.design_detail.blinding; return s; } },
+  { code: 'STU03', why: 'an allocated intervention framed as an observed exposure',
+    mutate: (s) => { s.study.framework = 'PECO'; return s; } },
+  { code: 'STU04', why: 'a randomised trial reported under STROBE',
+    mutate: (s) => { s.study.guideline = 'STROBE'; return s; } },
+  { code: 'STU05', why: 'a design family nothing here can render',
+    mutate: (s) => { s.study.design = 'qualitative'; s.study.guideline = 'COREQ'; return s; } },
+
+  // --- structure
+  { code: 'POP01', why: 'a trial that never says who is analysed',
+    mutate: (s) => { delete s.populations; return s; } },
+  { code: 'POP02', why: 'no population carries the primary analysis',
+    mutate: (s) => { s.populations[0].primary = false; return s; } },
+  { code: 'ELG01', why: 'no exclusion criteria at all',
+    mutate: (s) => { s.eligibility.exclusion = []; return s; } },
+  { code: 'ELG02', why: 'ASA III included by nothing and excluded by nothing',
+    mutate: (s) => { s.eligibility.exclusion[0].numeric.min = 4; return s; } },
+  { code: 'TP01', why: 'a visit with no window around it',
+    mutate: (s) => { delete s.timepoints[0].window; return s; } },
+  { code: 'TP02', why: 'a gap in the visit numbering',
+    mutate: (s) => { s.timepoints[3].order = 5; return s; } },
+  { code: 'GDL01', why: 'a CONSORT trial with no screening log to count from',
+    mutate: (s) => { variable(s, 'var_screening_outcome').label = 'Enrolment outcome'; return s; } },
+
+  // --- sample size
+  { code: 'SS01', why: 'the study is powered for something other than its primary outcome',
+    mutate: (s) => { s.sample_size.powered_outcome_id = 'out_los'; return s; } },
+  { code: 'SS02', why: 'two outcomes both claimed as powered',
+    mutate: (s) => { s.sample_size.powered_outcome_id = ['out_complication', 'out_los']; return s; } },
+  { code: 'SS03', why: 'an n that does not follow from its own inputs',
+    mutate: (s) => { s.sample_size.n_per_group = 60; s.sample_size.n_total = 120; return s; } },
+  { code: 'SS04', why: 'an assumed proportion with no provenance',
+    mutate: (s) => { delete s.sample_size.inputs[0].source; return s; } },
+  { code: 'SS05', why: 'no allowance for loss to follow-up',
+    mutate: (s) => {
+      delete s.sample_size.attrition;
+      s.sample_size.n_per_group = 81;
+      s.sample_size.n_total = 162;
+      return s;
+    } },
+
+  // --- adjustment
+  { code: 'ADJ02', why: 'the model adjusts away the mechanism it is measuring',
+    mutate: (s) => { variable(s, 'var_age').role = 'mediator'; return s; } },
+  { code: 'ADJ03', why: 'the model conditions on a collider',
+    mutate: (s) => { variable(s, 'var_age').role = 'collider'; return s; } },
+  { code: 'ADJ04', why: 'the model adjusts for its own exposure',
+    mutate: (s) => { s.analyses[0].covariate_ids.push('var_group'); return s; } },
+  { code: 'ADJ05', why: 'more degrees of freedom than the events can carry',
+    mutate: (s) => { s.analyses[0].covariate_ids.push('var_asa_numeric'); return s; } },
+  { code: 'ADJ06', why: 'a categorical covariate whose degrees of freedom cannot be counted',
+    mutate: (s) => { delete variable(s, 'var_sex').categories; return s; } },
+  { code: 'ADJ07', why: 'a covariate the form never collects',
+    mutate: (s) => { delete variable(s, 'var_age').crf; return s; } },
+
+  // --- tests and models
+  { code: 'TEST01', why: 'a t-test on a binary outcome',
+    mutate: (s) => { s.analyses[0].unadjusted_test = 't_test'; return s; } },
+  { code: 'TEST02', why: 'paired data handed to an unpaired test',
+    mutate: (s) => { s.analyses[0].paired = true; return s; } },
+  { code: 'TEST03', why: 'a linear model fitted to a binary outcome',
+    mutate: (s) => {
+      s.analyses[0].adjusted_model = 'linear';
+      s.analyses[0].effect_measure = 'mean_difference';
+      return s;
+    } },
+  { code: 'TEST04', why: 'an odds ratio claimed from a log-binomial model',
+    mutate: (s) => { s.analyses[0].effect_measure = 'odds_ratio'; return s; } },
+  { code: 'TEST05', why: 'a case-control study claiming a risk ratio',
+    mutate: (s) => {
+      s.study.design = 'case_control';
+      s.study.guideline = 'STROBE';
+      s.study.framework = 'PECO';
+      s.study.design_detail.matching_variables = 'Age within 5 years, sex';
+      s.study.design_detail.matching_ratio = '1:2';
+      return s;
+    } },
+  { code: 'TEST06', why: 'an odds ratio for an outcome half the participants will have',
+    mutate: (s) => {
+      s.analyses[0].adjusted_model = 'logistic';
+      s.analyses[0].effect_measure = 'odds_ratio';
+      return s;
+    } },
+  { code: 'SURV01', why: 'a Cox model with no proportional-hazards check',
+    mutate: (s) => {
+      s.outcomes[1].data_type = 'time_to_event';
+      s.outcomes[1].summary_statistic = 'median survival';
+      s.analyses[1].unadjusted_test = 'log_rank';
+      s.analyses[1].adjusted_model = 'cox';
+      s.analyses[1].effect_measure = 'hazard_ratio';
+      // A censoring variable, so this trips SURV01 alone and not SURV02.
+      s.variables.push({
+        id: 'var_discharge_status', label: 'Discharge status at day 30', role: 'censoring',
+        data_type: 'binary', subtype: 'yes/no',
+        categories: ['Discharged alive', 'Still in hospital or died'],
+        reference_level: 'Still in hospital or died',
+        definition_source: 'protocol',
+        definition_reference: 'Whether the participant had been discharged alive by day 30',
+        crf: {
+          section_id: 'sec_followup_d30', order: 3, field_type: 'single_select',
+          response: 'Discharged alive / Still in hospital or died',
+          options: ['Discharged alive', 'Still in hospital or died'],
+        },
+      });
+      return s;
+    } },
+  { code: 'SURV02', why: 'time to an event with nothing recording censoring',
+    mutate: (s) => {
+      s.outcomes[1].data_type = 'time_to_event';
+      s.outcomes[1].summary_statistic = 'median survival';
+      s.analyses[1].unadjusted_test = 'log_rank';
+      return s;
+    } },
+
+  // --- tables
+  { code: 'TBL01', why: 'a gap in the table numbering',
+    mutate: (s) => { s.tables[4].number = 6; return s; } },
+  { code: 'TBL02', why: 'the primary table printed among the exploratory ones',
+    mutate: (s) => { s.tables[1].block = 'exploratory'; return s; } },
+  { code: 'TBL03', why: 'a table with nothing to print in it',
+    mutate: (s) => { s.tables[0].row_variable_ids = []; return s; } },
+  { code: 'TBL04', why: 'a sensitivity analysis printed before the exploratory results',
+    mutate: (s) => { s.tables[3].number = 5; s.tables[4].number = 4; return s; } },
+  { code: 'TBL05', why: 'a family of two analyses with no multiplicity position',
+    mutate: (s) => {
+      s.analyses.push({
+        id: 'ana_anxiety_baseline', objective_id: 'obj_exploratory_anxiety',
+        outcome_id: 'out_anxiety', unadjusted_test: 'mann_whitney',
+        table_ids: ['tbl_exploratory'], paired: false,
+      });
+      return s;
+    } },
+  { code: 'TBL06', why: 'a P value with no named test',
+    mutate: (s) => { delete s.tables[2].test_applied; return s; } },
+  { code: 'TBL07', why: 'a column called Model 2',
+    mutate: (s) => { s.tables[1].columns.push('Model 2'); return s; } },
+  { code: 'TBL08', why: 'an adjusted estimate with nothing crude to compare it with',
+    mutate: (s) => { s.tables[1].columns[3] = 'RR (95% CI)'; return s; } },
+  { code: 'TBL09', why: 'an effect estimate with no interval',
+    mutate: (s) => { s.tables[1].columns[4] = 'Adjusted RR'; return s; } },
+  { code: 'TBL10', why: 'a categorical comparison with no reference level marked',
+    mutate: (s) => { s.tables[1].reference_rows = []; return s; } },
+
+  // --- the form
+  { code: 'CRF02', why: 'a gap in the section numbering',
+    mutate: (s) => { s.crf_sections[5].order = 7; return s; } },
+  { code: 'CRF05', why: 'a select field with nothing to tick',
+    mutate: (s) => { delete variable(s, 'var_sex').crf.options; return s; } },
+  { code: 'CRF06', why: 'two questions numbered the same',
+    mutate: (s) => { variable(s, 'var_sex').crf.order = 1; return s; } },
+  { code: 'CRF07', why: 'a multi-select with no export rule',
+    mutate: (s) => { variable(s, 'var_sex').crf.field_type = 'multi_select'; return s; } },
+  { code: 'CRF08', why: 'a number field asking for a bare number',
+    mutate: (s) => { delete variable(s, 'var_age').unit; return s; } },
+  { code: 'CRF09', why: 'a date field with no mask',
+    mutate: (s) => { delete variable(s, 'var_date_surgery').crf.mask; return s; } },
 ];
 
 /** Every code the harness covers, for the coverage test. */

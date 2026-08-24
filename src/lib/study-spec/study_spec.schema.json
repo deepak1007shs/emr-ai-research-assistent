@@ -183,8 +183,7 @@
         "required": [
           "id",
           "label",
-          "order",
-          "window"
+          "order"
         ],
         "additionalProperties": false,
         "properties": {
@@ -199,7 +198,8 @@
             "type": "integer"
           },
           "window": {
-            "type": "string"
+            "type": "string",
+            "$ownedBy": "TP01"
           },
           "offset_days": {
             "type": "integer"
@@ -217,17 +217,17 @@
       "properties": {
         "inclusion": {
           "type": "array",
-          "minItems": 1,
           "items": {
             "$ref": "criterion"
-          }
+          },
+          "$ownedBy": "ELG01"
         },
         "exclusion": {
           "type": "array",
-          "minItems": 1,
           "items": {
             "$ref": "criterion"
-          }
+          },
+          "$ownedBy": "ELG01"
         }
       }
     },
@@ -595,7 +595,6 @@
           "block",
           "title",
           "kind",
-          "row_variable_ids",
           "columns"
         ],
         "additionalProperties": false,
@@ -633,10 +632,10 @@
           },
           "row_variable_ids": {
             "type": "array",
-            "minItems": 1,
             "items": {
               "type": "string"
-            }
+            },
+            "$ownedBy": "TBL03"
           },
           "columns": {
             "type": "array",
@@ -759,7 +758,8 @@
           "type": "integer"
         },
         "powered_outcome_id": {
-          "type": "string"
+          "$comment": "One outcome id. A draft that names several (an array) is let through the shape layer on purpose, so SS02 can say which outcomes were claimed and why only one may be.",
+          "$ownedBy": "SS02"
         }
       }
     },
