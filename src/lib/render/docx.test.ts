@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildDocx } from "./docx";
 import { build } from "./markdown";
 import { fixtureActionSpec, fixtureSpec } from "./fixture";
+import { HOUSE_FONT, plain } from "./house-style";
 
 /** Unzips the .docx and returns the text of `word/document.xml`. */
 async function documentXml(
@@ -43,7 +44,9 @@ describe("docx renderer", () => {
 
     expect(headings.length).toBeGreaterThan(8);
     for (const heading of headings) {
-      expect(text, `missing heading: ${heading}`).toContain(heading);
+      // The .docx is house-styled, so its headings carry no em dashes even
+      // where the Markdown does. Compare like with like.
+      expect(text, `missing heading: ${heading}`).toContain(plain(heading));
     }
   });
 
@@ -53,13 +56,45 @@ describe("docx renderer", () => {
     expect(text).toContain("Wrong formula");
     expect(text).toContain("The most important things to fix before the study starts:");
     expect(text).toContain("Primary outcome:");
-    expect(text).toContain("Comorbidities are named as a category but never itemised");
+    expect(text).toContain(plain("Comorbidities are named as a category but never itemised"));
   });
 
   it("keeps a literal pipe intact rather than escaping it, since Word has no table syntax", async () => {
     const text = visibleText(await documentXml());
     expect(text).toContain("blood culture positivity | adjudicated by two intensivists");
     expect(text).not.toContain("\\|");
+  });
+
+  describe("house style", () => {
+    it("sets Times New Roman 12pt as the document default", async () => {
+      const zip = await JSZip.loadAsync(await buildDocx(fixtureSpec));
+      const styles = await zip.file("word/styles.xml")!.async("string");
+      expect(styles).toContain(HOUSE_FONT);
+      expect(styles).toContain('w:sz w:val="24"');
+    });
+
+    it("uses no colour anywhere but black", async () => {
+      const zip = await JSZip.loadAsync(await buildDocx(fixtureSpec));
+      for (const part of ["word/document.xml", "word/styles.xml"]) {
+        const xml = await zip.file(part)!.async("string");
+        const colours = [...xml.matchAll(/w:color w:val="([0-9A-Fa-f]{6})"/g)].map((m) => m[1]);
+        const nonBlack = colours.filter((c) => c.toUpperCase() !== "000000");
+        expect(nonBlack, `${part} carries colour: ${nonBlack.join(", ")}`).toEqual([]);
+      }
+    });
+
+    it("contains no em dash, en dash or smart punctuation", async () => {
+      const text = visibleText(await documentXml());
+      for (const glyph of ["\u2014", "\u2013", "\u2018", "\u2019", "\u201C", "\u201D", "\u2026"]) {
+        expect(text, `found ${escape(glyph)}`).not.toContain(glyph);
+      }
+    });
+
+    it("draws no horizontal rules", async () => {
+      const xml = await documentXml();
+      // A rule is a paragraph border; only table cells may carry borders.
+      expect(xml).not.toContain("<w:pBdr>");
+    });
   });
 
   it("switches the section 3 heading with the framework", async () => {
@@ -89,9 +124,10 @@ describe("the short action document as .docx", () => {
   it("carries every action row's own words", async () => {
     const text = visibleText(await documentXml(fixtureActionSpec));
     for (const [area, issue, change] of fixtureActionSpec.issues_table.rows) {
-      expect(text, `missing area: ${area}`).toContain(area);
-      expect(text, `missing issue: ${issue}`).toContain(issue);
-      expect(text, `missing change: ${change}`).toContain(change);
+      // House style rewrites punctuation, so compare against the plain form.
+      expect(text, `missing area: ${area}`).toContain(plain(area));
+      expect(text, `missing issue: ${issue}`).toContain(plain(issue));
+      expect(text, `missing change: ${change}`).toContain(plain(change));
     }
   });
 

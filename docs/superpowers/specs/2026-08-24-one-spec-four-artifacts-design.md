@@ -316,6 +316,24 @@ a half-specified draft can still render something to argue over.
 `test_invariants.js` breaks a clean spec once per guard and asserts each fires.
 A mutation that stops failing means a guard has rotted.
 
+## House style, for every .docx
+
+One rule for all four documents, enforced in `src/lib/render/house-style.ts` and
+shared by every renderer:
+
+- **Times New Roman, 12pt, throughout.** Headings are distinguished by weight
+  alone, because "12pt" is a blanket instruction and a larger heading breaks it.
+- **Black on white only.** Every built-in Word style is overridden, not merely
+  the ones we use, because the library otherwise emits blue headings and blue
+  hyperlinks into a document meant to be black and white.
+- **No rules or decorative lines.** Only table cells carry borders, and those are
+  black.
+- **No em dashes, en dashes, smart quotes, ellipsis characters or decorative
+  glyphs.** `plain()` rewrites them at the renderer boundary, so the Markdown
+  artifacts and the canonical builder stay untouched.
+- **No generated-text vocabulary.** The prohibited list lives in `workflow.md`,
+  so the model avoids it at source rather than having it patched at render time.
+
 ## Renderers
 
 Four pure functions, one shared formatting library so two renderers cannot format
