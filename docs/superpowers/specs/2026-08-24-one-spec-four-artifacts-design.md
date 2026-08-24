@@ -25,6 +25,8 @@ mismatch is not something to detect, because it cannot be expressed.
 | Does the Sprint-1 spine exist? | No. Build schema, validator, mutation tests from the architecture doc. |
 | One spec or two? | **One.** `study_spec.json` gains a `review` block; all four documents render from it. |
 | Scope this round | Spine + ingest + all four renderers. No form editor. |
+| Design coverage | **All** designs in the schema and the gate from day one; renderers ship by family, commonest first. An unsupported family is rejected, never approximated. |
+| Deep-read additions | Estimand, structured sample size, eligibility registry, timepoint windows. |
 | Use the `.skill` bundles in `~/Downloads`? | **No** — build from the architecture doc. Flagged: the resulting CRF and shell-table formats may differ in detail from the ones currently handed to students. |
 
 ## Architecture
@@ -58,15 +60,17 @@ cross-reference.
 
 | Registry | Holds |
 |---|---|
-| `study` | title, design, framework, guideline, population, groups, sample size |
-| `timepoints` | every occasion anything is measured |
-| `objectives` | question, tier, outcome refs |
+| `study` | title, design, **design_detail**, framework, guideline, setting, centres, recruitment period, population, groups |
+| `timepoints` | every occasion anything is measured, **with its window** |
+| `objectives` | question, tier, **estimand**, comparison type and margin, outcome refs |
 | `outcomes` | definition, instrument, timepoint, data type, summary statistic, **source variables** |
 | `variables` | **role**, data type, **subtype**, unit, categories, **definition source and reference**, reference level, CRF placement, derivation |
 | `analyses` | objective → outcome → unadjusted test → adjusted model → covariates → tables |
 | `tables` | number, block, title, kind, row variables, columns, footnote |
 | `crf_sections` | sections and sub-sections, in order |
-| `populations`, `multiplicity`, `sensitivity_analyses`, `open_items` | analysis rules |
+| `eligibility` | inclusion and exclusion criteria as numbered, checkable items |
+| `sample_size` | formula, sourced inputs, α, power, effect, attrition, n, powered outcome |
+| `populations`, `multiplicity`, `sensitivity_analyses`, `missing_data`, `open_items` | analysis rules |
 | `review` | the Step 1 critique, so Protocol Understanding renders from here too |
 
 Three choices carry the weight:
@@ -84,6 +88,91 @@ decides what appears on which document.
 **One concept, one wording.** `label` is the single authoritative string. Two
 objects sharing a label is an error. This is what literally delivers "no mismatch
 of a single line": there is only one line, stored once.
+
+## Every design, and what the documents mean for each
+
+The spec must cover every design Step 1 can classify. That is not the same as
+every design rendering the same three documents — for several families, the
+documents are different artefacts wearing the same names.
+
+| Family | "CRF" is | "SAP" is | "Shell tables" are |
+|---|---|---|---|
+| Interventional; cohort; case–control; cross-sectional | patient-level data form | statistical analysis plan | descriptive + primary/secondary/exploratory outcome tables |
+| Diagnostic accuracy | index-test and reference-standard form | accuracy analysis plan | 2×2, sensitivity/specificity/PPV/NPV/LR, ROC |
+| Prognostic / prediction model | predictor and outcome form | model development and validation plan | discrimination, calibration, performance |
+| Reliability / agreement | rater and occasion form | agreement plan | ICC, kappa, Bland–Altman |
+| Economic evaluation | resource-use form | economic analysis plan | cost, effectiveness, ICER, sensitivity |
+| Qualitative | interview or observation guide | analytic approach and trustworthiness | theme and quotation matrix |
+| Mixed methods | both strands' instruments | both plans plus the integration point | both catalogues |
+| Evidence synthesis | data-extraction form | synthesis plan | PRISMA flow, study characteristics, risk of bias, forest-plot shells |
+
+**A design whose renderers are not implemented is rejected by the gate, never
+approximated.** A half-right CRF is worse than no CRF, because it will be used.
+
+### Design-specific required blocks
+
+`design_detail` is a per-family block whose required fields the gate enforces.
+Each one exists because omitting it makes a document wrong, not merely thin:
+
+| Design | Required | Why it changes a document |
+|---|---|---|
+| Case–control | matching variables, ratio | Matching variables must be **on the CRF**, and the analysis must be **conditional** logistic regression |
+| Cluster randomised | ICC, cluster size, unit of allocation | Sample size needs the design effect; analysis needs a mixed model |
+| Crossover | washout, periods, sequences | The CRF needs per-period visits; the SAP needs carryover |
+| Cohort | follow-up schedule, censoring rule, loss-to-follow-up definition | A time-to-event outcome needs a censoring date field |
+| Randomised, any | sequence generation, concealment, blinding, ratio | CONSORT cannot be reported without them |
+| Diagnostic | index test, reference standard, blinding, indeterminate handling | STARD tables cannot be built |
+| Non-inferiority | margin δ, one-sided α | Both a sample-size input and an analysis rule |
+
+Matching is the most-forgotten item in thesis case–control studies. Making it a
+required field means it cannot be forgotten.
+
+**Sequencing.** The schema and the gate cover every family from day one, so
+nothing renders half-right. Renderers ship by family, commonest first:
+interventional and observational patient-level, then diagnostic and reliability,
+then evidence synthesis, then qualitative.
+
+## Objectives carry an estimand
+
+An objective is a question; an estimand is what the study is actually trying to
+estimate. The primary objective declares all five ICH E9(R1) attributes:
+treatment condition, population, endpoint, **intercurrent-event strategy**, and
+population-level summary.
+
+The intercurrent-event strategy is the attribute thesis protocols always omit,
+and it decides the analysis: what happens when a patient stops treatment, gets
+rescue therapy, or dies before the endpoint. Naming it forces the decision to be
+made before data collection rather than argued about afterwards.
+
+Objectives also declare the comparison type — **superiority, non-inferiority or
+equivalence** — and, for the latter two, the margin δ, which is simultaneously a
+sample-size input and an analysis rule.
+
+## Sample size is computed, not quoted
+
+A structured block, not a sentence: the formula, every input **with the source it
+came from**, α, power, the effect being detected, the attrition allowance, the
+resulting n, and `powered_outcome_id`.
+
+That makes it checkable. `SS03` recomputes n from the stated inputs and fails when
+the arithmetic does not reproduce — the check Step 1 currently performs by hand.
+`SS01`/`SS02` already require that the study is powered on the **primary** outcome
+and no other.
+
+## Eligibility is a registry
+
+Inclusion and exclusion criteria as discrete, numbered, individually checkable
+items, each optionally bound to a variable.
+
+This earns three things: the CRF gets an eligibility checklist, `GDL01`'s
+screening-log requirement gains the fields a CONSORT or STROBE flow diagram
+actually needs, and the gate can detect a criterion gap — a range that leaves
+patients covered by neither the inclusion nor the exclusion rule, the ASA I/II
+versus "ASA > III" error from the worked example.
+
+Timepoints likewise carry a **window**, not just a label: "Day 28" is unusable,
+"Day 28 ± 3" is a protocol. The CRF prints the window, and a visit outside it is
+a protocol deviation.
 
 ## The traceability chain
 
