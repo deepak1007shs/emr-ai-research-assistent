@@ -325,6 +325,7 @@ export async function draftStudySpec(
     schema: Record<string, unknown>,
     instruction: string,
     soFar: Record<string, unknown> | null,
+    stageName = "a stage",
   ): Promise<Record<string, unknown>> {
     const content: Anthropic.ContentBlockParam[] = [protocolBlock(protocol)];
     if (soFar) {
@@ -338,7 +339,9 @@ export async function draftStudySpec(
     const spent = { ...totals };
     const stream = client.messages.stream({
       model: MODEL,
-      max_tokens: 32000,
+      // The variables stage is the largest output by far, one entry per variable
+      // with its form field, so every stage gets the full streaming ceiling.
+      max_tokens: 64000,
       thinking: { type: "adaptive" },
       output_config: { effort: EFFORT, format: { type: "json_schema", schema } },
       system: [
@@ -365,7 +368,9 @@ export async function draftStudySpec(
     totals.cache_read_input_tokens += message.usage.cache_read_input_tokens ?? 0;
 
     if (message.stop_reason === "max_tokens") {
-      throw new IngestError("A stage was cut off before it finished.");
+      throw new IngestError(
+        `The "${stageName}" stage was cut off before it finished. The protocol may define more variables than one response can carry.`,
+      );
     }
     const text = message.content
       .filter((b): b is Anthropic.TextBlock => b.type === "text")
@@ -378,7 +383,12 @@ export async function draftStudySpec(
   for (const stage of STAGES) {
     options.onProgress?.(stage.note);
     // Each stage sees the running result, so the chain stays consistent.
-    const part = await ask(stage.schema, stage.instruction, Object.keys(model).length ? model : null);
+    const part = await ask(
+      stage.schema,
+      stage.instruction,
+      Object.keys(model).length ? model : null,
+      stage.note,
+    );
     model = { ...model, ...part };
   }
 
@@ -396,7 +406,7 @@ analyses and tables again, corrected so that these problems are gone. Change not
 
 ${errors.map((f) => `${f.code} at ${f.path}: ${f.message}`).join("\n")}`;
     try {
-      const fixed = await ask(STAGE3_SCHEMA, repairInstruction, model);
+      const fixed = await ask(STAGE3_SCHEMA, repairInstruction, model, "repair");
       spec = normalise({ ...model, ...fixed });
       result = validate(spec);
       repaired = true;
