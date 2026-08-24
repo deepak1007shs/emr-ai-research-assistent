@@ -1,6 +1,5 @@
 import {
   AlignmentType,
-  BorderStyle,
   Document,
   HeadingLevel,
   Packer,
@@ -12,6 +11,7 @@ import {
   WidthType,
 } from "docx";
 import type { ActionSpec, ReviewSpec } from "@/lib/protocol/schema";
+import { HOUSE_BORDER, HOUSE_STYLES, plain } from "./house-style";
 
 /**
  * The Word renderer.
@@ -22,9 +22,12 @@ import type { ActionSpec, ReviewSpec } from "@/lib/protocol/schema";
  * headings agree.
  */
 
-/** Collapses newlines the way the Markdown builder's `clean()` does. */
-const clean = (v?: string) => String(v ?? "").replace(/\s*\n\s*/g, " ").trim();
-const bodyText = (v?: string) => String(v ?? "").trim();
+/**
+ * Collapses newlines the way the Markdown builder's `clean()` does, then applies
+ * the house style: no em dashes, no smart punctuation, no decorative glyphs.
+ */
+const clean = (v?: string) => plain(String(v ?? "").replace(/\s*\n\s*/g, " "));
+const bodyText = (v?: string) => plain(v);
 
 type Block = Paragraph | Table;
 
@@ -70,20 +73,13 @@ function labelledBullet(label: string, value: string, level = 1) {
   });
 }
 
-/** The `---` rule between the header and the body. */
-function rule() {
-  return new Paragraph({
-    spacing: { before: 130, after: 200 },
-    border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "CCCCCC", space: 1 } },
-  });
-}
-
 function table(headers: string[], rows: (readonly string[])[]): Table {
   const n = headers.length;
   const cellOf = (text: string, bold: boolean) =>
     new TableCell({
       children: [new Paragraph({ children: [new TextRun({ text: clean(text), bold })] })],
       margins: { top: 70, bottom: 70, left: 110, right: 110 },
+      borders: { top: HOUSE_BORDER, bottom: HOUSE_BORDER, left: HOUSE_BORDER, right: HOUSE_BORDER },
     });
 
   return new Table({
@@ -124,7 +120,6 @@ export async function buildDocx(input: ReviewSpec | ActionSpec): Promise<Buffer>
       alignment: AlignmentType.LEFT,
     }),
   );
-  doc.push(rule());
   if (spec.protocol_line) {
     doc.push(
       new Paragraph({
@@ -250,9 +245,8 @@ export async function buildDocx(input: ReviewSpec | ActionSpec): Promise<Buffer>
 
   // ---- footer
   if (spec.footer) {
-    doc.push(rule());
     doc.push(italic(spec.footer));
   }
 
-  return Packer.toBuffer(new Document({ sections: [{ children: doc }] }));
+  return Packer.toBuffer(new Document({ styles: HOUSE_STYLES, sections: [{ children: doc }] }));
 }
