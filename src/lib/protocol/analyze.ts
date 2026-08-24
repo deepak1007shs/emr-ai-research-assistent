@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { loadKnowledge } from "./knowledge";
+import { loadKnowledge } from "./knowledge.ts";
 import {
   MODEL_REVIEW_JSON_SCHEMA,
   modelReviewSchema,
@@ -7,9 +7,9 @@ import {
   toReviewSpec,
   type ActionSpec,
   type ReviewSpec,
-} from "./schema";
-import type { ExtractedProtocol } from "./extract";
-import type { TokenUsage } from "./pricing";
+} from "./schema.ts";
+import type { ExtractedProtocol } from "./extract.ts";
+import type { TokenUsage } from "./pricing.ts";
 
 /**
  * The review model and effort.

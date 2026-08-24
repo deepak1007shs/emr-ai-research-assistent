@@ -1,9 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createRequire } from "node:module";
-import { loadKnowledge } from "../protocol/knowledge";
-import { EFFORT, MODEL } from "../protocol/analyze";
-import type { TokenUsage } from "../protocol/pricing";
-import type { ExtractedProtocol } from "../protocol/extract";
+import { loadKnowledge } from "../protocol/knowledge.ts";
+import { EFFORT, MODEL } from "../protocol/analyze.ts";
+import type { TokenUsage } from "../protocol/pricing.ts";
+import type { ExtractedProtocol } from "../protocol/extract.ts";
 import { STUDY_SPEC_JSON_SCHEMA } from "./ingest-schema.ts";
 import type { StudySpec } from "./types.ts";
 
