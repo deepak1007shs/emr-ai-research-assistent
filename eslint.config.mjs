@@ -15,6 +15,10 @@ const eslintConfig = defineConfig([
     // Vendored verbatim from the canonical CommonJS builder — kept byte-for-byte
     // so it stays interchangeable with the copy used outside this app.
     "src/lib/render/build_review_md.js",
+    // Zero-dependency CommonJS gate, runnable standalone and from CI.
+    "src/lib/study-spec/validate_study_spec.js",
+    "src/lib/study-spec/invariants/*.js",
+    "src/lib/study-spec/test_invariants.js",
   ]),
 ]);
 
