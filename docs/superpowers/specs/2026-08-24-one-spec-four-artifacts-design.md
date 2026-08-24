@@ -61,8 +61,8 @@ cross-reference.
 | `study` | title, design, framework, guideline, population, groups, sample size |
 | `timepoints` | every occasion anything is measured |
 | `objectives` | question, tier, outcome refs |
-| `outcomes` | definition, instrument, timepoint, data type, summary statistic, source variables |
-| `variables` | **role**, data type, unit, categories, reference level, CRF placement, derivation |
+| `outcomes` | definition, instrument, timepoint, data type, summary statistic, **source variables** |
+| `variables` | **role**, data type, **subtype**, unit, categories, **definition source and reference**, reference level, CRF placement, derivation |
 | `analyses` | objective → outcome → unadjusted test → adjusted model → covariates → tables |
 | `tables` | number, block, title, kind, row variables, columns, footnote |
 | `crf_sections` | sections and sub-sections, in order |
@@ -84,6 +84,76 @@ decides what appears on which document.
 **One concept, one wording.** `label` is the single authoritative string. Two
 objects sharing a label is an error. This is what literally delivers "no mismatch
 of a single line": there is only one line, stored once.
+
+## The traceability chain
+
+Nothing in the spec floats. Every object earns its place by being reachable along
+one chain, and the gate walks it in both directions.
+
+```
+objective  ──▶  outcome(s)  ──▶  variable(s)  ──▶  CRF field(s)
+    ▲                                                    │
+    └──────────── nothing exists that isn't on this chain ┘
+```
+
+**Forwards — nothing is less.** Every objective must name at least one outcome;
+an objective with no outcome is a wish, not a question. Every outcome must name
+the variables required to measure it; an outcome with no source variables cannot
+be collected. Every one of those variables must end in a CRF field, directly if
+captured or through its derivation chain if computed.
+
+**Backwards — nothing is extra.** Every variable must be reachable from some
+outcome, analysis or table, and every CRF field must trace back to a variable
+that something needs. A field that traces to nothing is asking a patient a
+question no one will analyse.
+
+The two directions together are what make the four documents agree: the CRF
+contains exactly what the outcomes require, no more and no less, and the shell
+tables report exactly what the objectives asked.
+
+### Type and subtype
+
+Each variable carries two classifications, because one is not enough to choose a
+summary statistic or a test.
+
+- **`data_type`** — the statistical kind: `continuous`, `count`, `binary`,
+  `ordinal`, `nominal`, `time_to_event`, `date`, `text`.
+- **`subtype`** — the finer distinction that changes the analysis: a `continuous`
+  variable that is a ratio versus an interval scale; a `count` that is bounded
+  versus unbounded; a `time_to_event` and its censoring rule; an `ordinal` scale
+  and the number of levels.
+
+`data_type` plus `subtype` determine the summary statistic and the permissible
+tests, so the existing `TEST01–05` guards read from them rather than from a
+free-text guess.
+
+### Definitions come from the protocol, or from a standard
+
+A category set is never invented. Every variable whose levels are clinical states
+declares where those levels come from:
+
+- **`definition_source`** — `protocol` or `standard`.
+- **`definition_reference`** — the exact quote from the protocol, or the named
+  classification: ISGPS for POPF and PPH, Clavien–Dindo for complications, CDC
+  criteria for SSI, KDIGO for AKI, NYHA, ASA, mRS, RECIST, and so on.
+
+If the protocol defines the outcome, the spec quotes the protocol and the CRF
+prints those levels. If the protocol is silent — which is the common case, and
+one of the commonest findings in Step 1's reviews — the spec names the standard
+being adopted, and that choice surfaces in the SAP where the guide can see it and
+object. A grade is never left to the data collector's judgement.
+
+### Invariants this adds
+
+| Code | Rule |
+|---|---|
+| `OBJ02` | Every objective names at least one outcome. |
+| `OUT07` | Every outcome names at least one source variable. |
+| `OUT08` | Every source variable resolves, and its chain terminates in CRF fields. |
+| `OUT09` | An outcome's summary statistic is one its `data_type` and `subtype` permit. |
+| `VAR14` | Every variable declares both `data_type` and `subtype`. |
+| `VAR15` | Every variable with clinical category levels declares `definition_source` and `definition_reference`. |
+| `VAR16` | **WARN** — an outcome variable whose definition is neither quoted from the protocol nor attributed to a named standard. |
 
 ## Raw and rich in, derived out
 
