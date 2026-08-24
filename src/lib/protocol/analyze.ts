@@ -9,8 +9,23 @@ import {
   type ReviewSpec,
 } from "./schema";
 import type { ExtractedProtocol } from "./extract";
+import type { TokenUsage } from "./pricing";
 
-export const MODEL = "claude-opus-5";
+/**
+ * The review model and effort.
+ *
+ * Sonnet 5 at `high` was chosen deliberately over Opus 5 at `xhigh`: output
+ * tokens are ~70% of the bill, so thinking depth and output rate dominate the
+ * cost, not the size of the protocol. Override per environment if a particular
+ * protocol deserves more reasoning.
+ */
+export const MODEL = process.env.REVIEW_MODEL ?? "claude-sonnet-5";
+export const EFFORT = (process.env.REVIEW_EFFORT ?? "high") as
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh"
+  | "max";
 
 export type AnalysisResult = {
   /** The six-section narrative review. */
@@ -18,12 +33,8 @@ export type AnalysisResult = {
   /** The short companion: the blockers only, as a numbered action table. */
   actionSpec: ActionSpec;
   model: string;
-  usage: {
-    input_tokens: number;
-    output_tokens: number;
-    cache_creation_input_tokens: number;
-    cache_read_input_tokens: number;
-  };
+  effort: string;
+  usage: TokenUsage;
 };
 
 export class AnalysisError extends Error {
@@ -98,7 +109,11 @@ export function apiMessage(error: { message: string }): string {
 
 export async function analyzeProtocol(
   protocol: ExtractedProtocol,
-  options: { onProgress?: (note: string) => void } = {},
+  options: {
+    onProgress?: (note: string) => void;
+    /** Fires as tokens accumulate, so the UI can show the job growing. */
+    onUsage?: (usage: TokenUsage) => void;
+  } = {},
 ): Promise<AnalysisResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new AnalysisError(
@@ -117,7 +132,7 @@ export async function analyzeProtocol(
       max_tokens: 64000,
       thinking: { type: "adaptive" },
       output_config: {
-        effort: "xhigh",
+        effort: EFFORT,
         format: { type: "json_schema", schema: MODEL_REVIEW_JSON_SCHEMA },
       },
       // The knowledge block is byte-identical on every request, so it sits
@@ -135,10 +150,30 @@ export async function analyzeProtocol(
     });
 
     let announced = false;
-    stream.on("streamEvent", () => {
+    const running: TokenUsage = {
+      input_tokens: 0,
+      output_tokens: 0,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+    };
+
+    stream.on("streamEvent", (event) => {
       if (!announced) {
         announced = true;
         options.onProgress?.("Analysing design, objectives and sample size");
+      }
+
+      // message_start carries the input side; message_delta carries a running
+      // output count. Together they let the UI show the bill as it accrues.
+      if (event.type === "message_start") {
+        const u = event.message.usage;
+        running.input_tokens = u.input_tokens ?? 0;
+        running.cache_creation_input_tokens = u.cache_creation_input_tokens ?? 0;
+        running.cache_read_input_tokens = u.cache_read_input_tokens ?? 0;
+        options.onUsage?.({ ...running });
+      } else if (event.type === "message_delta") {
+        running.output_tokens = event.usage.output_tokens ?? running.output_tokens;
+        options.onUsage?.({ ...running });
       }
     });
 
@@ -189,6 +224,7 @@ export async function analyzeProtocol(
       spec: toReviewSpec(result.data),
       actionSpec: toActionSpec(result.data),
       model: message.model,
+      effort: EFFORT,
       usage: {
         input_tokens: message.usage.input_tokens,
         output_tokens: message.usage.output_tokens,

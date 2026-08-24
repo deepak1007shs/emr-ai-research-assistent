@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SiteHeader } from "@/components/site-header";
 import { UploadForm } from "@/components/upload-form";
+import { UsageTotal } from "@/components/usage-panel";
+import type { TokenUsage } from "@/lib/protocol/pricing";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -14,7 +16,7 @@ export default async function HomePage() {
 
   const { data: reviews } = await supabase
     .from("reviews")
-    .select("id, status, created_at, protocols ( filename )")
+    .select("id, status, created_at, model, usage, protocols ( filename )")
     .order("created_at", { ascending: false })
     .limit(10);
 
@@ -35,7 +37,15 @@ export default async function HomePage() {
 
         {reviews && reviews.length > 0 && (
           <section className="mt-14">
-            <h2 className="mb-3 text-sm font-semibold">Recent reviews</h2>
+            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-sm font-semibold">Recent reviews</h2>
+              <UsageTotal
+                rows={reviews.map((r) => ({
+                  model: r.model,
+                  usage: (r.usage as TokenUsage | null) ?? null,
+                }))}
+              />
+            </div>
             <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
               {reviews.map((review) => {
                 const protocol = review.protocols as unknown as

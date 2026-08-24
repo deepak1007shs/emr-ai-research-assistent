@@ -86,10 +86,55 @@ npm test        # renderer and schema tests
 npm run lint
 ```
 
-## Cost
+## Cost and model policy
 
-Roughly **$0.30–0.50** per review on a 60-page protocol (Claude Opus 5, xhigh
-effort), dropping to around $0.15 once the knowledge base is cache-warm.
+Every review records its own token usage, and the app shows it three ways: a
+live meter while the review runs, a per-review breakdown on the review page, and
+a running total on the home page. Rates live in
+[`src/lib/protocol/pricing.ts`](src/lib/protocol/pricing.ts).
+
+### Where the money actually goes
+
+Measured on a real 45,000-character thesis protocol, run on Opus 5 at `xhigh`:
+
+| | Tokens | Cost |
+|---|---|---|
+| Protocol read in | 16,872 | $0.08 |
+| Knowledge base written to cache | 23,453 | $0.15 |
+| Review written out | 21,590 | **$0.54** |
+| | | **$0.77** |
+
+**Output is ~70% of the bill.** That is the single most important fact for
+tuning cost, and it is counter-intuitive: trimming the protocol barely helps
+(the whole thesis cost eight cents to read), while thinking depth and the output
+rate dominate. Prompt caching saves about $0.13 on a warm run — real, but small
+next to the output side.
+
+### Which model, which phase
+
+The default is **Sonnet 5 at `high` effort**, set in
+[`analyze.ts`](src/lib/protocol/analyze.ts) and overridable per environment:
+
+```bash
+REVIEW_MODEL=claude-opus-5   # for a final protocol that deserves more reasoning
+REVIEW_EFFORT=xhigh
+```
+
+The rule of thumb across the pipeline: **spend on judgement, economise on
+mechanics.** A phase that decides something everything downstream depends on
+gets the better model; a phase that transforms already-decided content does not.
+
+| Phase | Model | Why |
+|---|---|---|
+| Protocol review (this step) | Sonnet 5, `high` | The design classification and sample-size verdict are the judgements the SAP and CRF inherit. This is the one place worth paying for — move it to Opus 5 if the verdicts start disappointing. |
+| SAP generation | Sonnet 5, `medium`–`high` | The hard call was already made and stored in the review spec; this phase turns a fixed design into an analysis plan. |
+| CRF generation | Haiku 4.5 | Largely mechanical from the stored outcomes and variables. |
+| Dummy tables, formatting, tidying | Haiku 4.5 | No methodological judgement involved. |
+| Section extraction from huge theses | Not worth it | A cheap pre-pass to strip CVs and references would save ~$0.05. Input is not the problem. |
+
+Effort is the cheaper lever than model in most cases: dropping `xhigh` to `high`
+cuts thinking tokens without changing which model reasons about the protocol.
+Reserve `max` for a protocol you already suspect is subtly wrong.
 
 ## Not in this step
 

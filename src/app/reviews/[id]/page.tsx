@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { actionSpecSchema, reviewSpecSchema } from "@/lib/protocol/schema";
 import { ActionTable } from "@/components/action-table";
 import { ReviewDocument } from "@/components/review-document";
+import { UsagePanel } from "@/components/usage-panel";
+import type { TokenUsage } from "@/lib/protocol/pricing";
 import { SiteHeader } from "@/components/site-header";
 
 export const metadata = { title: "Review — SAP Builder" };
@@ -126,6 +128,12 @@ export default async function ReviewPage({
             </div>
           </div>
         </div>
+
+        {review.usage && (
+          <div className="mb-8">
+            <UsagePanel usage={review.usage as TokenUsage} model={review.model} />
+          </div>
+        )}
 
         {actions && (
           <div className="mb-10">

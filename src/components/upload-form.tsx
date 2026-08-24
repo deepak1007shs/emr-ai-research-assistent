@@ -3,10 +3,28 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+type Usage = {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens: number;
+  cache_read_input_tokens: number;
+};
+
 type Event =
   | { type: "status"; message: string }
+  | { type: "usage"; usage: Usage; model: string; cost: number }
   | { type: "done"; reviewId: string }
   | { type: "error"; message: string };
+
+/** Kept local to the client bundle rather than importing the server-side pricing module. */
+function fmtTokens(count: number): string {
+  return count < 1000 ? String(count) : `${(count / 1000).toFixed(1)}k`;
+}
+
+function fmtUsd(amount: number): string {
+  if (amount === 0) return "$0.00";
+  return amount < 0.01 ? `$${amount.toFixed(4)}` : `$${amount.toFixed(2)}`;
+}
 
 export function UploadForm() {
   const router = useRouter();
@@ -15,11 +33,15 @@ export function UploadForm() {
   const [text, setText] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [meter, setMeter] = useState<{ usage: Usage; model: string; cost: number } | null>(
+    null,
+  );
   const running = status !== null;
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
+    setMeter(null);
     setStatus("Uploading");
 
     const form = new FormData();
@@ -71,6 +93,7 @@ export function UploadForm() {
         }
 
         if (event.type === "status") setStatus(event.message);
+        if (event.type === "usage") setMeter(event);
         if (event.type === "error") {
           setError(event.message);
           setStatus(null);
@@ -157,9 +180,37 @@ export function UploadForm() {
             <span className="inline-block size-2 animate-pulse rounded-full bg-accent" />
             {status}
           </p>
-          <p className="mt-1.5 text-xs text-muted">
-            A full review takes a few minutes. Leave this tab open.
-          </p>
+
+          {meter ? (
+            <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-border pt-3 text-xs sm:grid-cols-4">
+              <div>
+                <dt className="text-muted">Read in</dt>
+                <dd className="font-mono">
+                  {fmtTokens(
+                    meter.usage.input_tokens +
+                      meter.usage.cache_creation_input_tokens +
+                      meter.usage.cache_read_input_tokens,
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted">Written out</dt>
+                <dd className="font-mono">{fmtTokens(meter.usage.output_tokens)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Cost so far</dt>
+                <dd className="font-mono">{fmtUsd(meter.cost)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Model</dt>
+                <dd className="truncate font-mono">{meter.model.replace("claude-", "")}</dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="mt-1.5 text-xs text-muted">
+              A full review takes a few minutes. Leave this tab open.
+            </p>
+          )}
         </div>
       )}
     </form>

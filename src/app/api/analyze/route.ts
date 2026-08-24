@@ -6,15 +6,17 @@ import {
   extractProtocol,
   type ExtractedProtocol,
 } from "@/lib/protocol/extract";
-import { analyzeProtocol } from "@/lib/protocol/analyze";
+import { MODEL, analyzeProtocol } from "@/lib/protocol/analyze";
+import { costOf, type TokenUsage } from "@/lib/protocol/pricing";
 import { build } from "@/lib/render/markdown";
 
 export const runtime = "nodejs";
-// A full review at xhigh effort can run for several minutes.
+// A full review can run for several minutes.
 export const maxDuration = 800;
 
 type Event =
   | { type: "status"; message: string }
+  | { type: "usage"; usage: TokenUsage; model: string; cost: number }
   | { type: "done"; reviewId: string }
   | { type: "error"; message: string };
 
@@ -109,8 +111,30 @@ export async function POST(request: NextRequest) {
         if (reviewError) throw new Error(reviewError.message);
         reviewId = reviewRow.id;
 
+        // Throttled: a token count that repaints on every delta is noise, and
+        // each event is a write to an open connection.
+        let lastUsageAt = 0;
         const result = await analyzeProtocol(protocol, {
           onProgress: (message) => send({ type: "status", message }),
+          onUsage: (usage) => {
+            const now = Date.now();
+            if (now - lastUsageAt < 700) return;
+            lastUsageAt = now;
+            send({
+              type: "usage",
+              usage,
+              model: MODEL,
+              cost: costOf(MODEL, usage).total,
+            });
+          },
+        });
+
+        // A final, unthrottled reading so the last tokens are never missed.
+        send({
+          type: "usage",
+          usage: result.usage,
+          model: result.model,
+          cost: costOf(result.model, result.usage).total,
         });
 
         const markdown = build(result.spec);
