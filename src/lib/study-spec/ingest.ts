@@ -223,7 +223,11 @@ export type IngestResult = {
 
 export async function draftStudySpec(
   protocol: ExtractedProtocol,
-  options: { onProgress?: (note: string) => void } = {},
+  options: {
+    onProgress?: (note: string) => void;
+    /** Fires as tokens accumulate, so the caller can show the bill growing. */
+    onUsage?: (usage: TokenUsage) => void;
+  } = {},
 ): Promise<IngestResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new IngestError("ANTHROPIC_API_KEY is not set.");
@@ -247,6 +251,28 @@ export async function draftStudySpec(
         { type: "text", text: knowledge, cache_control: { type: "ephemeral", ttl: "1h" } },
       ],
       messages: [{ role: "user", content: userContent(protocol, repair) }],
+    });
+
+    // Two calls may run (draft, then repair), so the running total carries the
+    // tokens already spent plus this call's output as it streams.
+    const spent = { ...totals };
+    stream.on("streamEvent", (event) => {
+      if (event.type === "message_start") {
+        const u = event.message.usage;
+        options.onUsage?.({
+          input_tokens: spent.input_tokens + (u.input_tokens ?? 0),
+          output_tokens: spent.output_tokens,
+          cache_creation_input_tokens:
+            spent.cache_creation_input_tokens + (u.cache_creation_input_tokens ?? 0),
+          cache_read_input_tokens:
+            spent.cache_read_input_tokens + (u.cache_read_input_tokens ?? 0),
+        });
+      } else if (event.type === "message_delta") {
+        options.onUsage?.({
+          ...spent,
+          output_tokens: spent.output_tokens + (event.usage.output_tokens ?? 0),
+        });
+      }
     });
 
     const message = await stream.finalMessage();

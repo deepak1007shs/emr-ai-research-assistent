@@ -5,6 +5,7 @@ import { actionSpecSchema, reviewSpecSchema } from "@/lib/protocol/schema";
 import { ActionTable } from "@/components/action-table";
 import { ReviewDocument } from "@/components/review-document";
 import { UsagePanel } from "@/components/usage-panel";
+import { BuildSpecButton } from "@/components/build-spec-button";
 import type { TokenUsage } from "@/lib/protocol/pricing";
 import { SiteHeader } from "@/components/site-header";
 
@@ -26,7 +27,7 @@ export default async function ReviewPage({
   const { data: review } = await supabase
     .from("reviews")
     .select(
-      "id, status, error, markdown, spec, action_spec, model, usage, created_at, protocols ( filename )",
+      "id, protocol_id, status, error, markdown, spec, action_spec, model, usage, created_at, protocols ( filename )",
     )
     .eq("id", id)
     .single();
@@ -56,6 +57,17 @@ export default async function ReviewPage({
       </>
     );
   }
+
+  // One specification per protocol: if one already exists, link to it rather
+  // than paying to draft a second.
+  const { data: existingSpec } = await supabase
+    .from("study_specs")
+    .select("id")
+    .eq("protocol_id", review.protocol_id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const existingSpecId = existingSpec?.id ?? null;
 
   const parsed = reviewSpecSchema.safeParse(review.spec);
   // Reviews produced before the action document existed simply have no action
@@ -108,6 +120,17 @@ export default async function ReviewPage({
                 </div>
               </div>
             )}
+
+            <div>
+              <p className="mb-1.5 text-xs font-semibold text-muted">
+                Step 2: the study documents
+              </p>
+              <BuildSpecButton
+                protocolId={review.protocol_id}
+                reviewId={review.id}
+                existingSpecId={existingSpecId}
+              />
+            </div>
 
             <div>
               <p className="mb-1.5 text-xs font-semibold text-muted">Full review</p>
