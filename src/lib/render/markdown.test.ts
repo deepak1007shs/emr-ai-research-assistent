@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { build } from "./markdown";
-import { fixtureSpec } from "./fixture";
+import { fixtureActionSpec, fixtureSpec } from "./fixture";
 
 /**
  * These assertions lock the canonical format produced by the vendored
@@ -103,5 +103,56 @@ describe("markdown renderer", () => {
     expect(minimal).toContain("## 1. Title of the Study");
     expect(minimal).not.toContain("## 5.");
     expect(minimal).not.toContain("## 6.");
+  });
+});
+
+describe("the short action document", () => {
+  const md = build(fixtureActionSpec);
+
+  it("renders the compact variant and nothing else", () => {
+    expect(md.split("\n").filter((l) => /^## /.test(l))).toEqual([
+      "## Issues & Required Changes",
+    ]);
+    // None of the six narrative sections may appear in this document.
+    expect(md).not.toContain("Title of the Study");
+    expect(md).not.toContain("Objectives and Their Outcomes");
+    expect(md).not.toContain("Very Important Issues");
+    expect(md).not.toContain("Study snapshot");
+  });
+
+  it("uses the four canonical column headers", () => {
+    expect(md).toContain("| Area | Issue in the study | Change needed | Priority |");
+  });
+
+  it("numbers the rows 1..N in order, since order is the priority", () => {
+    const priorities = md
+      .split("\n")
+      .filter((l) => l.startsWith("|") && !l.includes("Area |") && !l.startsWith("| ---"))
+      .map((l) => l.replace(/\\\|/g, "").split("|").map((c) => c.trim()).at(-2));
+    expect(priorities).toEqual(["1", "2", "3"]);
+  });
+
+  it("keeps every row at four columns even when a cell contains a pipe", () => {
+    const rows = md.split("\n").filter((l) => l.startsWith("|"));
+    for (const row of rows) {
+      expect(row.replace(/\\\|/g, "").split("|")).toHaveLength(6);
+    }
+    expect(md).toContain("\\|");
+  });
+});
+
+describe("the two documents never merge", () => {
+  it("the narrative spec carries no compact-variant fields", () => {
+    // The builder renders issues_table ABOVE section 1, so a narrative spec
+    // carrying one would stack the action table on top of the full review.
+    expect(fixtureSpec).not.toHaveProperty("issues_table");
+    expect(fixtureSpec).not.toHaveProperty("snapshot");
+    expect(build(fixtureSpec)).not.toContain("Issues & Required Changes");
+  });
+
+  it("the action spec carries none of the narrative sections", () => {
+    expect(fixtureActionSpec).not.toHaveProperty("title");
+    expect(fixtureActionSpec).not.toHaveProperty("objectives");
+    expect(fixtureActionSpec).not.toHaveProperty("key_issues");
   });
 });

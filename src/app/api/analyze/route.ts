@@ -114,6 +114,7 @@ export async function POST(request: NextRequest) {
         });
 
         const markdown = build(result.spec);
+        const actionMarkdown = build(result.actionSpec);
 
         const { error: updateError } = await supabase
           .from("reviews")
@@ -121,6 +122,8 @@ export async function POST(request: NextRequest) {
             status: "complete",
             spec: result.spec,
             markdown,
+            action_spec: result.actionSpec,
+            action_markdown: actionMarkdown,
             model: result.model,
             usage: result.usage,
             completed_at: new Date().toISOString(),

@@ -15,6 +15,9 @@ import { z } from "zod";
 
 export const SUBTITLE = "Design · Objectives · Outcomes · Sample Size · Key Issues";
 
+/** The short companion document: the blockers only, as a numbered action table. */
+export const ACTION_SUBTITLE = "Issues & Required Changes";
+
 export const VERDICTS = ["Correct", "Partial", "Wrong formula", "Absent"] as const;
 
 // ---------------------------------------------------------------------------
@@ -57,6 +60,14 @@ export const modelReviewSchema = z.object({
     .array(z.object({ heading: z.string().min(1), body: z.string().min(1) }))
     .min(1),
   footer: z.string(),
+  /** The short action document. Array order is the priority — there is no severity field. */
+  action_items: z.array(
+    z.object({
+      area: z.string().min(1),
+      issue: z.string().min(1),
+      change: z.string().min(1),
+    }),
+  ),
 });
 
 export type ModelReview = z.infer<typeof modelReviewSchema>;
@@ -139,6 +150,31 @@ export const reviewSpecSchema = z
   })
   .strict();
 
+/**
+ * The short action document.
+ *
+ * A spec of its own rather than extra fields on the review spec: the builder
+ * renders `issues_table` *above* Section 1, so one spec carrying both would put
+ * the action table on top of the full review. Two specs, two documents.
+ */
+export type ActionSpec = {
+  subtitle: string;
+  protocol_line: string;
+  issues_table: { rows: [string, string, string, string][] };
+  footer: string;
+};
+
+const actionRow = z.tuple([z.string(), z.string(), z.string(), z.string()]);
+
+export const actionSpecSchema = z
+  .object({
+    subtitle: z.string().min(1),
+    protocol_line: z.string(),
+    issues_table: z.object({ rows: z.array(actionRow) }).strict(),
+    footer: z.string(),
+  })
+  .strict();
+
 export function toReviewSpec(model: ModelReview): ReviewSpec {
   return {
     subtitle: SUBTITLE,
@@ -154,6 +190,22 @@ export function toReviewSpec(model: ModelReview): ReviewSpec {
     sample_size: model.sample_size,
     key_issues: model.key_issues.map((i) => [i.heading, i.body] as [string, string]),
     footer: model.footer,
+    // `snapshot` and `issues_table` are deliberately left unset — see ActionSpec.
+  };
+}
+
+export function toActionSpec(model: ModelReview): ActionSpec {
+  return {
+    subtitle: ACTION_SUBTITLE,
+    protocol_line: model.protocol_line,
+    issues_table: {
+      // The rank *is* the priority column; the array order carries it.
+      rows: model.action_items.map(
+        (a, i) => [a.area, a.issue, a.change, String(i + 1)] as [string, string, string, string],
+      ),
+    },
+    footer:
+      "The blockers only, in the order they should be addressed. The full Protocol Understanding & Review document carries the reasoning behind each one, along with the smaller corrections not listed here.",
   };
 }
 
@@ -242,6 +294,23 @@ export const MODEL_REVIEW_JSON_SCHEMA = obj({
     type: "array",
     description: "Most important first. A short heading plus one full plain-language paragraph that names the problem, points to where it is, and gives the fix. A protocol with real problems warrants 8-12 of these.",
     items: obj({ heading: str, body: str }),
+  },
+  action_items: {
+    type: "array",
+    description:
+      "The short action document: BLOCKERS ONLY, most critical first, typically 5-10 rows. A blocker invalidates the study if left alone, or an examiner or ethics committee will certainly raise it. Every row must correspond to a key_issues entry or a sample_size.issues entry — this is a compression of the long review, never a separate opinion. Do not pad to reach a number.",
+    items: obj({
+      area: {
+        ...str,
+        description: "Two or three words, e.g. 'Sample size', 'Ethics', 'Randomisation', 'Primary outcome'.",
+      },
+      issue: { ...str, description: "The problem in one sentence." },
+      change: {
+        ...str,
+        description:
+          "An imperative instruction the researcher can act on, not a description of the problem. Write 'Choose one primary outcome and define it as the 30-day Clavien-Dindo >= II rate', not 'The primary outcome is unclear'.",
+      },
+    }),
   },
   footer: {
     ...str,

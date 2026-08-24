@@ -11,7 +11,7 @@ import {
   TextRun,
   WidthType,
 } from "docx";
-import type { ReviewSpec } from "@/lib/protocol/schema";
+import type { ActionSpec, ReviewSpec } from "@/lib/protocol/schema";
 
 /**
  * The Word renderer.
@@ -105,7 +105,10 @@ function table(headers: string[], rows: (readonly string[])[]): Table {
   });
 }
 
-export async function buildDocx(spec: ReviewSpec): Promise<Buffer> {
+export async function buildDocx(input: ReviewSpec | ActionSpec): Promise<Buffer> {
+  // Both spec shapes render through here, exactly as they do through the
+  // Markdown builder: each section appears only if its field is present.
+  const spec = input as Partial<ReviewSpec> & Partial<ActionSpec> & { subtitle: string };
   const doc: Block[] = [];
 
   // ---- header

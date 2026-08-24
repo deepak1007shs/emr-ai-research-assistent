@@ -2,10 +2,12 @@ import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 import { buildDocx } from "./docx";
 import { build } from "./markdown";
-import { fixtureSpec } from "./fixture";
+import { fixtureActionSpec, fixtureSpec } from "./fixture";
 
 /** Unzips the .docx and returns the text of `word/document.xml`. */
-async function documentXml(spec = fixtureSpec): Promise<string> {
+async function documentXml(
+  spec: Parameters<typeof buildDocx>[0] = fixtureSpec,
+): Promise<string> {
   const zip = await JSZip.loadAsync(await buildDocx(spec));
   const file = zip.file("word/document.xml");
   expect(file).not.toBeNull();
@@ -66,5 +68,36 @@ describe("docx renderer", () => {
     );
     expect(pico).toContain("3. PICO (Intervention question)");
     expect(pico).not.toContain("3. PECO");
+  });
+});
+
+describe("the short action document as .docx", () => {
+  it("contains the action table and none of the narrative sections", async () => {
+    const text = visibleText(await documentXml(fixtureActionSpec));
+
+    expect(text).toContain("Issues & Required Changes");
+    expect(text).toContain("Area");
+    expect(text).toContain("Issue in the study");
+    expect(text).toContain("Change needed");
+    expect(text).toContain("Priority");
+
+    expect(text).not.toContain("Title of the Study");
+    expect(text).not.toContain("Objectives and Their Outcomes");
+    expect(text).not.toContain("Very Important Issues");
+  });
+
+  it("carries every action row's own words", async () => {
+    const text = visibleText(await documentXml(fixtureActionSpec));
+    for (const [area, issue, change] of fixtureActionSpec.issues_table.rows) {
+      expect(text, `missing area: ${area}`).toContain(area);
+      expect(text, `missing issue: ${issue}`).toContain(issue);
+      expect(text, `missing change: ${change}`).toContain(change);
+    }
+  });
+
+  it("is materially shorter than the full review", async () => {
+    const short = (await buildDocx(fixtureActionSpec)).byteLength;
+    const full = (await buildDocx(fixtureSpec)).byteLength;
+    expect(short).toBeLessThan(full);
   });
 });

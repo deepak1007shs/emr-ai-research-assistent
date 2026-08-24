@@ -1,4 +1,9 @@
-import { SUBTITLE, type ReviewSpec } from "@/lib/protocol/schema";
+import {
+  SUBTITLE,
+  toActionSpec,
+  type ActionSpec,
+  type ReviewSpec,
+} from "@/lib/protocol/schema";
 
 /**
  * A hand-written spec used by the renderer tests. The awkward content is
@@ -83,3 +88,39 @@ export const fixtureSpec: ReviewSpec = {
   ],
   footer: "Prepared for postgraduate protocol review. Every criticism above carries its fix.",
 };
+
+/** The short companion document for the same protocol. */
+export const fixtureActionSpec: ActionSpec = toActionSpec({
+  protocol_line: "Protocol reviewed: MD thesis protocol — Department of Medicine",
+  title: { as_written: "x", suggestions: [] },
+  type: { classification: "x", suggestions: [] },
+  peco: { framework: "PECO", intro: "", rows: [] },
+  objectives: {
+    primary: { objective: "x", outcome: "x" },
+    secondary: [],
+    exploratory: [],
+  },
+  sample_size: { what_they_did: "x", verdict: "x", issues: [] },
+  key_issues: [["x", "x"]].map(([heading, body]) => ({ heading, body })),
+  footer: "",
+  action_items: [
+    {
+      area: "Sample size",
+      issue:
+        "The study is powered with a prevalence formula although its aim is diagnostic accuracy.",
+      change:
+        "Recalculate using separate sensitivity and specificity formulas | divide each by prevalence and (1 − prevalence), and take the larger total.",
+    },
+    {
+      area: "Study design",
+      issue: "The protocol calls itself cross-sectional while the aim is test accuracy.",
+      change: "Relabel it a diagnostic accuracy study and report it to STARD.",
+    },
+    {
+      area: "Data collection",
+      issue: "The proforma records \"comorbidities\" as a single free-text line.",
+      change:
+        "Pre-list each comorbidity as its own yes/no field before data collection starts.",
+    },
+  ],
+});

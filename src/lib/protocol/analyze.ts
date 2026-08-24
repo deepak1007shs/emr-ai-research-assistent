@@ -3,7 +3,9 @@ import { loadKnowledge } from "./knowledge";
 import {
   MODEL_REVIEW_JSON_SCHEMA,
   modelReviewSchema,
+  toActionSpec,
   toReviewSpec,
+  type ActionSpec,
   type ReviewSpec,
 } from "./schema";
 import type { ExtractedProtocol } from "./extract";
@@ -11,7 +13,10 @@ import type { ExtractedProtocol } from "./extract";
 export const MODEL = "claude-opus-5";
 
 export type AnalysisResult = {
+  /** The six-section narrative review. */
   spec: ReviewSpec;
+  /** The short companion: the blockers only, as a numbered action table. */
+  actionSpec: ActionSpec;
   model: string;
   usage: {
     input_tokens: number;
@@ -166,6 +171,7 @@ export async function analyzeProtocol(
 
     return {
       spec: toReviewSpec(result.data),
+      actionSpec: toActionSpec(result.data),
       model: message.model,
       usage: {
         input_tokens: message.usage.input_tokens,

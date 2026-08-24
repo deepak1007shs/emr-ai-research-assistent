@@ -183,3 +183,24 @@ You do state that the trial will be CTRI-registered and will follow the CONSORT 
 ---
 
 *Prepared as a protocol understanding and review document for Dr Vineet Kumar, Department of General Surgery, PGIMER Chandigarh. Sections 1 to 5 report what the protocol itself says together with the corrections needed; Section 6 lists the most important issues to fix before the study starts, in plain words. Design classified as a two-arm parallel-group superiority RCT (reporting guideline: CONSORT 2010).*
+
+---
+
+## The short action document for the same protocol
+
+The twelve key issues above compress to these six blockers. Note what was
+**left out**: the title wording (Section 1), the missing CONSORT flow diagram,
+the tense and repetition in the statistics section, the 90-day quality-of-life
+suggestion, and the equipoise re-wording — all real, all in the long review,
+none of them blockers.
+
+Note also that `Change needed` always tells the researcher what to *do*.
+
+| Area | Issue in the study | Change needed | Priority |
+| --- | --- | --- | --- |
+| Ethics | The Ethical Justification section calls this "an observational study... there will be no change in treatment protocol", which describes a different study entirely. | Rewrite the section for an interventional RCT: state the prehabilitation intervention, the randomisation, the equipoise, and that the control arm receives full standard ERAS. | 1 |
+| Primary outcome | The aim names "postoperative complications within 30 days", but ten candidate outcomes are listed and none is designated primary. | Choose one primary outcome and define it exactly — the proportion with any Clavien–Dindo grade >= II complication within 30 days — and label every other outcome secondary. | 2 |
+| Sample size | The 60 patients are powered on delayed gastric emptying (40.9% vs 5.6%), a secondary PD complication, not on the stated primary outcome. | Recalculate the sample size on the chosen primary outcome, and justify the assumed effect from prehabilitation-specific evidence rather than a single external DGE figure. | 3 |
+| Study design | The methods call the trial "Single Blinded Open Labelled Prospective Randomized Control Trial", which cannot all be true at once. | Replace the design label everywhere with "open-label, assessor-blinded, two-arm parallel-group superiority randomised controlled trial", and drop "prospective" from the design name. | 4 |
+| Randomisation | Sequence generation is offered as "computer-generated random numbers OR sealed envelope", and allocation concealment is not described. | Commit to a computer-generated sequence, and state who generates it, who enrols patients, and that allocation is concealed in sequentially numbered opaque sealed envelopes opened only after enrolment. | 5 |
+| Eligibility | Inclusion allows ASA I/II and exclusion is written as "ASA > III", so ASA III patients are covered by neither rule. | Close the gap explicitly: include ASA I–II and exclude ASA >= III, so that no eligible patient falls between the two criteria. | 6 |

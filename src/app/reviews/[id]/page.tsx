@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { reviewSpecSchema } from "@/lib/protocol/schema";
+import { actionSpecSchema, reviewSpecSchema } from "@/lib/protocol/schema";
+import { ActionTable } from "@/components/action-table";
 import { ReviewDocument } from "@/components/review-document";
 import { SiteHeader } from "@/components/site-header";
 
@@ -22,7 +23,9 @@ export default async function ReviewPage({
 
   const { data: review } = await supabase
     .from("reviews")
-    .select("id, status, error, markdown, spec, model, usage, created_at, protocols ( filename )")
+    .select(
+      "id, status, error, markdown, spec, action_spec, model, usage, created_at, protocols ( filename )",
+    )
     .eq("id", id)
     .single();
 
@@ -53,6 +56,12 @@ export default async function ReviewPage({
   }
 
   const parsed = reviewSpecSchema.safeParse(review.spec);
+  // Reviews produced before the action document existed simply have no action
+  // list — the section and its buttons are hidden rather than offering a
+  // download that would fail.
+  const actionParsed = actionSpecSchema.safeParse(review.action_spec);
+  const actions = actionParsed.success ? actionParsed.data : null;
+
   if (review.status !== "complete" || !parsed.success) {
     return (
       <>
@@ -69,28 +78,60 @@ export default async function ReviewPage({
     <>
       <SiteHeader email={user.email} />
       <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-12">
-        <div className="no-print mb-8 flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <Link href="/" className="text-xs text-accent underline underline-offset-2">
-              ← All reviews
-            </Link>
-            {filename && <p className="mt-1 truncate text-xs text-muted">{filename}</p>}
-          </div>
-          <div className="flex gap-2">
-            <a
-              href={`/api/reviews/${review.id}/export?format=docx`}
-              className="rounded-lg bg-accent px-3 py-2 text-xs font-medium text-white"
-            >
-              Download .docx
-            </a>
-            <a
-              href={`/api/reviews/${review.id}/export?format=md`}
-              className="rounded-lg border border-border px-3 py-2 text-xs font-medium"
-            >
-              Download .md
-            </a>
+        <div className="no-print mb-8">
+          <Link href="/" className="text-xs text-accent underline underline-offset-2">
+            ← All reviews
+          </Link>
+          {filename && <p className="mt-1 truncate text-xs text-muted">{filename}</p>}
+
+          <div className="mt-4 space-y-3">
+            {actions && (
+              <div>
+                <p className="mb-1.5 text-xs font-semibold text-muted">
+                  Action list — the blockers only
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href={`/api/reviews/${review.id}/export?doc=actions&format=docx`}
+                    className="rounded-lg bg-accent px-3 py-2 text-xs font-medium text-white"
+                  >
+                    Download action list (.docx)
+                  </a>
+                  <a
+                    href={`/api/reviews/${review.id}/export?doc=actions&format=md`}
+                    className="rounded-lg border border-border px-3 py-2 text-xs font-medium"
+                  >
+                    .md
+                  </a>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <p className="mb-1.5 text-xs font-semibold text-muted">Full review</p>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={`/api/reviews/${review.id}/export?doc=review&format=docx`}
+                  className="rounded-lg border border-border px-3 py-2 text-xs font-medium"
+                >
+                  Download full review (.docx)
+                </a>
+                <a
+                  href={`/api/reviews/${review.id}/export?doc=review&format=md`}
+                  className="rounded-lg border border-border px-3 py-2 text-xs font-medium"
+                >
+                  .md
+                </a>
+              </div>
+            </div>
           </div>
         </div>
+
+        {actions && (
+          <div className="mb-10">
+            <ActionTable spec={actions} />
+          </div>
+        )}
 
         <ReviewDocument spec={parsed.data} />
 

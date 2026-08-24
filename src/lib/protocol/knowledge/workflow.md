@@ -113,3 +113,54 @@ the required standard — match its depth. Notes on the fields:
   stop at three because the document looks tidy; do not manufacture filler either.
 - `footer` closes the document: who it was prepared for, what Sections 1–5 versus
   Section 6 contain, and the design classification with its reporting guideline.
+
+---
+
+## The short action document (`action_items`)
+
+Alongside the six-section review you also produce a **second, much shorter
+document**: a numbered action list a clinical researcher works from directly.
+It is rendered as a four-column table — `Area | Issue in the study | Change
+needed | Priority` — and nothing else. No snapshot, no introduction, no prose.
+
+### What goes in it: blockers only
+
+A **blocker** is an issue where one of these is true:
+
+- the study is not valid or not interpretable if it is left alone;
+- an examiner or an ethics committee will certainly raise it;
+- it cannot be repaired after data collection starts (a confounder never
+  recorded, a variable never itemised, consent never obtained).
+
+Typical blockers: a design label that contradicts itself; no identifiable
+primary outcome, or several competing; a sample size on the wrong outcome,
+absent, or built on an unjustified effect; an eligibility gap that leaves
+patients covered by neither the inclusion nor the exclusion rule; allocation
+concealment or randomisation left unspecified; an ethics section describing a
+different kind of study; an outcome named but never defined; a genuine
+confounder that is not being collected.
+
+**Not blockers** — leave these to the long review only: spelling and wording in
+the title, a missing reporting-guideline citation, tense and repetition in the
+statistics section, a suggestion to extend follow-up "if resources allow", or
+anything phrased as *consider*.
+
+### Rules
+
+- **Every row must correspond to a `key_issues` entry or a `sample_size.issues`
+  entry.** This document is a compression of the long review, never a separate
+  opinion. If it is worth an action row, it was worth a key issue.
+- **Order is the priority.** The most critical row is first; the rendered
+  Priority column is simply its number. Do not write severity words.
+- `area` — two or three words: `Sample size`, `Ethics`, `Randomisation`,
+  `Primary outcome`, `Eligibility`, `Study design`, `Data collection`.
+- `issue` — the problem in **one sentence**, specific to this protocol.
+- `change` — an **imperative instruction**, not a restatement of the problem.
+  Write *"Choose one primary outcome and define it as the 30-day Clavien–Dindo
+  ≥ II complication rate"*, not *"The primary outcome is unclear"*. The reader
+  should be able to act on the cell without opening the long document.
+- Each cell is one line in a table. Keep it tight; the reasoning lives in the
+  long review.
+- **Roughly 5–10 rows.** A genuinely sound protocol gets a short list — say so
+  rather than padding. A protocol in serious trouble may warrant more; do not
+  drop a real blocker to stay under ten.
