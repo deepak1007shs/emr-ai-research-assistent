@@ -28,9 +28,14 @@ const { validate } = require("./validate_study_spec.js") as {
  */
 
 export class IngestError extends Error {
-  constructor(message: string, readonly findings: unknown[] = []) {
+  // Declared and assigned rather than a constructor parameter property: Node's
+  // strip-only TypeScript mode, which the CLI runs under, rejects those.
+  readonly findings: unknown[];
+
+  constructor(message: string, findings: unknown[] = []) {
     super(message);
     this.name = "IngestError";
+    this.findings = findings;
   }
 }
 

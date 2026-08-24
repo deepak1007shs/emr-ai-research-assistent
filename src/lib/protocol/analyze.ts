@@ -38,12 +38,14 @@ export type AnalysisResult = {
 };
 
 export class AnalysisError extends Error {
-  constructor(
-    message: string,
-    readonly cause?: unknown,
-  ) {
+  // Declared and assigned rather than a constructor parameter property: Node's
+  // strip-only TypeScript mode, which the CLI scripts run under, rejects those.
+  readonly cause?: unknown;
+
+  constructor(message: string, cause?: unknown) {
     super(message);
     this.name = "AnalysisError";
+    this.cause = cause;
   }
 }
 
