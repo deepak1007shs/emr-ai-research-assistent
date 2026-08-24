@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "spec:validate": "node src/lib/study-spec/validate_study_spec.js src/lib/study-spec/example_study_spec.json --final",
     "spec:mutate": "node src/lib/study-spec/test_invariants.js",
-    "spec:render": "node --experimental-strip-types scripts/render-documents.mts"
+    "spec:render": "node --experimental-strip-types scripts/render-documents.mts",
+    "spec:draft": "node --experimental-strip-types scripts/draft-spec.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
