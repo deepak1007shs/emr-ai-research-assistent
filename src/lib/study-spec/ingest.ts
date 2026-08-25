@@ -46,6 +46,33 @@ export class IngestError extends Error {
 }
 
 const NONE = new Set(["", "none", "n/a", "not applicable"]);
+
+/**
+ * Effect measures arrive as prose ("Odds ratio (OR) with 95% CI") often enough
+ * that mapping them is worth doing even with the schema constrained: the guards
+ * compare against a token, and a token is what a table column is built from.
+ */
+const EFFECT_MEASURES: [RegExp, string][] = [
+  [/hazard\s*ratio|\bhr\b/i, "hazard_ratio"],
+  [/risk\s*difference|absolute\s*risk\s*reduction/i, "risk_difference"],
+  [/relative\s*risk|risk\s*ratio|\brr\b/i, "risk_ratio"],
+  [/rate\s*ratio|incidence\s*rate\s*ratio/i, "rate_ratio"],
+  [/odds\s*ratio|\bor\b/i, "odds_ratio"],
+  [/median\s*difference|hodges/i, "median_difference"],
+  [/mean\s*difference/i, "mean_difference"],
+  [/sensitivity|specificity/i, "sensitivity_specificity"],
+  [/correlation/i, "correlation"],
+  [/proportion|frequency|percentage/i, "proportion"],
+];
+
+function canonicalEffect(value?: string): string | undefined {
+  const raw = clean(value);
+  if (!raw) return undefined;
+  for (const [pattern, token] of EFFECT_MEASURES) {
+    if (pattern.test(raw)) return token;
+  }
+  return raw;
+}
 const clean = (v?: string) => (v && !NONE.has(v.trim().toLowerCase()) ? v.trim() : undefined);
 const list = (v?: string[]) => (v && v.length ? v : undefined);
 
@@ -123,7 +150,7 @@ export function normalise(model: ModelSpec, specVersion = "0.1.0"): StudySpec {
     unadjusted_test: a.unadjusted_test,
     ...(clean(a.adjusted_model) ? { adjusted_model: a.adjusted_model } : {}),
     ...(list(a.covariate_ids) ? { covariate_ids: a.covariate_ids } : {}),
-    ...(clean(a.effect_measure) ? { effect_measure: a.effect_measure } : {}),
+    ...(canonicalEffect(a.effect_measure) ? { effect_measure: canonicalEffect(a.effect_measure) } : {}),
     ...(list(a.table_ids) ? { table_ids: a.table_ids } : {}),
     ...(typeof a.paired === "boolean" ? { paired: a.paired } : {}),
     ...(clean(a.ph_check) ? { ph_check: a.ph_check } : {}),
@@ -256,7 +283,12 @@ give every clinical category set its definition_source and definition_reference
 (quote the protocol, or name the standard: ISGPS, Clavien-Dindo, CDC, KDIGO, ASA).
 
 Create the crf_sections, ids beginning sec_, one per baseline block and one per
-follow-up visit, each tied to a timepoint you already defined.`,
+follow-up visit, each tied to a timepoint you already defined.
+
+If the reporting guideline is CONSORT or STROBE, you MUST include an
+administrative variable recording the screening outcome for every person
+assessed (randomised or enrolled, ineligible, declined, other). Without it the
+flow diagram those guidelines require cannot be drawn.`,
   },
   {
     key: "stage3",

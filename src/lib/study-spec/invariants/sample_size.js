@@ -65,15 +65,29 @@ function input(ss, aliases) {
  * Recompute n from the inputs.
  * @returns {{n?: number, perGroup?: boolean, used?: string[], unverifiable?: string}}
  */
+/**
+ * Formulas sized for precision rather than for detecting a difference. They use
+ * alpha alone, so requiring a power would reject a perfectly correct
+ * calculation — a prevalence study is not underpowered, it is not powered.
+ */
+const PRECISION_BASED = new Set(['single_proportion', 'single_mean']);
+
 function recompute(ss) {
+  const formulaName = norm(ss.formula);
+  const precisionOnly = PRECISION_BASED.has(formulaName);
+
   const zA = invNorm(1 - (ss.alpha || 0) / 2);
-  const zB = invNorm(ss.power || 0);
-  if (!Number.isFinite(zA) || !Number.isFinite(zB)) {
-    return { unverifiable: `alpha (${ss.alpha}) and power (${ss.power}) must both lie strictly between 0 and 1` };
+  if (!Number.isFinite(zA)) {
+    return { unverifiable: `alpha (${ss.alpha}) must lie strictly between 0 and 1` };
+  }
+
+  const zB = precisionOnly ? 0 : invNorm(ss.power || 0);
+  if (!Number.isFinite(zB)) {
+    return { unverifiable: `power (${ss.power}) must lie strictly between 0 and 1 for a ${formulaName} calculation` };
   }
 
   const need = (label) => ({ unverifiable: `it states no ${label}` });
-  const formula = norm(ss.formula);
+  const formula = formulaName;
 
   if (formula === 'single_proportion') {
     const p = input(ss, ['p', 'p1', 'prevalence', 'proportion', 'expected_proportion']);

@@ -169,13 +169,25 @@ function check(spec, ctx) {
       });
     }
 
-    const clinical = (v.categories || []).length > 0;
-    if (clinical && (!v.definition_source || !v.definition_reference)) {
+    // A graded scale must cite its source; a plain two-level fact like sex need
+    // not. The rule exists so no grade is left to the data collector's
+    // judgement, not to make every category set cite a reference.
+    const isGrade =
+      (v.categories || []).length > 0 &&
+      (v.data_type === 'ordinal' || v.role === 'outcome_source');
+    if (isGrade && (!v.definition_source || !v.definition_reference)) {
       out.push({
         code: 'VAR15',
         severity: 'ERROR',
         path: p,
-        message: `${v.id} has clinical categories but does not say where they come from. Quote the protocol, or name the standard (ISGPS, Clavien-Dindo, CDC, KDIGO...). A grade must never be left to the data collector's judgement.`,
+        message: `${v.id} is a graded or outcome variable but does not say where its levels come from. Quote the protocol, or name the standard (ISGPS, Clavien-Dindo, CDC, KDIGO...). A grade must never be left to the data collector's judgement.`,
+      });
+    } else if ((v.categories || []).length > 2 && !v.definition_reference) {
+      out.push({
+        code: 'VAR15',
+        severity: 'WARN',
+        path: p,
+        message: `${v.id} has ${(v.categories || []).length} categories with no stated source. Say where the list came from, so two data collectors choose the same one.`,
       });
     }
 

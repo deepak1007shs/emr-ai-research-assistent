@@ -44,3 +44,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 rendered/
+jay-documents/
+jay-study-spec.json
+*.draft.json
+*.stages
