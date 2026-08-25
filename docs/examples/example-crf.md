@@ -188,14 +188,6 @@ of discharge. Do not enter it here.*
 | 2 | Withdrawal or loss to follow-up | Single-select | ☐ Yes  ☐ No |
 | 3 | Reason for withdrawal or loss | Text | \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_ |
 
-### Investigator Sign-off
-
-| # | Field / Variable | Field type | Response |
-|---|---|---|---|
-| 1 | Data collected by (name) | Text | \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_ |
-| 2 | Data verified by (name) | Text | \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_ |
-| 3 | Date | Date | \_\_\_ / \_\_\_ / \_\_\_\_\_\_ |
-
 ---
 
 ### Values calculated from this form, not collected on it
