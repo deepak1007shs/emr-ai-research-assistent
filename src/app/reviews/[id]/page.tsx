@@ -5,7 +5,6 @@ import { actionSpecSchema, reviewSpecSchema } from "@/lib/protocol/schema";
 import { ActionTable } from "@/components/action-table";
 import { ReviewDocument } from "@/components/review-document";
 import { UsagePanel } from "@/components/usage-panel";
-import { DocumentButtons } from "@/components/document-buttons";
 import { IssueAnswers } from "@/components/issue-answers";
 import type { TokenUsage } from "@/lib/protocol/pricing";
 import { SiteHeader } from "@/components/site-header";
@@ -58,21 +57,6 @@ export default async function ReviewPage({
       </>
     );
   }
-
-  // The newest specification that actually has content. A draft that never
-  // finished, or one that failed, is not something to send the user to: linking
-  // to it leaves the documents unreachable with no explanation.
-  const { data: existingSpec } = await supabase
-    .from("study_specs")
-    .select("id, status")
-    .eq("protocol_id", review.protocol_id)
-    .not("spec", "is", null)
-    .neq("status", "failed")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const existingSpecId = existingSpec?.id ?? null;
-  const specSigned = existingSpec?.status === "signed" || existingSpec?.status === "locked";
 
   const parsed = reviewSpecSchema.safeParse(review.spec);
   // Reviews produced before the action document existed simply have no action
@@ -163,15 +147,6 @@ export default async function ReviewPage({
             reviewId={review.id}
             issues={parsed.data.key_issues}
             initial={review.answers}
-          />
-        </div>
-
-        <div className="mb-10">
-          <DocumentButtons
-            protocolId={review.protocol_id}
-            reviewId={review.id}
-            specId={existingSpecId}
-            signed={specSigned}
           />
         </div>
 

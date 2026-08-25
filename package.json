@@ -8,11 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "spec:validate": "node src/lib/study-spec/validate_study_spec.js src/lib/study-spec/example_study_spec.json --final",
-    "spec:mutate": "node src/lib/study-spec/test_invariants.js",
-    "spec:render": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/render-documents.mts",
-    "spec:draft": "node --env-file-if-exists=.env.local --experimental-strip-types scripts/draft-spec.mts"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

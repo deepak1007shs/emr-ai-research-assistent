@@ -41,8 +41,8 @@ export function IssueAnswers({
       <h2 className="text-base font-semibold">Your answers to these issues</h2>
       <p className="mt-1 text-sm text-muted">
         Answer as many as you want to, in your own words. These are treated as
-        decisions: where an answer contradicts the protocol, the answer wins, and the
-        case record form, the analysis plan and the tables are all built around it.
+        decisions rather than notes: where an answer contradicts the protocol, the
+        answer is what the study will do. They are saved against this review.
       </p>
 
       {issues.length > 0 && (
