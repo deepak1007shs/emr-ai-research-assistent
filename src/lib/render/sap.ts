@@ -1,6 +1,6 @@
 import { indexSpec, isDerived, type StudySpec } from "../study-spec/types.ts";
 import {
-  bullet, h1, h2, italic, labelled, para, table, title, toBuffer, versionStamp,
+  bullet, h1, h2, italic, labelled, para, table, title, statusNotice, toBuffer, versionStamp,
   type Block,
 } from "./docx-kit.ts";
 
@@ -14,13 +14,17 @@ import {
 
 const TIER_ORDER = { primary: 0, secondary: 1, exploratory: 2 } as const;
 
-export async function buildSapDocx(spec: StudySpec): Promise<Buffer> {
+export async function buildSapDocx(
+  spec: StudySpec,
+  options: { notice?: string } = {},
+): Promise<Buffer> {
   const ix = indexSpec(spec);
   const doc: Block[] = [];
 
   doc.push(title("Statistical Analysis Plan"));
   doc.push(para(spec.study.title));
   doc.push(versionStamp(spec.spec_version, "Statistical Analysis Plan"));
+  doc.push(...statusNotice(options.notice));
 
   // ---- 0
   doc.push(h1("Section 0. Study at a glance"));

@@ -6,7 +6,7 @@ import {
   type Variable,
 } from "../study-spec/types.ts";
 import {
-  bullet, h1, h2, italic, labelled, para, table, title, toBuffer, versionStamp,
+  bullet, h1, h2, italic, labelled, para, table, title, statusNotice, toBuffer, versionStamp,
   type Block,
 } from "./docx-kit.ts";
 
@@ -43,13 +43,17 @@ function responseFor(v: Variable): string {
   return crf.response;
 }
 
-export async function buildCrfDocx(spec: StudySpec): Promise<Buffer> {
+export async function buildCrfDocx(
+  spec: StudySpec,
+  options: { notice?: string } = {},
+): Promise<Buffer> {
   const ix = indexSpec(spec);
   const doc: Block[] = [];
 
   doc.push(title("Case Record Form"));
   doc.push(para(spec.study.title));
   doc.push(versionStamp(spec.spec_version, "Case Record Form"));
+  doc.push(...statusNotice(options.notice));
 
   doc.push(
     table(

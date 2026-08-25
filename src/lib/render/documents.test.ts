@@ -159,3 +159,29 @@ describe("shell tables", () => {
     expect(occurrences).toBe(1);
   });
 });
+
+describe("the status notice", () => {
+  it("is absent when nothing needs saying", async () => {
+    const { visible } = await parts(await buildCrfDocx(example));
+    expect(visible).not.toContain("DRAFT");
+  });
+
+  it("marks an unchecked document on its face", async () => {
+    const notice = "DRAFT. This specification has not been signed off.";
+    for (const build of [buildCrfDocx, buildSapDocx, buildShellTablesDocx]) {
+      const { visible } = await parts(await build(example, { notice }));
+      expect(visible).toContain("DRAFT");
+      expect(visible).toContain("has not been signed off");
+    }
+  });
+
+  it("still obeys the house style", async () => {
+    const { document, styles } = await parts(
+      await buildSapDocx(example, { notice: "DRAFT - not signed off." }),
+    );
+    for (const xml of [document, styles]) {
+      const colours = [...xml.matchAll(/w:color w:val="([0-9A-Fa-f]{6})"/g)].map((m) => m[1]);
+      expect(colours.filter((c) => c.toUpperCase() !== "000000")).toEqual([]);
+    }
+  });
+});

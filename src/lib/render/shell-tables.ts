@@ -1,5 +1,5 @@
 import { indexSpec, type ShellTable, type StudySpec, type Variable } from "../study-spec/types.ts";
-import { h1, h2, italic, para, table, title, toBuffer, versionStamp, type Block } from "./docx-kit.ts";
+import { h1, h2, italic, para, table, title, statusNotice, toBuffer, versionStamp, type Block } from "./docx-kit.ts";
 
 /**
  * The shell tables: every table the study will report, with the cells empty.
@@ -74,13 +74,17 @@ function renderTable(t: ShellTable, spec: StudySpec, ix: ReturnType<typeof index
   return blocks;
 }
 
-export async function buildShellTablesDocx(spec: StudySpec): Promise<Buffer> {
+export async function buildShellTablesDocx(
+  spec: StudySpec,
+  options: { notice?: string } = {},
+): Promise<Buffer> {
   const ix = indexSpec(spec);
   const doc: Block[] = [];
 
   doc.push(title("Shell Tables"));
   doc.push(para(spec.study.title));
   doc.push(versionStamp(spec.spec_version, "Shell tables"));
+  doc.push(...statusNotice(options.notice));
   doc.push(
     para(
       "Every table the study will report, with the cells left empty. Each row states the summary statistic it will carry, so the analysis has nothing left to decide once the data arrive.",

@@ -117,6 +117,23 @@ export function versionStamp(specVersion: string, documentName: string): Paragra
   );
 }
 
+/**
+ * Says whether anyone has checked this specification.
+ *
+ * A document is always produced on request, but an unchecked one must never
+ * look checked: the gate proves the documents agree with each other, not that
+ * the study is right, and only a person can say the latter.
+ */
+export function statusNotice(notice?: string): Paragraph[] {
+  if (!notice) return [];
+  return [
+    new Paragraph({
+      spacing: { after: 200 },
+      children: [new TextRun({ text: plain(notice), bold: true })],
+    }),
+  ];
+}
+
 export async function toBuffer(blocks: Block[]): Promise<Buffer> {
   return Packer.toBuffer(new Document({ styles: HOUSE_STYLES, sections: [{ children: blocks }] }));
 }

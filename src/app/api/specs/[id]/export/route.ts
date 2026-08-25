@@ -12,7 +12,10 @@ const DOCUMENTS = {
   crf: { build: buildCrfDocx, suffix: "case-record-form" },
   sap: { build: buildSapDocx, suffix: "statistical-analysis-plan" },
   tables: { build: buildShellTablesDocx, suffix: "shell-tables" },
-} as const;
+} as const satisfies Record<
+  string,
+  { build: (spec: StudySpec, options?: { notice?: string }) => Promise<Buffer>; suffix: string }
+>;
 
 type DocumentKey = keyof typeof DOCUMENTS;
 
@@ -56,30 +59,25 @@ export async function GET(
     return NextResponse.json({ error: "That specification is still being drafted." }, { status: 409 });
   }
 
-  // Gate G0. A document rendered from an unsigned specification would be used
-  // as though someone had checked it, which is the whole failure this prevents.
-  if (data.status !== "signed" && data.status !== "locked") {
-    return NextResponse.json(
-      { error: "This specification has not been signed off yet. Review the decisions and sign it before generating documents." },
-      { status: 409 },
-    );
-  }
 
-  // Re-run the gate here too: a stored snapshot can be stale, and this is the
-  // last check before a document goes out.
+
+  // The document is always produced. What changes is what it says about itself:
+  // an unchecked document must never look checked, and one built over unresolved
+  // findings must say so on its face rather than be silently withheld.
   const { errors } = gateSpec(data.spec);
-  if (errors.length) {
-    return NextResponse.json(
-      {
-        error: `This specification does not pass the gate (${errors.length} error(s)), so no document can be built from it.`,
-      },
-      { status: 409 },
-    );
-  }
+  const signed = data.status === "signed" || data.status === "locked";
+
+  const notice = signed
+    ? errors.length
+      ? `Signed off, but the specification still carries ${errors.length} unresolved finding(s). Read them before using this document.`
+      : undefined
+    : errors.length
+      ? `DRAFT. This specification has not been signed off and carries ${errors.length} unresolved finding(s). Do not submit this document.`
+      : "DRAFT. This specification has not been signed off. Read the decisions and sign it before this document is used.";
 
   const protocol = data.protocols as unknown as { filename: string } | null;
   const { build, suffix } = DOCUMENTS[doc as DocumentKey];
-  const buffer = await build(data.spec as StudySpec);
+  const buffer = await build(data.spec as StudySpec, { notice });
 
   return new Response(new Uint8Array(buffer), {
     headers: {

@@ -122,13 +122,13 @@ export function DocumentButtons({
         {signed
           ? "All three are built from one specification, so they cannot disagree with each other."
           : specId
-            ? "The specification is ready. Open any of the three below to read the decisions and sign it off; all three then become downloads."
+            ? "All three are ready to download. They are built from one specification, so they cannot disagree with each other."
             : "The specification is built once, whichever you press first. The other two are then free."}
       </p>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-3">
         {DOCUMENTS.map(([key, label, blurb]) =>
-          signed && specId ? (
+          specId ? (
             <a
               key={key}
               href={`/api/specs/${specId}/export?doc=${key}`}
@@ -136,25 +136,42 @@ export function DocumentButtons({
             >
               <span className="block text-sm font-medium">{label}</span>
               <span className="mt-0.5 block text-xs text-muted">{blurb}</span>
-              <span className="mt-2 block text-xs font-medium text-accent">Download .docx</span>
+              <span className="mt-2 block text-xs font-medium text-accent">
+                Download .docx
+              </span>
             </a>
           ) : (
             <button
               key={key}
               type="button"
               disabled={building}
-              onClick={() => (specId ? router.push(`/specs/${specId}`) : build(label))}
+              onClick={() => build(label)}
               className="rounded-lg border border-border p-3 text-left transition-colors hover:border-accent disabled:opacity-50"
             >
               <span className="block text-sm font-medium">{label}</span>
               <span className="mt-0.5 block text-xs text-muted">{blurb}</span>
               <span className="mt-2 block text-xs font-medium text-accent">
-                {specId ? "Read the decisions and sign off ->" : "Build the specification ->"}
+                Build the specification -&gt;
               </span>
             </button>
           ),
         )}
       </div>
+
+      {specId && !signed && (
+        <p className="mt-3 text-xs text-muted">
+          These download now and are marked DRAFT inside, because nobody has checked the
+          decisions yet.{" "}
+          <button
+            type="button"
+            onClick={() => router.push(`/specs/${specId}`)}
+            className="text-accent underline underline-offset-2"
+          >
+            Read them and sign off
+          </button>{" "}
+          to remove the mark.
+        </p>
+      )}
 
       {building && (
         <div className="mt-4 rounded-lg border border-border px-3 py-2.5">
