@@ -7,6 +7,7 @@ import { ReviewDocument } from "@/components/review-document";
 import { UsagePanel } from "@/components/usage-panel";
 import { IssueAnswers } from "@/components/issue-answers";
 import { SapButton } from "@/components/sap-button";
+import { CrfButton } from "@/components/crf-button";
 import type { TokenUsage } from "@/lib/protocol/pricing";
 import { SiteHeader } from "@/components/site-header";
 
@@ -62,6 +63,15 @@ export default async function ReviewPage({
   // One plan per protocol: link to it rather than paying to build another.
   const { data: existingSap } = await supabase
     .from("sap_plans")
+    .select("id")
+    .eq("protocol_id", review.protocol_id)
+    .eq("status", "ready")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { data: existingCrf } = await supabase
+    .from("crf_forms")
     .select("id")
     .eq("protocol_id", review.protocol_id)
     .eq("status", "ready")
@@ -166,6 +176,15 @@ export default async function ReviewPage({
             protocolId={review.protocol_id}
             reviewId={review.id}
             existingSapId={existingSap?.id ?? null}
+          />
+        </div>
+
+        <div className="mb-10">
+          <CrfButton
+            protocolId={review.protocol_id}
+            reviewId={review.id}
+            existingCrfId={existingCrf?.id ?? null}
+            hasSap={Boolean(existingSap?.id)}
           />
         </div>
 
