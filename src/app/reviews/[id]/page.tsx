@@ -8,6 +8,7 @@ import { UsagePanel } from "@/components/usage-panel";
 import { IssueAnswers } from "@/components/issue-answers";
 import { SapButton } from "@/components/sap-button";
 import { CrfButton } from "@/components/crf-button";
+import { TablesButton } from "@/components/tables-button";
 import type { TokenUsage } from "@/lib/protocol/pricing";
 import { SiteHeader } from "@/components/site-header";
 
@@ -72,6 +73,15 @@ export default async function ReviewPage({
 
   const { data: existingCrf } = await supabase
     .from("crf_forms")
+    .select("id")
+    .eq("protocol_id", review.protocol_id)
+    .eq("status", "ready")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { data: existingTables } = await supabase
+    .from("shell_tables")
     .select("id")
     .eq("protocol_id", review.protocol_id)
     .eq("status", "ready")
@@ -184,6 +194,14 @@ export default async function ReviewPage({
             protocolId={review.protocol_id}
             reviewId={review.id}
             existingCrfId={existingCrf?.id ?? null}
+            hasSap={Boolean(existingSap?.id)}
+          />
+        </div>
+
+        <div className="mb-10">
+          <TablesButton
+            protocolId={review.protocol_id}
+            existingTablesId={existingTables?.id ?? null}
             hasSap={Boolean(existingSap?.id)}
           />
         </div>
