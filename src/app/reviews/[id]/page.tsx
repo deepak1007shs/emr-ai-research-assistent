@@ -59,12 +59,15 @@ export default async function ReviewPage({
     );
   }
 
-  // One specification per protocol: if one already exists, link to it rather
-  // than paying to draft a second.
+  // The newest specification that actually has content. A draft that never
+  // finished, or one that failed, is not something to send the user to: linking
+  // to it leaves the documents unreachable with no explanation.
   const { data: existingSpec } = await supabase
     .from("study_specs")
     .select("id, status")
     .eq("protocol_id", review.protocol_id)
+    .not("spec", "is", null)
+    .neq("status", "failed")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
