@@ -5,6 +5,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SpecDecisions, SpecFindings } from "@/components/spec-decisions";
 import { UsagePanel } from "@/components/usage-panel";
 import type { StudySpec } from "@/lib/study-spec/types";
+import { gateSpec } from "@/lib/study-spec/gate";
 import type { TokenUsage } from "@/lib/protocol/pricing";
 
 export const metadata = { title: "Study specification — SAP Builder" };
@@ -33,10 +34,12 @@ export default async function SpecPage({ params }: { params: Promise<{ id: strin
   if (!row) notFound();
 
   const protocol = row.protocols as unknown as { filename: string } | null;
-  const findings =
-    (row.validation as { findings?: { code: string; severity: string; path: string; message: string }[] } | null)
-      ?.findings ?? [];
-  const errors = findings.filter((f) => f.severity === "ERROR");
+  // Re-run the gate rather than trusting what it said when this was drafted.
+  // A guard that has since been corrected must not leave stale errors blocking
+  // a specification that is now valid.
+  const gate = row.spec ? gateSpec(row.spec) : { findings: [], errors: [] };
+  const findings = gate.findings;
+  const errors = gate.errors;
   const signed = row.status === "signed" || row.status === "locked";
 
   if (row.status === "failed") {

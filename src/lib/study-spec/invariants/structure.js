@@ -137,11 +137,14 @@ function check(spec, ctx) {
     const screening = (spec.variables || []).some((v) =>
       v.role === 'administrative' && /screen/i.test(v.label || ''));
     if (!screening) {
+      // A warning, not an error. This is a completeness gap rather than an
+      // internal contradiction, and blocking the documents on it is circular:
+      // the case record form is exactly where the missing field would be added.
       out.push({
         code: 'GDL01',
-        severity: 'ERROR',
+        severity: 'WARN',
         path: 'variables',
-        message: `a ${study.guideline} study must report how many people were screened, but no administrative variable mentions screening, so the flow diagram cannot be drawn. Add a screening-log variable recording the outcome of each assessment (randomised, ineligible, declined).`,
+        message: `a ${study.guideline} study must report how many people were screened, but no administrative variable mentions screening, so the flow diagram cannot be drawn. Add a screening-log variable recording the outcome of each assessment (enrolled, ineligible, declined).`,
       });
     }
   }

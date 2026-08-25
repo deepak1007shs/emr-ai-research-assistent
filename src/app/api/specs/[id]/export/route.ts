@@ -4,6 +4,7 @@ import { buildCrfDocx } from "@/lib/render/crf";
 import { buildSapDocx } from "@/lib/render/sap";
 import { buildShellTablesDocx } from "@/lib/render/shell-tables";
 import type { StudySpec } from "@/lib/study-spec/types";
+import { gateSpec } from "@/lib/study-spec/gate";
 
 export const runtime = "nodejs";
 
@@ -64,10 +65,14 @@ export async function GET(
     );
   }
 
-  const findings = (data.validation as { findings?: { severity: string }[] } | null)?.findings ?? [];
-  if (findings.some((f) => f.severity === "ERROR")) {
+  // Re-run the gate here too: a stored snapshot can be stale, and this is the
+  // last check before a document goes out.
+  const { errors } = gateSpec(data.spec);
+  if (errors.length) {
     return NextResponse.json(
-      { error: "This specification does not pass the gate, so no document can be built from it." },
+      {
+        error: `This specification does not pass the gate (${errors.length} error(s)), so no document can be built from it.`,
+      },
       { status: 409 },
     );
   }

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { gateSpec } from "@/lib/study-spec/gate";
 
 export const runtime = "nodejs";
 
@@ -34,8 +35,9 @@ export async function POST(
     return NextResponse.json({ error: "That specification is still being drafted." }, { status: 409 });
   }
 
-  const findings = (data.validation as { findings?: { severity: string }[] } | null)?.findings ?? [];
-  const errors = findings.filter((f) => f.severity === "ERROR").length;
+  // Judge the specification as it stands now, not as the gate saw it when the
+  // draft was written.
+  const errors = gateSpec(data.spec).errors.length;
   if (errors > 0) {
     return NextResponse.json(
       { error: `This specification has ${errors} error(s) that must be fixed before it can be signed.` },
