@@ -1,0 +1,252 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { loadKnowledge } from "../protocol/knowledge.ts";
+import { EFFORT, MODEL } from "../protocol/analyze.ts";
+import type { TokenUsage } from "../protocol/pricing.ts";
+import type { ExtractedProtocol } from "../protocol/extract.ts";
+import type { SapSpec } from "./types.ts";
+
+/**
+ * Builds the analysis model behind the SAP.
+ *
+ * One call. The model supplies the judgement - what each objective really asks,
+ * what its outcome is, which variables are confounders rather than mediators -
+ * and the code names the test. That split is deliberate: given the same row the
+ * model would not always answer the same way, and a plan whose test depends on
+ * the run is not a plan.
+ */
+
+export class SapError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SapError";
+  }
+}
+
+const str = { type: "string" } as const;
+
+function obj<T extends Record<string, unknown>>(properties: T, description?: string) {
+  return {
+    type: "object",
+    ...(description ? { description } : {}),
+    properties,
+    required: Object.keys(properties),
+    additionalProperties: false,
+  } as const;
+}
+
+export const SAP_JSON_SCHEMA = obj({
+  title: { ...str, description: "The study title, corrected if the protocol's own is wrong." },
+  design: { ...str, description: "The exact design, e.g. prospective observational cohort." },
+  guideline: { ...str, description: "CONSORT, STROBE, STARD, TRIPOD, PRISMA." },
+  aim: { ...str, description: "One or two sentences: the overall purpose." },
+  sample_size: { type: "integer", description: "The total n the protocol states. 0 if absent." },
+  expected_events: {
+    type: "integer",
+    description:
+      "For a binary primary outcome, n multiplied by the expected proportion. 0 when the outcome is not binary or the proportion is unknown.",
+  },
+  objectives: {
+    type: "array",
+    description:
+      "Read each protocol objective word by word before writing it. 'Study' and 'evaluate' are not measurable and become estimate, compare or determine. 'Leading to' and 'effect of' claim causation an observational design cannot support and become 'associated with'. Unnamed factors must be named. Exactly one primary, id P1; secondaries S1, S2, S3.",
+    items: obj({
+      id: { ...str, description: "P1, P2, S1, S2..." },
+      tier: { type: "string", enum: ["primary", "secondary"] },
+      question: { ...str, description: "Phrased as a question, so it names an outcome and a predictor." },
+    }),
+  },
+  variables: {
+    type: "array",
+    description:
+      "Outcomes first, then predictors, then confounders, then descriptors. A mediator lies on the path between exposure and outcome; a collider is caused by the outcome. Both must be named as such and excluded from every model.",
+    items: obj({
+      name: str,
+      data_type: {
+        type: "string",
+        enum: ["binary", "continuous", "ordinal", "nominal", "count", "time_to_event"],
+      },
+      unit_coding: { ...str, description: "Years, mmHg, Yes / No, I / II / III." },
+      role: {
+        type: "string",
+        enum: ["outcome", "predictor", "confounder", "effect_modifier", "mediator", "collider", "descriptor"],
+      },
+      exclusion_reason: {
+        ...str,
+        description: "Required for a mediator or collider: why adjusting for it would be wrong. Empty otherwise.",
+      },
+    }),
+  },
+  analyses: {
+    type: "array",
+    description:
+      "One row per objective, in the order of the objectives. Do NOT name a statistical test: the test is chosen from the data type and the comparison by the application, so that it is the same every time.",
+    items: obj({
+      objective_id: { ...str, description: "The id from objectives, e.g. P1." },
+      label: { ...str, description: "'P1 - conversion rate'. The id, then a few words." },
+      outcome: {
+        ...str,
+        description:
+          "The outcome with its five answers folded into one sentence: what is measured, how, using which instrument, at what time, in which units.",
+      },
+      predictors: {
+        ...str,
+        description: "The predictors, comma separated, or '(single-group estimate)' when there are none.",
+      },
+      data_type: {
+        type: "string",
+        enum: ["binary", "continuous", "ordinal", "nominal", "count", "time_to_event"],
+      },
+      comparison: {
+        type: "string",
+        enum: ["single_group", "two_groups", "many_groups", "association", "adjusted", "paired", "correlation", "agreement", "descriptive"],
+        description:
+          "single_group estimates one proportion or mean; two_groups compares two; association regresses the outcome on predictors; adjusted does so with confounders held constant; descriptive is frequencies with no test.",
+      },
+      paired: { type: "boolean", description: "True when the same patients are measured twice." },
+      skewed: {
+        type: "boolean",
+        description:
+          "True when the outcome is known to be skewed, such as length of stay or duration, which forces a rank test.",
+      },
+      table_ref: { ...str, description: "T1, T2, T3... numbered in order from 1." },
+      test_override: {
+        ...str,
+        description:
+          "Leave empty. Fill only where the standard rule genuinely does not fit, such as competing risks or clustering.",
+      },
+      override_reason: { ...str, description: "Required when test_override is filled. Prints in the plan." },
+    }),
+  },
+});
+
+const ROLE = `You are a senior medical research methodologist and trial statistician.
+
+You are reading a protocol and writing the two sections of its Statistical Analysis
+Plan: the objectives, rewritten as answerable questions, and the analysis map that
+links each question to its outcome, its predictors and the table it will fill.
+
+Read every objective word by word. A word that cannot be measured must be replaced
+by one that can. A word that claims more than the design supports must be softened
+to what the design supports. An unnamed factor must be named, because a factor
+nobody names is a factor nobody collects.
+
+An outcome is not defined until five questions are answered: what exactly will be
+measured, how, using which instrument, at what time, and in which units. Fold all
+five into the outcome sentence.
+
+Do not name a statistical test. The application chooses it from the data type and
+the comparison, so that the same study always yields the same plan.`;
+
+export type SapResult = { spec: SapSpec; model: string; usage: TokenUsage };
+
+export async function buildSapSpec(
+  protocol: ExtractedProtocol,
+  options: {
+    answers?: string | null;
+    onProgress?: (note: string) => void;
+    onUsage?: (usage: TokenUsage) => void;
+  } = {},
+): Promise<SapResult> {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new SapError("ANTHROPIC_API_KEY is not set.");
+  }
+
+  const client = new Anthropic({ timeout: 30 * 60 * 1000, maxRetries: 3 });
+  const content: Anthropic.ContentBlockParam[] = [
+    protocol.kind === "pdf"
+      ? {
+          type: "document",
+          source: { type: "base64", media_type: "application/pdf", data: protocol.base64 },
+        }
+      : {
+          type: "text",
+          text: `<protocol filename="${protocol.filename}">\n${protocol.text}\n</protocol>`,
+        },
+  ];
+
+  const answers = (options.answers ?? "").trim();
+  if (answers) {
+    content.push({
+      type: "text",
+      text: `The investigator has reviewed this protocol and made the following decisions.
+Where any conflicts with the protocol, the decision wins, and the plan must reflect
+the study as decided rather than as written.
+
+<investigator_decisions>
+${answers}
+</investigator_decisions>`,
+    });
+  }
+
+  content.push({
+    type: "text",
+    text: `Write the analysis model for this protocol: the aim, the objectives as
+answerable questions, the variables with their roles, and one analysis row per
+objective. Number the tables T1 upward in the order the rows appear.`,
+  });
+
+  options.onProgress?.("Reading the objectives and writing the analysis map");
+
+  const stream = client.messages.stream({
+    model: MODEL,
+    max_tokens: 32000,
+    thinking: { type: "adaptive" },
+    output_config: { effort: EFFORT, format: { type: "json_schema", schema: SAP_JSON_SCHEMA } },
+    system: [
+      { type: "text", text: ROLE },
+      { type: "text", text: loadKnowledge(), cache_control: { type: "ephemeral", ttl: "1h" } },
+    ],
+    messages: [{ role: "user", content }],
+  });
+
+  stream.on("streamEvent", (event) => {
+    if (event.type === "message_delta") {
+      options.onUsage?.({
+        input_tokens: 0,
+        output_tokens: event.usage.output_tokens ?? 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+      });
+    }
+  });
+
+  const message = await stream.finalMessage();
+
+  if (message.stop_reason === "max_tokens") {
+    throw new SapError("The plan was cut off before it finished.");
+  }
+
+  const text = message.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+
+  const raw = JSON.parse(text) as SapSpec & { sample_size?: number; expected_events?: number };
+
+  // Zero is the schema's way of saying "not stated"; carry it as absent.
+  const spec: SapSpec = {
+    ...raw,
+    sample_size: raw.sample_size || undefined,
+    expected_events: raw.expected_events || undefined,
+    variables: (raw.variables ?? []).map((v) => ({
+      ...v,
+      exclusion_reason: v.exclusion_reason?.trim() || undefined,
+    })),
+    analyses: (raw.analyses ?? []).map((a) => ({
+      ...a,
+      test_override: a.test_override?.trim() || undefined,
+      override_reason: a.override_reason?.trim() || undefined,
+    })),
+  };
+
+  return {
+    spec,
+    model: message.model,
+    usage: {
+      input_tokens: message.usage.input_tokens,
+      output_tokens: message.usage.output_tokens,
+      cache_creation_input_tokens: message.usage.cache_creation_input_tokens ?? 0,
+      cache_read_input_tokens: message.usage.cache_read_input_tokens ?? 0,
+    },
+  };
+}
