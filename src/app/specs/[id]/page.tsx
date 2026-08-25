@@ -6,6 +6,7 @@ import { SpecDecisions, SpecFindings } from "@/components/spec-decisions";
 import { UsagePanel } from "@/components/usage-panel";
 import type { StudySpec } from "@/lib/study-spec/types";
 import { gateSpec } from "@/lib/study-spec/gate";
+import { RepairSpecButton } from "@/components/repair-spec-button";
 import type { TokenUsage } from "@/lib/protocol/pricing";
 
 export const metadata = { title: "Study specification — SAP Builder" };
@@ -111,11 +112,20 @@ export default async function SpecPage({ params }: { params: Promise<{ id: strin
           <h2 className="text-base font-semibold">Documents</h2>
 
           {errors.length > 0 ? (
-            <p className="mt-2 text-sm text-danger">
-              {errors.length} error{errors.length === 1 ? "" : "s"} must be fixed before any
-              document can be built. A document generated from a specification that fails
-              the gate would be used as though someone had checked it.
-            </p>
+            <>
+              <p className="mt-2 text-sm text-danger">
+                {errors.length} error{errors.length === 1 ? "" : "s"} must be fixed before any
+                document can be built. A document generated from a specification that fails
+                the gate would be used as though someone had checked it.
+              </p>
+              <p className="mt-2 text-sm text-muted">
+                Most findings are mechanical. Try the free repair first; it costs nothing and
+                usually clears them.
+              </p>
+              <div className="mt-3">
+                <RepairSpecButton specId={row.id} />
+              </div>
+            </>
           ) : signed ? (
             <>
               <p className="mt-2 text-sm text-muted">
