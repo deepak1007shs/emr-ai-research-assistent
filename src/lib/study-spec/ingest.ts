@@ -305,13 +305,19 @@ export async function draftStudySpec(
   options: {
     onProgress?: (note: string) => void;
     onUsage?: (usage: TokenUsage) => void;
+    /** Stages already completed, so an interrupted run resumes instead of restarting. */
+    resume?: Record<string, unknown>;
+    /** Fires after each stage, so the caller can checkpoint it. */
+    onStage?: (key: string, merged: Record<string, unknown>) => void;
   } = {},
 ): Promise<IngestResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new IngestError("ANTHROPIC_API_KEY is not set.");
   }
 
-  const client = new Anthropic();
+  // A stage can stream for many minutes, and the default socket timeout cuts it
+  // off mid-response. Retries cover a connection that drops before first byte.
+  const client = new Anthropic({ timeout: 30 * 60 * 1000, maxRetries: 3 });
   const knowledge = loadKnowledge();
   const totals: TokenUsage = {
     input_tokens: 0,
@@ -379,8 +385,14 @@ export async function draftStudySpec(
     return JSON.parse(text) as Record<string, unknown>;
   }
 
-  let model: Record<string, unknown> = {};
+  let model: Record<string, unknown> = { ...(options.resume ?? {}) };
+  const done = new Set(Object.keys(model).length ? (model.__stages as string[]) ?? [] : []);
+
   for (const stage of STAGES) {
+    if (done.has(stage.key)) {
+      options.onProgress?.(`${stage.note} (already done)`);
+      continue;
+    }
     options.onProgress?.(stage.note);
     // Each stage sees the running result, so the chain stays consistent.
     const part = await ask(
@@ -390,7 +402,14 @@ export async function draftStudySpec(
       stage.note,
     );
     model = { ...model, ...part };
+    done.add(stage.key);
+    model.__stages = [...done];
+    // Checkpoint immediately: these stages are slow and expensive, and a socket
+    // that drops on stage four must not discard stages one to three.
+    options.onStage?.(stage.key, model);
   }
+
+  delete model.__stages;
 
   options.onProgress?.("Checking the specification");
   let spec = normalise(model);

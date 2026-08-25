@@ -22,9 +22,22 @@ if (!protocolPath) {
 const buffer = fs.readFileSync(protocolPath);
 const protocol = await extractProtocol(buffer, path.basename(protocolPath));
 
+// Stages are slow and expensive; a checkpoint beside the output lets an
+// interrupted run pick up where it stopped rather than starting again.
+const checkpointPath = (outPath ?? "study_spec.draft.json") + ".stages";
+const resume = fs.existsSync(checkpointPath)
+  ? (JSON.parse(fs.readFileSync(checkpointPath, "utf8")) as Record<string, unknown>)
+  : undefined;
+
+if (resume) console.error(`Resuming from ${checkpointPath}`);
+
 const result = await draftStudySpec(protocol, {
   onProgress: (note) => console.error(note + "..."),
+  resume,
+  onStage: (_key, merged) => fs.writeFileSync(checkpointPath, JSON.stringify(merged)),
 });
+
+fs.rmSync(checkpointPath, { force: true });
 
 const target = outPath ?? "study_spec.draft.json";
 fs.writeFileSync(target, JSON.stringify(result.spec, null, 2) + "\n");
