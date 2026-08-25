@@ -5,7 +5,8 @@ import { actionSpecSchema, reviewSpecSchema } from "@/lib/protocol/schema";
 import { ActionTable } from "@/components/action-table";
 import { ReviewDocument } from "@/components/review-document";
 import { UsagePanel } from "@/components/usage-panel";
-import { BuildSpecButton } from "@/components/build-spec-button";
+import { DocumentButtons } from "@/components/document-buttons";
+import { IssueAnswers } from "@/components/issue-answers";
 import type { TokenUsage } from "@/lib/protocol/pricing";
 import { SiteHeader } from "@/components/site-header";
 
@@ -27,7 +28,7 @@ export default async function ReviewPage({
   const { data: review } = await supabase
     .from("reviews")
     .select(
-      "id, protocol_id, status, error, markdown, spec, action_spec, model, usage, created_at, protocols ( filename )",
+      "id, protocol_id, status, error, markdown, spec, action_spec, answers, model, usage, created_at, protocols ( filename )",
     )
     .eq("id", id)
     .single();
@@ -62,12 +63,13 @@ export default async function ReviewPage({
   // than paying to draft a second.
   const { data: existingSpec } = await supabase
     .from("study_specs")
-    .select("id")
+    .select("id, status")
     .eq("protocol_id", review.protocol_id)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   const existingSpecId = existingSpec?.id ?? null;
+  const specSigned = existingSpec?.status === "signed" || existingSpec?.status === "locked";
 
   const parsed = reviewSpecSchema.safeParse(review.spec);
   // Reviews produced before the action document existed simply have no action
@@ -122,17 +124,6 @@ export default async function ReviewPage({
             )}
 
             <div>
-              <p className="mb-1.5 text-xs font-semibold text-muted">
-                Step 2: the study documents
-              </p>
-              <BuildSpecButton
-                protocolId={review.protocol_id}
-                reviewId={review.id}
-                existingSpecId={existingSpecId}
-              />
-            </div>
-
-            <div>
               <p className="mb-1.5 text-xs font-semibold text-muted">Full review</p>
               <div className="flex flex-wrap gap-2">
                 <a
@@ -159,10 +150,27 @@ export default async function ReviewPage({
         )}
 
         {actions && (
-          <div className="mb-10">
+          <div className="mb-8">
             <ActionTable spec={actions} />
           </div>
         )}
+
+        <div className="mb-8">
+          <IssueAnswers
+            reviewId={review.id}
+            issues={parsed.data.key_issues}
+            initial={review.answers}
+          />
+        </div>
+
+        <div className="mb-10">
+          <DocumentButtons
+            protocolId={review.protocol_id}
+            reviewId={review.id}
+            specId={existingSpecId}
+            signed={specSigned}
+          />
+        </div>
 
         <ReviewDocument spec={parsed.data} />
 

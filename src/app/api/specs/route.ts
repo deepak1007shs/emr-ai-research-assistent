@@ -35,6 +35,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "protocolId is required." }, { status: 400 });
   }
 
+  // The investigator's answers to the review's issues travel with the request:
+  // they are what turns "the protocol is ambiguous" into a decided study.
+  let answers: string | null = null;
+  if (body.reviewId) {
+    const { data: reviewRow } = await supabase
+      .from("reviews")
+      .select("answers")
+      .eq("id", body.reviewId)
+      .single();
+    answers = reviewRow?.answers ?? null;
+  }
+
   const { data: protocolRow } = await supabase
     .from("protocols")
     .select("id, filename, storage_path, mime")
@@ -88,6 +100,7 @@ export async function POST(request: NextRequest) {
 
         let lastUsageAt = 0;
         const result = await draftStudySpec(protocol, {
+          answers,
           onProgress: (message) => send({ type: "status", message }),
           onUsage: (usage) => {
             const now = Date.now();

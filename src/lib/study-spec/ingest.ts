@@ -337,6 +337,11 @@ export async function draftStudySpec(
   options: {
     onProgress?: (note: string) => void;
     onUsage?: (usage: TokenUsage) => void;
+    /**
+     * The investigator's answers to the issues the review raised. These are
+     * decisions, not context: where they conflict with the protocol, they win.
+     */
+    answers?: string | null;
     /** Stages already completed, so an interrupted run resumes instead of restarting. */
     resume?: Record<string, unknown>;
     /** Fires after each stage, so the caller can checkpoint it. */
@@ -366,6 +371,24 @@ export async function draftStudySpec(
     stageName = "a stage",
   ): Promise<Record<string, unknown>> {
     const content: Anthropic.ContentBlockParam[] = [protocolBlock(protocol)];
+
+    // Placed before the running result so the decisions frame everything that
+    // follows, and stated as overriding, since that is what they are for.
+    const answers = (options.answers ?? "").trim();
+    if (answers) {
+      content.push({
+        type: "text",
+        text: `The investigator has reviewed this protocol and made the following decisions.
+Where any of them conflicts with what the protocol says, the decision wins, and the
+specification must encode the study as decided rather than as written. Do not
+re-raise a problem that has been answered here.
+
+<investigator_decisions>
+${answers}
+</investigator_decisions>`,
+      });
+    }
+
     if (soFar) {
       content.push({
         type: "text",
