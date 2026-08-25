@@ -122,7 +122,7 @@ export function DocumentButtons({
         {signed
           ? "All three are built from one specification, so they cannot disagree with each other."
           : specId
-            ? "The specification is ready. Read the decisions and sign it off, then all three are yours."
+            ? "The specification is ready. Open any of the three below to read the decisions and sign it off; all three then become downloads."
             : "The specification is built once, whichever you press first. The other two are then free."}
       </p>
 
@@ -149,7 +149,7 @@ export function DocumentButtons({
               <span className="block text-sm font-medium">{label}</span>
               <span className="mt-0.5 block text-xs text-muted">{blurb}</span>
               <span className="mt-2 block text-xs font-medium text-accent">
-                {specId ? "Sign off to download" : "Build and continue"}
+                {specId ? "Read the decisions and sign off ->" : "Build the specification ->"}
               </span>
             </button>
           ),
