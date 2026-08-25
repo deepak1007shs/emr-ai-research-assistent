@@ -1,210 +1,249 @@
-# Statistical Analysis Plan
+# STATISTICAL ANALYSIS PLAN
 
-**Factors associated with intraoperative conversion during transabdominal
-preperitoneal (TAPP) repair of ventral hernia: a prospective observational cohort
-study**
-
-| | |
-|---|---|
-| SAP version | 1.0 |
-| Date finalised | |
-| Prepared by | |
-| Approved by (guide) | |
-| Built from | Protocol v2, and the investigator's answers to the protocol review |
-
-*Finalise, date and sign this plan before database lock. Any change after that date
-is an amendment, recorded with its version, reason and approver.*
+**Factors Associated with Intraoperative Conversion during Transabdominal
+Preperitoneal (TAPP) Repair of Ventral Hernia - A Prospective Observational
+Cohort Study**
 
 ---
 
-## Section 1. Study at a glance
+## Section 0 - Study at a Glance
 
-| Item | This study |
+*A 30-second summary. If a reader sees only this box, they should be able to say
+what the study is.*
+
+| Item | Your study |
 |---|---|
-| Design | Prospective observational cohort, single centre |
-| Reporting guideline | STROBE |
-| Question frame | PECO (no intervention is allocated by the investigator) |
-| Population | Adults 18 to 75 years undergoing elective TAPP repair of a ventral hernia |
-| Exposure under study | Patient, hernia and operative factors present before or at surgery |
-| Main comparison | Converted cases versus cases completed as TAPP |
-| Sample size | 125 (114 by calculation, plus 10% for attrition) |
-| What may be claimed | **Association only.** A cohort of this design cannot establish that any factor causes conversion |
+| Title | Factors associated with intraoperative conversion during TAPP repair of ventral hernia |
+| Design (one line) | Single-centre prospective observational cohort; single-arm. Internal comparison between converted and completed cases. |
+| Population | Adults 18-75 years undergoing elective TAPP repair of a primary, incisional, recurrent or lumbar ventral hernia at a tertiary centre. |
+| What is measured | Baseline demographics and comorbidity; hernia characteristics (EHS classification, defect size); previous abdominal surgery; intraoperative findings including adhesion severity; conversion, its type and its reason; operative duration; postoperative pain, complications and length of stay. |
+| Primary outcome | Proportion of cases converted intraoperatively from TAPP to an alternative technique, with 95% CI. |
+| Main comparison | Primary aim is estimation of the overall conversion rate (single group). Internal comparison: converted versus completed cases, to identify associated factors. |
+| Sample size | 125. Cochran single-proportion formula, n = Z²pq/d² with p = 0.08 (departmental register, 7/81 cases), d = 0.05, Z = 1.96, giving 114, plus 10% attrition. Valid for the conversion-rate estimate only; the factor comparisons are not powered. |
+
+### PICOT
+
+*The clinical question decomposed. This is what every objective, variable and test
+below must trace back to.*
+
+| | Element | For this study |
+|---|---|---|
+| **P** | Population | Adults 18-75 years undergoing elective TAPP repair of a ventral hernia at a tertiary centre, enrolled preoperatively. |
+| **E** | Exposure | Patient, hernia and operative factors present before or at surgery: age, BMI, ASA grade, previous abdominal surgery, defect size, EHS width band, adhesion severity, surgeon experience. |
+| **C** | Comparator | Cases completed as TAPP. No external comparator; the comparison is internal. |
+| **O** | Outcome | Intraoperative conversion to an alternative technique (IPOM, TARM, TAR or open repair), as the primary binary endpoint. |
+| **T** | Timing | Conversion ascertained at the index operation; participants followed to 1 month postoperatively for secondary outcomes. |
+
+*The frame is PECO rather than PICO: the investigator allocates nothing, and the
+exposures are factors already present.*
 
 ---
 
-## Section 2. Objectives, read word by word
+## Section 1 - Objectives as Answerable Questions
 
-Each objective is taken apart and rewritten so that every word is measurable. An
-objective that cannot be rewritten this way cannot be analysed.
+### Aim
 
-### Primary objective
+To estimate the rate of intraoperative conversion during elective TAPP repair of
+ventral hernia, and to identify the preoperative and intraoperative factors
+associated with conversion.
 
-> *As written in the protocol:* "To study the factors leading to conversion during
-> TAPP repair of ventral hernia."
+### Primary objective(s)
 
-| Word in the objective | What it must mean before it can be analysed |
-|---|---|
-| "study" | Not measurable. Replaced with **estimate**, since the protocol's sample size is a precision calculation for a single proportion |
-| "factors" | Which factors? Named explicitly in Section 5. An unnamed factor cannot be collected |
-| "leading to" | Over-claims causation. A cohort of this size supports **association**, so the wording becomes *associated with* |
-| "conversion" | Defined below, with the exact alternative techniques that count |
+- **P1:** In adults undergoing elective TAPP ventral hernia repair, what
+  proportion of operations are converted intraoperatively to an alternative
+  technique?
 
-**Rewritten:** To estimate the proportion of elective TAPP ventral hernia repairs
-converted intraoperatively to an alternative technique, and to identify the
-patient, hernia and operative factors associated with conversion.
+> **Read word by word.** The protocol writes *"to study the factors leading to
+> conversion"*. *Study* is not measurable and becomes **estimate**, because the
+> sample size is a precision calculation. *Factors* must be named, or they cannot
+> be collected. *Leading to* claims causation that a cohort cannot support, and
+> becomes **associated with**.
 
-### Secondary objectives
-
-1. To compare operative time between converted and completed cases.
-2. To compare postoperative length of stay between converted and completed cases.
-3. To describe the type of and reason for conversion among converted cases.
-
----
-
-## Section 3. Every outcome answers five questions
-
-An outcome is not defined until all five are answered. A blank in any column is a
-question the data collector will answer differently each time.
-
-### Primary outcome
+**Outcome for P1, answering the five questions**
 
 | Question | Answer |
 |---|---|
-| **What exactly will be measured?** | Whether the operation was converted from TAPP to an alternative technique |
-| **How will it be measured?** | The operating surgeon's intraoperative decision to abandon TAPP dissection and complete by IPOM, TARM, TAR or open repair |
-| **Using which instrument?** | Study proforma, intraoperative section, completed in theatre |
-| **At what time?** | At the index operation |
-| **In which units?** | Proportion (%) with 95% confidence interval |
+| What exactly will be measured? | Whether the operation was converted from TAPP to an alternative technique |
+| How will it be measured? | The operating surgeon's intraoperative decision to abandon TAPP dissection |
+| Using which instrument? | Study proforma, intraoperative section, item 27, completed in theatre |
+| At what time? | At the index operation |
+| In which units? | Proportion (%) with 95% CI |
 
----
+*Rank: primary. Domain: clinical.*
 
-## Section 4. The objective, outcome and variable map
+### Secondary objectives
 
-This table is the spine of the plan. Everything downstream reads from it: the case
-record form collects exactly these variables, and the shell tables report exactly
-these outcomes.
+- **S1:** Which preoperative and intraoperative factors are independently
+  associated with conversion?
+- **S2:** Does operative duration differ between converted and completed cases?
+- **S3:** Does postoperative length of stay differ between converted and completed
+  cases?
+- **S4:** Among converted cases, what are the type of and reason for conversion?
 
-| Objective | Outcome | Variable type | Measurement method | Instrument | Unit | Time point |
+| Objective | Outcome | Instrument | Time point | Units | Rank | Domain |
 |---|---|---|---|---|---|---|
-| Estimate conversion rate | Intraoperative conversion | Binary | Surgeon's intraoperative decision | Study proforma, item 27 | Yes / No | Index operation |
-| Identify associated factors | Intraoperative conversion | Binary | As above | Study proforma, item 27 | Yes / No | Index operation |
-| Compare operative time | Operative duration | Continuous | Skin incision to skin closure | Theatre clock | Minutes | Index operation |
-| Compare length of stay | Postoperative stay | Continuous, derived | Discharge date minus surgery date | Hospital record | Days | Discharge |
-| Describe conversion type | Type of conversion | Nominal | Surgeon's record of the technique used | Study proforma, item 28 | IPOM / TARM / TAR / Open | Index operation |
-| Describe conversion reason | Reason for conversion | Nominal | Surgeon's record of the reason | Study proforma, item 30 | Adhesions / Bleeding / Peritoneal tear / Poor visibility / Technical | Index operation |
+| S1 | Conversion, by factor | Proforma item 27 | Index operation | Yes / No | Secondary | Clinical |
+| S2 | Operative duration | Theatre clock, incision to closure | Index operation | Minutes | Secondary | Clinical |
+| S3 | Postoperative stay | Hospital record, derived from two dates | Discharge | Days | Secondary | Economic |
+| S4 | Type and reason for conversion | Proforma items 28 and 30 | Index operation | Category | Secondary | Clinical |
 
 ---
 
-## Section 5. Outcomes classified twice
+## Section 2 - Variable Table
 
-Every outcome is classified by **rank**, which decides what the study is powered
-for, and by **domain**, which decides how it is reported.
+*One row per variable. Once data type and role are set, the correct test follows
+almost mechanically. Grouped by role: outcomes, then predictors, then confounders,
+then descriptors.*
 
-| Outcome | Rank | Domain |
+| Variable | Data type | Unit / coding | Role in analysis |
+|---|---|---|---|
+| Intraoperative conversion | binary | Yes / No | **Outcome (primary)** |
+| Type of conversion | nominal | IPOM / TARM / TAR / Open | Outcome (secondary) |
+| Reason for conversion | nominal | Adhesions / Bleeding / Peritoneal tear / Poor visibility / Technical | Outcome (secondary) |
+| Operative duration | continuous | Minutes | Outcome (secondary) |
+| Postoperative length of stay | continuous, derived | Days (discharge date minus surgery date) | Outcome (secondary) |
+| Defect size | continuous | cm | Predictor |
+| EHS width band | nominal, derived | W1 <4 cm / W2 4-10 cm / W3 >10 cm | Predictor |
+| Adhesion severity | ordinal | Zuhlke grade I-IV | Predictor |
+| Previous abdominal surgery | binary | Yes / No | Predictor |
+| Surgeon experience | binary | Consultant / Trainee | Predictor, effect modifier |
+| Age | continuous | Years | Confounder |
+| Body mass index | continuous, derived | kg/m² (weight / height²) | Confounder |
+| ASA physical status | ordinal | I / II / III | Confounder |
+| Sex | binary | Male / Female | Descriptor |
+| Hernia type | nominal | Primary / Incisional / Recurrent / Lumbar | Descriptor |
+| Diabetes mellitus | binary | Yes / No | Descriptor |
+| Smoking status | nominal | Current / Former / Never | Descriptor |
+
+**Not adjusted for, and why.** *Operative duration* is a **mediator**: it lies on
+the path between operative difficulty and conversion, so adjusting for it would
+remove the effect being measured. *Postoperative complication* is a **collider**:
+it is caused by conversion, so conditioning on it would create a spurious
+association. Neither enters any model.
+
+---
+
+## Section 3 - Analysis Map (the heart of the plan)
+
+*One row per objective. Every question is linked to its test AND to the empty
+results table it will fill.*
+
+| Objective | Outcome | Predictor(s) | Data type | Statistical test → Table # |
+|---|---|---|---|---|
+| **P1** - conversion rate | Conversion | (single-group estimate) | binary | Proportion with 95% CI (Clopper-Pearson exact) → T3 |
+| **S1** - factors, unadjusted | Conversion | Each candidate predictor in turn | binary | Chi-square, Fisher exact where any expected cell <5; t-test or Mann-Whitney for continuous predictors → T4 |
+| **S1** - factors, adjusted | Conversion | Age, BMI, previous abdominal surgery | binary | Binary logistic regression (OR with 95% CI), **exploratory only** → T5 |
+| **S1** - effect modification | Conversion | Surgeon experience | binary | Stratified estimate; interaction term reported, not interpreted as confirmatory → T6 |
+| **S2** - operative duration | Operative duration | Conversion status | continuous | Independent t-test if normal, otherwise Mann-Whitney U → T7 |
+| **S3** - length of stay | Postoperative stay | Conversion status | continuous, skewed | Mann-Whitney U; median (IQR) and Hodges-Lehmann difference → T8 |
+| **S4** - conversion detail | Type and reason | (descriptive) | nominal | Frequencies (n, %) among converted cases only → T9 |
+
+**Why each test, in one line.** A single group and one proportion gives an exact
+binomial interval, and *exact* rather than Wald because roughly 10 events are
+expected. Two categorical variables unpaired gives chi-square, with Fisher when
+cells are sparse, which they will often be here. A binary outcome with predictors
+gives logistic regression. A skewed continuous outcome gives a rank test, because
+a mean length of stay would mislead.
+
+**Degrees of freedom check.** Expected conversions: 125 x 0.08 = **10 events**. At
+10 events per degree of freedom the model affords **one** predictor. The adjusted
+model is therefore declared exploratory here, before the data arrive, rather than
+discovered at analysis.
+
+---
+
+## Section 4 - General Statistical Rules (stated once)
+
+**Analysis populations (who is analysed)**
+
+| Population | Definition | Used for |
 |---|---|---|
-| Intraoperative conversion | Primary | Clinical |
-| Operative duration | Secondary | Clinical |
-| Postoperative length of stay | Secondary | Economic (resource use) |
-| Type of conversion | Secondary | Clinical |
-| Reason for conversion | Secondary | Clinical |
-| Postoperative pain at 24 h | Secondary | Patient-reported |
-| Seroma on ultrasound at 1 month | Secondary | Radiological |
-| Serum CRP at 48 h | Secondary | Laboratory |
+| Full analysis set | All enrolled patients who underwent the index operation | All analyses |
+| Converted subset | Patients converted intraoperatively | Type and reason for conversion (S4) |
+
+**Multiplicity and testing hierarchy**
+
+P1 is the only confirmatory analysis. S1 to S4 are supportive, reported with
+confidence intervals and **not adjusted for multiplicity**, and must not be
+written up as confirmatory findings.
+
+**Reporting rules**
+
+- Every estimate carries a **95% confidence interval**. A p-value alone is not reported.
+- P-values to 2 decimal places, or 4 when below 0.05.
+- Two-sided tests, alpha 0.05.
+- Continuous data: mean (SD) if normal, median (IQR) if not. Categorical: n (%).
+- Software and version stated in the results.
+- Reporting follows **STROBE**, with the flow diagram.
+
+**Missing data**
+
+Amount and pattern reported per variable. Complete-case analysis for the primary
+outcome, which should be complete since conversion is ascertained in theatre.
+Multiple imputation only if a predictor exceeds 5% missing, reported as a
+sensitivity analysis.
 
 ---
 
-## Section 6. Variables and confounders
+## Section 5 - Step-by-Step Analysis Flow
 
-The role decides what may be adjusted for. This is a causal judgement, not a
-statistical one, and it is the part a guide must confirm.
-
-| Role | Variables |
-|---|---|
-| **Outcome** | Conversion (yes/no) |
-| **Candidate predictors** | Age, BMI, ASA grade, previous abdominal surgery, hernia width (EHS band), defect size, adhesion score, surgeon experience |
-| **Confounders to adjust for** | Age, BMI, previous abdominal surgery |
-| **Effect modifier to test** | Surgeon experience (consultant versus trainee) |
-| **Not adjusted for: mediator** | Operative duration. It lies on the path between difficulty and conversion; adjusting for it would remove the effect being measured |
-| **Not adjusted for: collider** | Postoperative complication. It is caused by conversion, so conditioning on it would create a spurious association |
-
-**Degrees of freedom check.** Expected conversions: 125 x 0.08 = **10 events**.
-At 10 events per degree of freedom the model affords **one** predictor. The
-multivariable model is therefore declared **exploratory**, and the primary
-analysis is the unadjusted estimate. This is stated here rather than discovered
-at analysis.
+1. **Lock the database** and record the date. Every analysis after it is an amendment.
+2. **Build the STROBE flow**: screened, eligible, declined, enrolled, analysed.
+3. **Describe the cohort** (T1, T2). No significance testing of baseline differences.
+4. **Check assumptions** as set out in Section 5A. Record which branch was taken.
+5. **Estimate the primary outcome** (P1): conversion rate with exact 95% CI → T3.
+6. **Test each predictor unadjusted** (S1) → T4.
+7. **Fit the exploratory adjusted model** (S1) → T5. Label exploratory.
+8. **Test effect modification** by surgeon experience → T6.
+9. **Analyse secondary outcomes** S2, S3 → T7, T8.
+10. **Describe conversions** (S4), denominator the converted cases → T9.
+11. **Sensitivity analysis**: repeat step 5 excluding conversions for reasons
+    unrelated to technique.
+12. **Assemble the tables** in order and check each figure against the output.
 
 ---
 
-## Section 7. Which test, and why
+## Section 5A - Assumption Checking
 
-The test is chosen from the study type, the outcome's data type, the comparison
-being made, and whether the observations are paired. Nothing here is a matter of
-preference.
-
-| # | Outcome | Data type | Comparison | Test | Why this test |
-|---|---|---|---|---|---|
-| 1 | Conversion rate | Binary | None, a single proportion | **Clopper-Pearson exact 95% CI** | One group, one proportion, and an exact interval is correct when the expected count is small (about 10) |
-| 2 | Conversion by ASA grade | Binary | Two independent groups | **Pearson chi-square**, Fisher exact if any expected cell is under 5 | Two categorical variables, unpaired. With 10 events, expected cells will often be small, so Fisher is likely |
-| 3 | Conversion by age | Binary outcome, continuous predictor | Association | **Univariable logistic regression**, odds ratio with 95% CI | A binary outcome regressed on a continuous predictor |
-| 4 | Conversion, adjusted | Binary | Association, adjusted | **Multivariable logistic regression**, exploratory only | See the degrees of freedom check in Section 6. Reported as exploratory, never as the primary result |
-| 5 | Operative duration | Continuous | Two independent groups | **Independent t-test** if both groups are normal, otherwise **Mann-Whitney U** | Normality is judged by Shapiro-Wilk plus a histogram, not by the test alone |
-| 6 | Length of stay | Continuous, right-skewed | Two independent groups | **Mann-Whitney U**, reported as median (IQR) and a Hodges-Lehmann median difference | Length of stay is skewed by definition; a mean would mislead |
-| 7 | Type and reason for conversion | Nominal | None, descriptive | **Frequencies and percentages** among converted cases only | Denominator is the converted cases, not the whole cohort. Stating this prevents the commonest reporting error here |
-
-**Rules that apply to every test above**
-
-- Every estimate is reported with a **95% confidence interval**, never a p-value alone.
-- P-values to two decimal places, or four when below 0.05.
-- Two-sided, alpha 0.05.
-- Secondary outcomes are **not adjusted for multiplicity** and are therefore
-  supportive, not confirmatory. This is stated so that a secondary finding is not
-  later written up as if it were primary.
+| Assumption | Where it applies | How it is checked | If it fails |
+|---|---|---|---|
+| Normality | Operative duration, by group | Shapiro-Wilk plus a histogram; not the test alone | Mann-Whitney U |
+| Equal variance | Operative duration t-test | Levene's test | Welch t-test |
+| Expected cell count ≥5 | Every chi-square | Expected counts table | Fisher exact test |
+| Linearity of the logit | Continuous predictors in logistic regression | Box-Tidwell, or categorise | Categorise the predictor |
+| No multicollinearity | Adjusted model | Variance inflation factor <5 | Drop one of the pair |
+| Events per variable ≥10 | Adjusted model | 10 events / degrees of freedom | Reduce predictors; already declared exploratory |
+| Independence | All | By design, one record per patient | Not applicable |
 
 ---
 
-## Section 8. Step-by-step analysis flow
+## Section 6 - Shell (Dummy) Tables
 
-Run in this order. Each step names what is produced.
+| Table | Title | Test applied |
+|---|---|---|
+| T1 | Baseline demographic and clinical characteristics | Descriptive only |
+| T2 | Hernia and operative characteristics | Descriptive only |
+| T3 | Rate of intraoperative conversion | Clopper-Pearson exact 95% CI |
+| T4 | Candidate factors by conversion status, unadjusted | Chi-square / Fisher; t-test / Mann-Whitney |
+| T5 | Factors associated with conversion, adjusted (exploratory) | Binary logistic regression |
+| T6 | Conversion by surgeon experience | Stratified, with interaction term |
+| T7 | Operative duration by conversion status | t-test or Mann-Whitney U |
+| T8 | Postoperative length of stay by conversion status | Mann-Whitney U |
+| T9 | Type of and reason for conversion, converted cases only | Descriptive only |
 
-1. **Lock the database.** Record the date. Every analysis after it is an amendment.
-2. **Build the participant flow.** Screened, eligible, declined, enrolled, analysed.
-   Produces the STROBE flow diagram.
-3. **Describe the cohort.** Table 1: all baseline variables by conversion status,
-   with no significance testing of baseline differences.
-4. **Check the assumptions the tests need.** Normality for continuous outcomes
-   (Shapiro-Wilk and a histogram); expected cell counts for every chi-square.
-   Record what was found and which branch was taken.
-5. **Estimate the primary outcome.** Conversion rate with an exact 95% CI.
-   Produces Table 3.
-6. **Test each candidate predictor unadjusted.** Chi-square or Fisher for
-   categorical, t-test or Mann-Whitney for continuous, univariable logistic for
-   the odds ratio. Produces Table 4.
-7. **Fit the exploratory adjusted model.** Logistic regression on the confounders
-   named in Section 6. Report as exploratory. Produces Table 5.
-8. **Analyse the secondary outcomes** in the order listed in Section 4.
-9. **Describe conversions.** Type and reason, denominator the converted cases.
-10. **Run the sensitivity analysis.** Repeat step 5 excluding cases converted for
-    reasons unrelated to technique.
-11. **Handle missing data.** Report the amount and pattern per variable. Complete
-    case for the primary outcome, which should be complete. Multiple imputation
-    only if any predictor exceeds 5% missing.
-12. **Assemble the tables** in the order of Section 4, and check each figure
-    against the analysis output before writing anything.
+*Full shell tables with empty cells are provided as a separate document.*
 
 ---
 
-## Section 9. Needs checking with the guide
+## Section 7 - "Needs Checking" Flags
 
-These are decisions the protocol did not settle. They are listed rather than
-silently chosen.
-
-1. The multivariable model affords one predictor at 10 events. Confirm that the
-   adjusted analysis is labelled exploratory, or increase the sample size.
-2. Confirm that operative duration is treated as a mediator and therefore not
-   adjusted for.
-3. Confirm the 5% missing-data threshold for imputation.
-4. Confirm that the conversion denominator for type and reason is converted cases,
-   not the whole cohort.
+| # | Flag | Who decides |
+|---|---|---|
+| 1 | At 10 expected events the adjusted model affords one predictor. Confirm it is labelled exploratory, or increase the sample size. | Guide |
+| 2 | Confirm operative duration is treated as a mediator and excluded from all models. | Guide |
+| 3 | The protocol gives no source for the 10% attrition allowance. Confirm or replace. | Investigator |
+| 4 | Confirm the denominator for type and reason of conversion is converted cases, not the whole cohort. | Investigator |
+| 5 | Adhesion severity is not defined in the protocol. The Zuhlke grade is adopted here; confirm. | Guide |
 
 ---
 
