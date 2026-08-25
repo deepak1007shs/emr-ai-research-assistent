@@ -11,7 +11,7 @@ export const maxDuration = 900;
 type Event =
   | { type: "status"; message: string }
   | { type: "usage"; usage: TokenUsage; cost: number }
-  | { type: "done"; sapId: string }
+  | { type: "done"; sapId: string; errors: number; warnings: number }
   | { type: "error"; message: string };
 
 /** Builds the analysis model for a protocol and stores it. */
@@ -100,6 +100,7 @@ export async function POST(request: NextRequest) {
             owner: user.id,
             status: "ready",
             spec: result.spec,
+            validation: { findings: result.findings },
             model: result.model,
             usage: result.usage,
           })
@@ -107,7 +108,12 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (error) throw new Error(error.message);
-        send({ type: "done", sapId: row.id });
+        send({
+          type: "done",
+          sapId: row.id,
+          errors: result.findings.filter((f) => f.severity === "ERROR").length,
+          warnings: result.findings.filter((f) => f.severity === "WARN").length,
+        });
       } catch (error) {
         send({
           type: "error",

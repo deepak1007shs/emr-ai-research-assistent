@@ -20,6 +20,31 @@ export type Comparison =
   | "agreement"
   | "descriptive";      // frequencies, no test
 
+/** The second classification every outcome carries, from the teaching slide. */
+export type Domain =
+  | "clinical" | "laboratory" | "radiological" | "functional"
+  | "patient_reported" | "economic" | "composite";
+
+/**
+ * The five questions an outcome must answer, held as five fields rather than one
+ * sentence. A sentence can silently omit one; five fields cannot, and the
+ * renderer composes them into the cell.
+ */
+export type Outcome = {
+  /** What exactly will be measured. */
+  what: string;
+  /** How it will be measured. */
+  how: string;
+  /** Using which instrument. */
+  instrument: string;
+  /** At what time. */
+  when: string;
+  /** In which units. */
+  units: string;
+  /** Clinical, laboratory, radiological, functional, patient-reported, economic, composite. */
+  domain: Domain;
+};
+
 export type Role =
   | "outcome" | "predictor" | "confounder" | "effect_modifier"
   | "mediator" | "collider" | "descriptor";
@@ -45,8 +70,8 @@ export type AnalysisRow = {
   objective_id: string;
   /** "P1 - conversion rate" */
   label: string;
-  /** The outcome with its five answers folded in: what, how, instrument, when, units. */
-  outcome: string;
+  /** The five answers. The renderer folds them into the Outcome cell. */
+  outcome: Outcome;
   /** "(single-group estimate)" when there are none. */
   predictors: string;
   data_type: DataType;

@@ -12,7 +12,7 @@ import {
 } from "docx";
 import { HOUSE_BORDER, HOUSE_STYLES, plain } from "./house-style";
 import { chooseTest, degreesOfFreedomNote } from "../sap/choose-test.ts";
-import type { SapSpec } from "../sap/types.ts";
+import type { Outcome, SapSpec } from "../sap/types.ts";
 
 /**
  * The Statistical Analysis Plan: two sections.
@@ -62,6 +62,21 @@ function cell(text: string, bold = false) {
 }
 
 const HEADERS = ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical test -> Table #"];
+
+/**
+ * Folds the five answers into one readable cell.
+ *
+ * Held as five fields so none can be quietly omitted, and joined here so the
+ * table reads as a sentence rather than a form.
+ */
+export function outcomeCell(outcome: Outcome): string {
+  const parts = [outcome.what];
+  if (outcome.how && outcome.how !== outcome.what) parts.push(outcome.how);
+  if (outcome.instrument) parts.push(`by ${outcome.instrument}`);
+  if (outcome.when) parts.push(`at ${outcome.when}`);
+  if (outcome.units) parts.push(`in ${outcome.units}`);
+  return parts.join(", ");
+}
 
 export async function buildSapDocx(spec: SapSpec): Promise<Buffer> {
   const doc: Block[] = [];
@@ -114,7 +129,7 @@ export async function buildSapDocx(spec: SapSpec): Promise<Buffer> {
     const test = chosen
       ? `${chosen.test} -> ${row.table_ref}`
       : `NO RULE COVERS THIS ROW. Decide the test and record it. -> ${row.table_ref}`;
-    return [row.label, row.outcome, row.predictors, row.data_type, test];
+    return [row.label, outcomeCell(row.outcome), row.predictors, row.data_type, test];
   });
 
   doc.push(

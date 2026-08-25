@@ -7,7 +7,7 @@ type Usage = { output_tokens: number };
 type Event =
   | { type: "status"; message: string }
   | { type: "usage"; usage: Usage; cost: number }
-  | { type: "done"; sapId: string }
+  | { type: "done"; sapId: string; errors: number; warnings: number }
   | { type: "error"; message: string };
 
 const fmtUsd = (n: number) => (n < 0.01 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}`);
@@ -32,6 +32,7 @@ export function SapButton({
   const [status, setStatus] = useState<string | null>(null);
   const [cost, setCost] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [checked, setChecked] = useState<{ errors: number; warnings: number } | null>(null);
   const building = status !== null;
 
   async function build() {
@@ -91,6 +92,7 @@ export function SapButton({
         }
         if (event.type === "done") {
           setSapId(event.sapId);
+          setChecked({ errors: event.errors, warnings: event.warnings });
           setStatus(null);
           router.refresh();
           return;
@@ -152,6 +154,20 @@ export function SapButton({
             {cost !== null && <span className="font-mono"> {fmtUsd(cost)} so far.</span>}
           </p>
         </div>
+      )}
+
+      {checked && (
+        <p
+          className={`mt-3 rounded-lg px-3 py-2 text-xs ${
+            checked.errors ? "bg-danger-soft text-danger" : "bg-surface text-muted"
+          }`}
+        >
+          {checked.errors
+            ? `The plan was checked and ${checked.errors} problem(s) need your attention. It is still downloadable, and the problems are listed in it.`
+            : checked.warnings
+              ? `Checked: no errors, ${checked.warnings} thing(s) worth a look.`
+              : "Checked: no problems found."}
+        </p>
       )}
 
       {error && (

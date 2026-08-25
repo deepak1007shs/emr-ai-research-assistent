@@ -28,3 +28,7 @@ create policy sap_plans_update on public.sap_plans
   using ((select auth.uid()) = owner) with check ((select auth.uid()) = owner);
 create policy sap_plans_delete on public.sap_plans
   for delete to authenticated using ((select auth.uid()) = owner);
+
+-- The gate findings, stored with the plan so a problem is visible before download.
+alter table public.sap_plans
+  add column if not exists validation jsonb;

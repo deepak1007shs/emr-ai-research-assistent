@@ -4,6 +4,7 @@ import { EFFORT, MODEL } from "../protocol/analyze.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { ExtractedProtocol } from "../protocol/extract.ts";
 import type { SapSpec } from "./types.ts";
+import { validateSap, type Finding } from "./validate.ts";
 
 /**
  * Builds the analysis model behind the SAP.
@@ -83,11 +84,21 @@ export const SAP_JSON_SCHEMA = obj({
     items: obj({
       objective_id: { ...str, description: "The id from objectives, e.g. P1." },
       label: { ...str, description: "'P1 - conversion rate'. The id, then a few words." },
-      outcome: {
-        ...str,
-        description:
-          "The outcome with its five answers folded into one sentence: what is measured, how, using which instrument, at what time, in which units.",
-      },
+      outcome: obj(
+        {
+          what: { ...str, description: "What exactly will be measured." },
+          how: { ...str, description: "How it will be measured." },
+          instrument: { ...str, description: "Using which instrument, form, scale or record." },
+          when: { ...str, description: "At what time point." },
+          units: { ...str, description: "In which units, or the category set." },
+          domain: {
+            type: "string",
+            enum: ["clinical", "laboratory", "radiological", "functional", "patient_reported", "economic", "composite"],
+            description: "The second classification every outcome carries, alongside its rank.",
+          },
+        },
+        "The five questions. Every field is required: an outcome is not defined until all five are answered.",
+      ),
       predictors: {
         ...str,
         description: "The predictors, comma separated, or '(single-group estimate)' when there are none.",
@@ -137,7 +148,12 @@ five into the outcome sentence.
 Do not name a statistical test. The application chooses it from the data type and
 the comparison, so that the same study always yields the same plan.`;
 
-export type SapResult = { spec: SapSpec; model: string; usage: TokenUsage };
+export type SapResult = {
+  spec: SapSpec;
+  findings: Finding[];
+  model: string;
+  usage: TokenUsage;
+};
 
 export async function buildSapSpec(
   protocol: ExtractedProtocol,
@@ -239,8 +255,13 @@ objective. Number the tables T1 upward in the order the rows appear.`,
     })),
   };
 
+  // Judged here rather than at render time, so the findings are stored with the
+  // plan and a problem is visible before anyone downloads it.
+  const { findings } = validateSap(spec);
+
   return {
     spec,
+    findings,
     model: message.model,
     usage: {
       input_tokens: message.usage.input_tokens,

@@ -33,19 +33,40 @@ const spec: SapSpec = {
   analyses: [
     {
       objective_id: "P1", label: "P1 - conversion rate",
-      outcome: "Intraoperative conversion, at the index operation, from the surgeon's record, as a proportion with 95% CI",
+      outcome: {
+        what: "Intraoperative conversion",
+        how: "the surgeon's decision to abandon TAPP dissection",
+        instrument: "study proforma, item 27",
+        when: "the index operation",
+        units: "proportion (%) with 95% CI",
+        domain: "clinical",
+      },
       predictors: "(single-group estimate)", data_type: "binary", comparison: "single_group",
       paired: false, table_ref: "T1",
     },
     {
       objective_id: "S1", label: "S1 - factors, adjusted",
-      outcome: "Intraoperative conversion",
+      outcome: {
+        what: "Intraoperative conversion",
+        how: "the surgeon's decision to abandon TAPP dissection",
+        instrument: "study proforma, item 27",
+        when: "the index operation",
+        units: "Yes / No",
+        domain: "clinical",
+      },
       predictors: "Age, BMI, previous abdominal surgery", data_type: "binary", comparison: "adjusted",
       paired: false, table_ref: "T2",
     },
     {
       objective_id: "S2", label: "S2 - operative duration",
-      outcome: "Operative duration, incision to closure, in minutes",
+      outcome: {
+        what: "Operative duration",
+        how: "skin incision to skin closure",
+        instrument: "theatre clock",
+        when: "the index operation",
+        units: "minutes",
+        domain: "clinical",
+      },
       predictors: "Conversion status", data_type: "continuous", comparison: "two_groups",
       paired: false, skewed: true, table_ref: "T3",
     },
