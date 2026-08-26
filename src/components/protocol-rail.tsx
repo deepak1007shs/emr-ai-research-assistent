@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ProtocolActions } from "./protocol-actions";
 import { documentKey, protocolKey } from "./selection";
+import { RowDelete } from "./row-delete";
 import { SelectionBar } from "./selection-bar";
 import {
   DOC_ORDER,
@@ -57,6 +58,21 @@ export function ProtocolRail({
   function stopSelecting() {
     setSelecting(false);
     setPicked(new Set());
+  }
+
+  /** One item, through the same endpoint the bar uses. */
+  async function deleteOne(body: { protocols?: string[]; documents?: { kind: DocKind; id: string }[] }) {
+    const response = await fetch("/api/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.failed?.length) {
+      throw new Error(result.error ?? result.failed?.join(" ") ?? "Could not delete it.");
+    }
+    setPicked(new Set());
+    router.refresh();
   }
 
   function toggle(id: string) {
@@ -129,6 +145,12 @@ export function ProtocolRail({
                   </span>
                   <span className="truncate">{protocol.filename}</span>
                 </button>
+                {selecting && (
+                  <RowDelete
+                    name={protocol.filename}
+                    onConfirm={() => deleteOne({ protocols: [protocol.id] })}
+                  />
+                )}
               </div>
 
               {expanded && (
@@ -145,6 +167,8 @@ export function ProtocolRail({
                         selecting={selecting}
                         picked={picked}
                         onPick={pick}
+                        onDelete={deleteOne}
+                        protocolName={protocol.filename}
                       />
                     ))}
                   </ul>
@@ -190,6 +214,8 @@ function RailDocument({
   selecting,
   picked,
   onPick,
+  onDelete,
+  protocolName,
 }: {
   protocolId: string;
   kind: DocKind;
@@ -199,6 +225,8 @@ function RailDocument({
   selecting: boolean;
   picked: Set<string>;
   onPick: (key: string) => void;
+  onDelete: (body: { documents: { kind: DocKind; id: string }[] }) => Promise<void>;
+  protocolName: string;
 }) {
   // Only a document that exists can be selected: there is nothing to delete
   // about one that was never built.
@@ -227,6 +255,12 @@ function RailDocument({
         <span className="truncate">{DOC_SHORT[kind]}</span>
         <DocumentBadge state={state} />
       </Link>
+      {selecting && state.id && (
+        <RowDelete
+          name={`the ${DOC_SHORT[kind]} of ${protocolName}`}
+          onConfirm={() => onDelete({ documents: [{ kind, id: state.id! }] })}
+        />
+      )}
     </li>
   );
 }

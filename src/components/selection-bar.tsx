@@ -33,7 +33,7 @@ export function SelectionBar({
 
   if (!picked.size) {
     return (
-      <div className="border-t border-border px-3 py-2 text-xs text-muted">
+      <div className="sticky bottom-0 border-t border-border bg-surface px-3 py-2 text-xs text-muted">
         Tick a protocol, or any document inside one.
       </div>
     );
@@ -66,7 +66,7 @@ export function SelectionBar({
   }
 
   return (
-    <div className="border-t border-border bg-surface px-3 py-2.5 text-xs">
+    <div className="sticky bottom-0 border-t border-border bg-surface px-3 py-2.5 text-xs">
       {asking ? (
         <div role="alertdialog" aria-label="Confirm deletion">
           <p className="font-semibold">

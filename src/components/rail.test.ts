@@ -145,4 +145,12 @@ describe("selecting several things to delete", () => {
     // The rail is read far more often than it is tidied.
     expect(withSelection([protocol()])).not.toContain('type="checkbox"');
   });
+
+  it("has no row delete until selection is turned on either", () => {
+    // Rename and Delete for the open protocol are the non-selecting affordance;
+    // the per-row Delete belongs to selection.
+    const text = open([protocol()]);
+    expect(text).toContain("Rename");
+    expect(text).not.toContain("Delete the");
+  });
 });
