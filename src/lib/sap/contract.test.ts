@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SAP_JSON_SCHEMA } from "./build.ts";
+import { SAP_MAP_JSON_SCHEMA } from "./map-stage.ts";
 import { SAP_RULES_JSON_SCHEMA } from "./rules-stage.ts";
 import { CRF_JSON_SCHEMA } from "../crf/build.ts";
 import { TABLES_JSON_SCHEMA } from "../tables/build.ts";
@@ -79,9 +80,10 @@ function requiredPaths(schema: Schema, prefix = ""): string[] {
 
 describe("the schemas ask for what the types expect", () => {
   it("a conforming SAP answer reads as a plan, validates and renders", async () => {
-    const front = sample(SAP_JSON_SCHEMA as unknown as Schema) as Record<string, unknown>;
-    const back = sample(SAP_RULES_JSON_SCHEMA as unknown as Schema) as Record<string, unknown>;
-    const spec = { ...front, ...back } as unknown as SapSpec;
+    const frame = sample(SAP_JSON_SCHEMA as unknown as Schema) as Record<string, unknown>;
+    const map = sample(SAP_MAP_JSON_SCHEMA as unknown as Schema) as Record<string, unknown>;
+    const rules = sample(SAP_RULES_JSON_SCHEMA as unknown as Schema) as Record<string, unknown>;
+    const spec = { ...frame, ...map, ...rules } as unknown as SapSpec;
 
     // Every field the type needs is present, so this compiles as a SapSpec and
     // the validator can run without reaching for something that is not there.
@@ -106,9 +108,10 @@ describe("the schemas ask for what the types expect", () => {
     await expect(buildTablesDocx(spec)).resolves.toBeInstanceOf(Buffer);
   });
 
-  it("the two SAP stages between them cover every field the plan needs", () => {
+  it("the three SAP stages between them cover every field the plan needs", () => {
     const asked = new Set([
       ...requiredPaths(SAP_JSON_SCHEMA as unknown as Schema),
+      ...requiredPaths(SAP_MAP_JSON_SCHEMA as unknown as Schema),
       ...requiredPaths(SAP_RULES_JSON_SCHEMA as unknown as Schema),
     ]);
 
@@ -128,9 +131,10 @@ describe("the schemas ask for what the types expect", () => {
     }
   });
 
-  it("neither stage asks for the statistical test, which code chooses", () => {
+  it("no stage asks for the statistical test, which code chooses", () => {
     const asked = [
       ...requiredPaths(SAP_JSON_SCHEMA as unknown as Schema),
+      ...requiredPaths(SAP_MAP_JSON_SCHEMA as unknown as Schema),
       ...requiredPaths(SAP_RULES_JSON_SCHEMA as unknown as Schema),
     ];
     // test_override is the one deliberate escape hatch, and it carries a reason.

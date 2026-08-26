@@ -8,6 +8,7 @@ import type { ExtractedProtocol } from "../protocol/extract.ts";
 import type { SapSpec } from "./types.ts";
 import { validateSap, type Finding } from "./validate.ts";
 import { chooseTest } from "./choose-test.ts";
+import { buildSapMap } from "./map-stage.ts";
 import { buildSapRules, type RulesResult } from "./rules-stage.ts";
 
 /**
@@ -162,85 +163,19 @@ export const SAP_JSON_SCHEMA = obj({
       },
     }),
   },
-  analyses: {
-    type: "array",
-    description:
-      "One row per objective, in the order of the objectives. Refer to outcomes and variables by id, never by repeating their words. Do NOT name a statistical test: the test is chosen from the data type and the comparison by the application, so that it is the same every time.",
-    items: obj({
-      objective_ids: {
-        ...strArray,
-        description:
-          "The objectives this row answers. Usually one. Several where the same analysis answers them all, as three binary secondary outcomes compared the same way do: write them as one row rather than repeating it.",
-      },
-      label: { ...str, description: "'P1 - conversion rate'. The ids, then a few words." },
-      outcome_ids: {
-        ...strArray,
-        description: "The outcomes this analyses. Several where they share one analysis.",
-      },
-      exposure_ids: {
-        ...strArray,
-        description:
-          "What is being compared: the allocated arm, or the exposure. Empty for a single-group estimate. This is NOT the confounder list.",
-      },
-      adjust_for_ids: {
-        ...strArray,
-        description:
-          "The confounders the adjusted model holds constant, from the variable registry. Empty where no adjustment is planned. Never a mediator or a collider.",
-      },
-      data_type: {
-        type: "string",
-        enum: ["binary", "continuous", "ordinal", "nominal", "count", "time_to_event"],
-      },
-      comparison: {
-        type: "string",
-        enum: ["single_group", "two_groups", "many_groups", "association", "adjusted", "paired", "correlation", "agreement", "descriptive"],
-        description:
-          "single_group estimates one proportion or mean; two_groups compares two; association regresses the outcome on predictors; adjusted does so with confounders held constant; descriptive is frequencies with no test.",
-      },
-      pairing: {
-        type: "string",
-        enum: ["none", "paired", "repeated"],
-        description:
-          "none for independent groups; paired for the same patients measured twice; repeated for three or more measurements per patient, which needs a mixed model rather than a repeated-measures ANOVA.",
-      },
-      skewed: {
-        type: "boolean",
-        description:
-          "True when the outcome is known to be skewed, such as length of stay or duration, which forces a rank method.",
-      },
-      frequency: {
-        type: "string",
-        enum: ["common", "rare", "unknown"],
-        description:
-          "For a BINARY outcome only: whether the event is common (roughly over 10%) or rare. It decides whether the plan reports a risk ratio or an odds ratio, and reporting an odds ratio for a common outcome as though it were a risk is one of the commonest errors in a thesis. Use unknown only where the protocol gives no basis to judge.",
-      },
-      no_adjustment_reason: {
-        ...str,
-        description:
-          "Why no adjusted model is planned, where none is. A pilot with few events says so here, e.g. 'not planned in a pilot; would need ten events per variable'. Empty where adjustment IS planned.",
-      },
-      table_ids: {
-        ...strArray,
-        description:
-          "The tables this analysis fills. Often more than one: the unadjusted estimate, the adjusted model, and any sensitivity table beside them. T1, T2, T3...",
-      },
-      test_override: {
-        ...str,
-        description:
-          "Leave empty. Fill only where the standard rule genuinely does not fit, such as competing risks or clustering.",
-      },
-      override_reason: { ...str, description: "Required when test_override is filled. Prints in the plan." },
-    }),
-  },
 });
+
 
 const ROLE = `You are a senior medical research methodologist and trial statistician.
 
-You are reading a protocol and writing the front half of its Statistical Analysis
-Plan as a route map: what the study is at a glance, the clinical question
-decomposed, the estimand, the objectives rewritten as answerable questions, the
-variable table, and the analysis map that links each question to its outcome, its
-predictors and the table it will fill.
+You are reading a protocol and writing the front of its Statistical Analysis Plan
+as a route map: the clinical question decomposed, the estimand, the objectives
+rewritten as answerable questions, and the two registries the rest of the plan
+refers to - every variable with its role, and every outcome with all five of its
+questions answered.
+
+The analysis map is written next, from what you declare here, so a variable or an
+outcome that is missing from these registries cannot be analysed at all.
 
 Read every objective word by word. A word that cannot be measured must be replaced
 by one that can. A word that claims more than the design supports must be softened
@@ -251,23 +186,8 @@ An outcome is not defined until five questions are answered: what exactly will b
 measured, how, using which instrument, at what time, and in which units. Fold all
 five into the outcome sentence.
 
-Do not name a statistical test. The application plans the analysis from the data
-type, the comparison, the pairing and, for a binary outcome, how common the event
-is, so that the same study always yields the same plan. What you supply are the
-facts it needs to decide:
-
-- whether the measurements are independent, paired, or repeated across three or
-  more time points, because a repeated measure needs a mixed model and not a
-  repeated-measures ANOVA;
-- for a binary outcome, whether the event is common or rare, because a common
-  outcome must be reported as a risk ratio and a risk difference rather than an
-  odds ratio;
-- what is being compared, kept apart from what is being held constant;
-- where no adjusted model is planned, why not.
-
-One row may answer several objectives where the analysis is identical, and one
-row usually fills more than one table: the unadjusted estimate, the adjusted
-model, and any sensitivity table beside them.
+Do not name a statistical test anywhere. The application plans every analysis by
+rule, so that the same study always yields the same plan.
 
 Declare every variable and every outcome exactly once, each with an id, and refer
 to them by that id everywhere else. The case report form and the shell tables will
@@ -318,11 +238,11 @@ export async function buildSapSpec(
   content.push({
     type: "text",
     text: `Write the analysis model for this protocol: the aim, the objectives as
-answerable questions, the variables with their roles, and one analysis row per
-objective. Number the tables T1 upward in the order the rows appear.`,
+answerable questions, and the variables and outcomes with their roles. The
+analysis map is written next, from what you declare here.`,
   });
 
-  options.onProgress?.("Reading the objectives and writing the analysis map");
+  options.onProgress?.("Reading the objectives and the variables");
 
   const stream = client.messages.stream({
     model: MODEL,
@@ -369,7 +289,7 @@ objective. Number the tables T1 upward in the order the rows appear.`,
   const raw = JSON.parse(text) as SapSpec & { sample_size?: number; expected_events?: number };
 
   // Zero is the schema's way of saying "not stated"; carry it as absent.
-  const front: Omit<SapSpec, keyof RulesResult["rules"]> = {
+  const frame = {
     ...raw,
     sample_size: raw.sample_size || undefined,
     expected_events: raw.expected_events || undefined,
@@ -378,28 +298,36 @@ objective. Number the tables T1 upward in the order the rows appear.`,
       exclusion_reason: v.exclusion_reason?.trim() || undefined,
     })),
     outcomes: raw.outcomes ?? [],
-    analyses: (raw.analyses ?? []).map((a) => ({
-      ...a,
-      objective_ids: a.objective_ids ?? [],
-      outcome_ids: a.outcome_ids ?? [],
-      exposure_ids: a.exposure_ids ?? [],
-      adjust_for_ids: a.adjust_for_ids ?? [],
-      table_ids: a.table_ids ?? [],
-      pairing: a.pairing ?? "none",
-      frequency: a.frequency || undefined,
-      no_adjustment_reason: a.no_adjustment_reason?.trim() || undefined,
-      test_override: a.test_override?.trim() || undefined,
-      override_reason: a.override_reason?.trim() || undefined,
-    })),
     priority_confounder_ids: raw.priority_confounder_ids ?? [],
   };
 
-  // The tests are chosen here, by rule, before the second call. That is the
-  // reason there is a second call: the assumptions belong to the test that was
-  // chosen, and a model asked for both at once would be guessing at its own
-  // output.
-  // Both halves of every plan, because the assumptions of an adjusted model are
-  // not the assumptions of the unadjusted estimate beside it.
+  // Running total, so the meter keeps climbing across all three calls rather
+  // than resetting at each one.
+  let spent = message.usage.output_tokens ?? 0;
+  const report = (u: TokenUsage) =>
+    options.onUsage?.({ ...u, output_tokens: spent + u.output_tokens });
+
+  // The map is a second call because the first would not compile with it: the
+  // frame, both registries and the map together were more grammar than the API
+  // will take. It reads better this way in any case, since the map points at
+  // ids the registries have already declared.
+  const second = await buildSapMap(frame, {
+    answers: options.answers,
+    onProgress: options.onProgress,
+    onUsage: report,
+  });
+  spent += second.usage.output_tokens;
+
+  const front: Omit<SapSpec, keyof RulesResult["rules"]> = {
+    ...frame,
+    analyses: second.analyses,
+  };
+
+  // The analyses are planned here, by rule, before the third call. That is the
+  // reason there is a third call: the assumptions belong to the analysis that
+  // was chosen, and a model asked for both at once would be guessing at its own
+  // output. Both halves of every plan, because an adjusted model's assumptions
+  // are not the unadjusted estimate's.
   const tests = [
     ...new Set(
       front.analyses.flatMap((row) => {
@@ -410,17 +338,13 @@ objective. Number the tables T1 upward in the order the rows appear.`,
     ),
   ];
 
-  const second = await buildSapRules(front, tests, {
+  const third = await buildSapRules(front, tests, {
     answers: options.answers,
     onProgress: options.onProgress,
-    onUsage: (u) =>
-      options.onUsage?.({
-        ...u,
-        output_tokens: (message.usage.output_tokens ?? 0) + u.output_tokens,
-      }),
+    onUsage: report,
   });
 
-  const spec: SapSpec = { ...front, ...second.rules };
+  const spec: SapSpec = { ...front, ...third.rules };
 
   // Judged here rather than at render time, so the findings are stored with the
   // plan and a problem is visible before anyone downloads it.
@@ -431,12 +355,18 @@ objective. Number the tables T1 upward in the order the rows appear.`,
     findings,
     model: message.model,
     usage: {
-      input_tokens: message.usage.input_tokens + second.usage.input_tokens,
-      output_tokens: message.usage.output_tokens + second.usage.output_tokens,
+      input_tokens:
+        message.usage.input_tokens + second.usage.input_tokens + third.usage.input_tokens,
+      output_tokens:
+        message.usage.output_tokens + second.usage.output_tokens + third.usage.output_tokens,
       cache_creation_input_tokens:
-        (message.usage.cache_creation_input_tokens ?? 0) + second.usage.cache_creation_input_tokens,
+        (message.usage.cache_creation_input_tokens ?? 0) +
+        second.usage.cache_creation_input_tokens +
+        third.usage.cache_creation_input_tokens,
       cache_read_input_tokens:
-        (message.usage.cache_read_input_tokens ?? 0) + second.usage.cache_read_input_tokens,
+        (message.usage.cache_read_input_tokens ?? 0) +
+        second.usage.cache_read_input_tokens +
+        third.usage.cache_read_input_tokens,
     },
   };
 }

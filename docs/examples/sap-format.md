@@ -57,6 +57,22 @@ second model call that is *given* the chosen tests, so the plan lists the
 assumptions of the tests it runs and no others. An assumption for a test nobody
 runs is the kind of noise that makes a plan look thorough while helping no one.
 
+## How it is built
+
+Three model calls, and the split is not arbitrary.
+
+1. **The frame and the registries** - the question, the estimand, the
+   objectives, every variable and every outcome.
+2. **The analysis map** - which points at the ids the registries declare, so it
+   needs them as input whatever happens.
+3. **The rules and the assumptions** - which is given the analyses code has
+   already chosen, so it states the assumptions of the tests this study runs and
+   no others.
+
+The first two were one call until the API refused to compile the schema. Run
+`preflight.ts` after changing any schema: it costs one token per schema and
+answers the only question that cannot be answered offline.
+
 ## Where the shell tables live
 
 The route-map template carries the shell tables inside the plan as Section 6.
