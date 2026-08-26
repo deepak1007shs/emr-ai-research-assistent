@@ -83,7 +83,7 @@ describe("the SAP document", () => {
 
   it("carries the five analysis-map columns", async () => {
     const { visible } = await read();
-    for (const header of ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical test"]) {
+    for (const header of ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical analysis"]) {
       expect(visible).toContain(header);
     }
   });

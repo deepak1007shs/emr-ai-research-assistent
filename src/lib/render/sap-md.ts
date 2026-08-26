@@ -12,6 +12,7 @@ import {
   outcomeIndex,
   variableIndex,
   type SapSpec,
+  type SapVariant,
 } from "../sap/types.ts";
 import { line, plain } from "./plain.ts";
 
@@ -44,7 +45,15 @@ export function buildSapMarkdown(
   spec: SapSpec,
   /** Objective id to the table that reports it, once the shell tables exist. */
   tableNumbers?: Record<string, number[]>,
+  options: { variant?: SapVariant } = {},
 ): string {
+  const short = options.variant === "short";
+
+  // The short document does not carry the full one's section numbers: it is a
+  // different cut of the same plan, not Sections 1 to 3 of it.
+  const section = (number: number, title: string) =>
+    short ? `## ${title}` : `## Section ${number} - ${title}`;
+
   const byVariable = variableIndex(spec);
   const byOutcome = outcomeIndex(spec);
 
@@ -55,7 +64,9 @@ export function buildSapMarkdown(
   const out: string[] = [];
   const push = (...parts: string[]) => out.push(...parts);
 
-  push("# STATISTICAL ANALYSIS PLAN", "", `**${plain(spec.title)}**`, "");
+  push("# STATISTICAL ANALYSIS PLAN", "");
+  if (short) push("*Objectives, outcomes and the analysis map*", "");
+  push(`**${plain(spec.title)}**`, "");
   if (spec.design || spec.setting) {
     push(`*${plain([spec.design, spec.setting].filter(Boolean).join(". "))}*`, "");
   }
@@ -63,7 +74,7 @@ export function buildSapMarkdown(
   /* ---- the clinical question --------------------------------------- */
 
   const fw = spec.picot?.framework === "PICOT" ? "PICOT" : "PECOT";
-  if (spec.picot) {
+  if (spec.picot && !short) {
     push("---", "", `## ${fw}`, "");
     push(
       "*The clinical question decomposed. This is what every objective, variable and test below must trace back to.*",
@@ -84,16 +95,16 @@ export function buildSapMarkdown(
 
   /* ---- Section 1 --------------------------------------------------- */
 
-  push("---", "", "## Section 1 - Objectives as Answerable Questions", "");
+  push("---", "", section(1, "Objectives as Answerable Questions"), "");
   push(
     "*Every objective is phrased as a question, because a question forces you to name an outcome and a predictor, which is exactly what the statistics need.*",
     "",
   );
   push("### Aim", "", plain(spec.aim), "");
 
-  if (spec.hypothesis) push("### Hypothesis", "", plain(spec.hypothesis), "");
+  if (spec.hypothesis && !short) push("### Hypothesis", "", plain(spec.hypothesis), "");
 
-  if (spec.estimand) {
+  if (spec.estimand && !short) {
     push("### Primary estimand (ICH E9(R1))", "");
     push("*The estimand, not the test, is what the study is trying to estimate.*", "");
     push(
@@ -125,6 +136,29 @@ export function buildSapMarkdown(
     outcome: 0, predictor: 1, effect_modifier: 2, confounder: 3,
     mediator: 4, collider: 5, descriptor: 6,
   };
+  // The outcomes get a section of their own in the short document, where they
+  // are the point rather than a note under the map.
+  if (short) {
+    const measuredOutcomes = (spec.outcomes ?? []).filter((o) =>
+      analyses.some((a) => (a.outcome_ids ?? []).includes(o.id)),
+    );
+    if (measuredOutcomes.length) {
+      push("---", "", section(2, "Outcomes"), "");
+      push(
+        "*An outcome is not defined until five questions are answered: what exactly is measured, how, using which instrument, at what time, and in which units.*",
+        "",
+      );
+      push(
+        table(
+          ["Outcome", "How it is measured", "Instrument", "When", "Units"],
+          measuredOutcomes.map((o) => [o.what, o.how, o.instrument, o.when, o.units]),
+        ),
+        "",
+      );
+    }
+  }
+
+  if (!short) {
   push("---", "", "## Section 2 - Variable Table", "");
   push(
     "*One row per variable. Once the data type and the role are set, the correct test follows almost mechanically. Grouped by role: outcomes first, then predictors, then confounders, then descriptors.*",
@@ -150,7 +184,9 @@ export function buildSapMarkdown(
 
   /* ---- Section 3 --------------------------------------------------- */
 
-  push("---", "", "## Section 3 - Analysis Map", "");
+  }
+
+  push("---", "", section(3, "Analysis Map"), "");
   push(
     "*One row per objective, or per group of objectives that share an analysis. Every question is linked to its analysis, unadjusted and adjusted, AND to the empty results tables it will fill.*",
     "",
@@ -190,7 +226,7 @@ export function buildSapMarkdown(
   const measured = (spec.outcomes ?? []).filter((o) =>
     analyses.some((a) => (a.outcome_ids ?? []).includes(o.id)),
   );
-  if (measured.length) {
+  if (measured.length && !short) {
     push("**How each outcome is defined.**", "");
     for (const o of measured) push(`- **${plain(o.what)}.** ${plain(outcomeDefinition(o))}`);
     push("");
@@ -228,7 +264,7 @@ export function buildSapMarkdown(
 
   /* ---- Section 4 --------------------------------------------------- */
 
-  if (spec.rules) {
+  if (spec.rules && !short) {
     push("---", "", "## Section 4 - General Statistical Rules", "");
     push("*Fixed upfront so they are never re-decided after seeing the data.*", "");
     for (const [label, value] of [
@@ -246,18 +282,18 @@ export function buildSapMarkdown(
     }
     push("");
   }
-  if (spec.sample_size_note) {
+  if (spec.sample_size_note && !short) {
     push(`**Sample size.** ${plain(spec.sample_size_note)}`, "");
   }
 
-  if (spec.populations?.length) {
+  if (spec.populations?.length && !short) {
     push("### Analysis populations (who is analysed)", "");
     push(table(["Population", "Definition"], spec.populations.map((p) => [p.name, p.definition])), "");
   }
-  if (spec.baseline_comparison) {
+  if (spec.baseline_comparison && !short) {
     push("### Baseline comparison", "", plain(spec.baseline_comparison), "");
   }
-  if (spec.intercurrent_events?.length) {
+  if (spec.intercurrent_events?.length && !short) {
     push("### Intercurrent events", "");
     push(
       "*These change what is being estimated. Missing data is a separate problem, handled by the rule above.*",
@@ -265,10 +301,10 @@ export function buildSapMarkdown(
     );
     push(table(["Event", "Strategy"], spec.intercurrent_events.map((e) => [e.event, e.strategy])), "");
   }
-  if (spec.testing_hierarchy) {
+  if (spec.testing_hierarchy && !short) {
     push("### Multiplicity and testing hierarchy", "", plain(spec.testing_hierarchy), "");
   }
-  if (spec.subgroups?.length) {
+  if (spec.subgroups?.length && !short) {
     push("### Subgroup and interaction analyses", "");
     push(
       "*Pre-specified. Effect modification is tested by an interaction term, never by comparing within-subgroup p values.*",
@@ -276,20 +312,20 @@ export function buildSapMarkdown(
     );
     push(table(["Subgroup", "How it is tested"], spec.subgroups.map((g) => [g.subgroup, g.how_tested])), "");
   }
-  if (spec.interim) {
+  if (spec.interim && !short) {
     push("### Interim analyses and stopping rules", "", plain(spec.interim), "");
   }
 
   /* ---- Section 5 and 5A -------------------------------------------- */
 
-  if (spec.steps?.length) {
+  if (spec.steps?.length && !short) {
     push("---", "", "## Section 5 - Step-by-Step Analysis Flow", "");
     push("*The ladder for the primary objective. The same ladder works for almost any design.*", "");
     for (const step of spec.steps) push(`- **${line(step.step)}.** ${plain(step.what)}`);
     push("");
   }
 
-  if (spec.assumption_checks?.length) {
+  if (spec.assumption_checks?.length && !short) {
     push("---", "", "## Section 5A - Assumption Checking", "");
     push(
       "*The assumptions belong to the test that was chosen, so only the assumptions the planned tests actually make are listed.*",
@@ -313,11 +349,13 @@ export function buildSapMarkdown(
 
   /* ---- Sections 6 and 7 -------------------------------------------- */
 
-  push("---", "", "## Section 6 - Shell (Dummy) Tables", "");
-  push(
-    "Every empty results table the thesis will contain, in the order it will appear, is laid out in the Shell Tables document that accompanies this plan. Cells stay blank until the data arrive, and each table names the test that produced it.",
-    "",
-  );
+  if (!short) {
+    push("---", "", "## Section 6 - Shell (Dummy) Tables", "");
+    push(
+      "Every empty results table the thesis will contain, in the order it will appear, is laid out in the Shell Tables document that accompanies this plan. Cells stay blank until the data arrive, and each table names the test that produced it.",
+      "",
+    );
+  }
 
   push(
     "---",

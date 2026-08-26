@@ -1,7 +1,8 @@
 <!--
   Generated from the reference study by src/lib/render/sap-md.ts, the same
-  renderer the app uses. Do not edit by hand: regenerate it, or the example and
-  the application will describe different documents.
+  renderer the app uses. The full route map.
+  Do not edit by hand: regenerate it, or the example and the application will
+  describe different documents.
 -->
 
 # STATISTICAL ANALYSIS PLAN

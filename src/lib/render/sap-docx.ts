@@ -25,6 +25,7 @@ import {
   outcomeIndex,
   variableIndex,
   type SapSpec,
+  type SapVariant,
 } from "../sap/types.ts";
 
 /**
@@ -129,14 +130,26 @@ const HEADERS = [
   "Outcome",
   "Predictor(s)",
   "Data type",
-  "Statistical test -> Table #",
+  "Statistical analysis -> Table #",
 ];
 
 export async function buildSapDocx(
   spec: SapSpec,
   /** Objective id to the table that reports it, once the shell tables exist. */
   tableNumbers?: Record<string, number[]>,
+  options: { variant?: SapVariant } = {},
 ): Promise<Buffer> {
+  const short = options.variant === "short";
+
+  /**
+   * The short document does not carry the full one's section numbers. Reusing
+   * them would say it is Sections 1 to 3 of the plan, and it is not: it is a
+   * different cut of the same plan, and its middle section is the outcomes
+   * rather than the variable table.
+   */
+  const section = (number: number, title: string) =>
+    heading(short ? title : `Section ${number} - ${title}`, HeadingLevel.HEADING_1);
+
   const doc: Block[] = [];
 
   doc.push(
@@ -144,9 +157,20 @@ export async function buildSapDocx(
       text: "STATISTICAL ANALYSIS PLAN",
       heading: HeadingLevel.TITLE,
       alignment: AlignmentType.CENTER,
-      spacing: { after: 160 },
+      spacing: { after: short ? 60 : 160 },
     }),
   );
+  if (short) {
+    doc.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: "Objectives, outcomes and the analysis map", italics: true }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 160 },
+      }),
+    );
+  }
   doc.push(
     new Paragraph({
       children: [new TextRun({ text: plain(spec.title), bold: true })],
@@ -170,7 +194,7 @@ export async function buildSapDocx(
 
   // ---- the clinical question decomposed
   const fw = spec.picot?.framework === "PICOT" ? "PICOT" : "PECOT";
-  if (spec.picot) {
+  if (spec.picot && !short) {
     doc.push(heading(fw, HeadingLevel.HEADING_1));
     doc.push(
       italic(
@@ -192,11 +216,11 @@ export async function buildSapDocx(
     doc.push(labelled("Assembled question.", spec.picot.assembled_question));
   }
 
-  // ---- Section 1
+  // ---- objectives
   doc.push(
-    heading(
-      "Section 1 - Objectives as Answerable Questions",
-      HeadingLevel.HEADING_1,
+    section(
+      1,
+      "Objectives as Answerable Questions",
     ),
   );
   doc.push(
@@ -217,12 +241,12 @@ export async function buildSapDocx(
   const secondary = spec.objectives.filter((o) => o.tier === "secondary");
   const exploratory = spec.objectives.filter((o) => o.tier === "exploratory");
 
-  if (spec.hypothesis) {
+  if (spec.hypothesis && !short) {
     doc.push(heading("Hypothesis", HeadingLevel.HEADING_2));
     doc.push(para(spec.hypothesis));
   }
 
-  if (spec.estimand) {
+  if (spec.estimand && !short) {
     doc.push(heading("Primary estimand (ICH E9(R1))", HeadingLevel.HEADING_2));
     doc.push(
       italic(
@@ -257,7 +281,29 @@ export async function buildSapDocx(
     for (const o of exploratory) doc.push(objectiveBullet(o.id, o.question));
   }
 
-  // ---- Section 2
+  // ---- outcomes, in the short document only, where they are the point
+  if (short) {
+    const measuredOutcomes = (spec.outcomes ?? []).filter((o) =>
+      spec.analyses.some((a) => (a.outcome_ids ?? []).includes(o.id)),
+    );
+    if (measuredOutcomes.length) {
+      doc.push(section(2, "Outcomes"));
+      doc.push(
+        italic(
+          "An outcome is not defined until five questions are answered: what exactly is measured, how, using which instrument, at what time, and in which units.",
+        ),
+      );
+      doc.push(
+        gridTable(
+          ["Outcome", "How it is measured", "Instrument", "When", "Units"],
+          measuredOutcomes.map((o) => [o.what, o.how, o.instrument, o.when, o.units]),
+        ),
+      );
+    }
+  }
+
+  // ---- the variable table, in the full document only
+  if (!short) {
   doc.push(heading("Section 2 - Variable Table", HeadingLevel.HEADING_1));
   doc.push(
     italic(
@@ -299,8 +345,10 @@ export async function buildSapDocx(
     );
   }
 
-  // ---- Section 3
-  doc.push(heading("Section 3 - Analysis Map", HeadingLevel.HEADING_1));
+  }
+
+  // ---- the analysis map
+  doc.push(section(3, "Analysis Map"));
   doc.push(
     italic(
       "One row per objective, or per group of objectives that share an analysis. Every question is linked to its analysis, unadjusted and adjusted, AND to the empty results tables it will fill.",
@@ -359,7 +407,9 @@ export async function buildSapDocx(
   const measured = (spec.outcomes ?? []).filter((o) =>
     spec.analyses.some((a) => (a.outcome_ids ?? []).includes(o.id)),
   );
-  if (measured.length) {
+  // In the short document the outcomes already have a section of their own, so
+  // repeating their definitions under the map would say it twice.
+  if (measured.length && !short) {
     doc.push(
       new Paragraph({
         spacing: { before: 200, after: 100 },
@@ -435,7 +485,7 @@ export async function buildSapDocx(
 
   /* ---- Section 4 --------------------------------------------------- */
 
-  if (spec.rules) {
+  if (spec.rules && !short) {
     doc.push(
       heading("Section 4 - General Statistical Rules", HeadingLevel.HEADING_1),
     );
@@ -454,11 +504,11 @@ export async function buildSapDocx(
     doc.push(labelled("Multiplicity.", spec.rules.multiplicity));
     doc.push(labelled("Reproducibility.", spec.rules.reproducibility));
   }
-  if (spec.sample_size_note) {
+  if (spec.sample_size_note && !short) {
     doc.push(labelled("Sample size.", spec.sample_size_note));
   }
 
-  if (spec.populations?.length) {
+  if (spec.populations?.length && !short) {
     doc.push(
       heading("Analysis populations (who is analysed)", HeadingLevel.HEADING_2),
     );
@@ -470,12 +520,12 @@ export async function buildSapDocx(
     );
   }
 
-  if (spec.baseline_comparison) {
+  if (spec.baseline_comparison && !short) {
     doc.push(heading("Baseline comparison", HeadingLevel.HEADING_2));
     doc.push(para(spec.baseline_comparison));
   }
 
-  if (spec.intercurrent_events?.length) {
+  if (spec.intercurrent_events?.length && !short) {
     doc.push(heading("Intercurrent events", HeadingLevel.HEADING_2));
     doc.push(
       italic(
@@ -490,14 +540,14 @@ export async function buildSapDocx(
     );
   }
 
-  if (spec.testing_hierarchy) {
+  if (spec.testing_hierarchy && !short) {
     doc.push(
       heading("Multiplicity and testing hierarchy", HeadingLevel.HEADING_2),
     );
     doc.push(para(spec.testing_hierarchy));
   }
 
-  if (spec.subgroups?.length) {
+  if (spec.subgroups?.length && !short) {
     doc.push(
       heading("Subgroup and interaction analyses", HeadingLevel.HEADING_2),
     );
@@ -514,7 +564,7 @@ export async function buildSapDocx(
     );
   }
 
-  if (spec.interim) {
+  if (spec.interim && !short) {
     doc.push(
       heading("Interim analyses and stopping rules", HeadingLevel.HEADING_2),
     );
@@ -523,7 +573,7 @@ export async function buildSapDocx(
 
   /* ---- Section 5 --------------------------------------------------- */
 
-  if (spec.steps?.length) {
+  if (spec.steps?.length && !short) {
     doc.push(
       heading("Section 5 - Step-by-Step Analysis Flow", HeadingLevel.HEADING_1),
     );
@@ -538,7 +588,7 @@ export async function buildSapDocx(
 
   /* ---- Section 5A -------------------------------------------------- */
 
-  if (spec.assumption_checks?.length) {
+  if (spec.assumption_checks?.length && !short) {
     doc.push(
       heading("Section 5A - Assumption Checking", HeadingLevel.HEADING_1),
     );
@@ -579,12 +629,14 @@ export async function buildSapDocx(
 
   /* ---- Section 6 --------------------------------------------------- */
 
+  if (!short) {
   doc.push(heading("Section 6 - Shell (Dummy) Tables", HeadingLevel.HEADING_1));
   doc.push(
     para(
       "Every empty results table the thesis will contain, in the order it will appear, is laid out in the Shell Tables document that accompanies this plan. Cells stay blank until the data arrive, and each table names the test that produced it.",
     ),
   );
+  }
 
   doc.push(
     italic(

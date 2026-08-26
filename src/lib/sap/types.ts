@@ -319,3 +319,15 @@ export type SapRegistry = Pick<
   "title" | "objectives" | "variables" | "outcomes" | "analyses"
 > &
   Partial<Pick<SapSpec, "sample_size" | "expected_events">>;
+
+/**
+ * Which of the two Statistical Analysis Plans is being rendered.
+ *
+ * `full` is the route map: the question, the estimand, the variable table, the
+ * rules, the ladder and the assumptions. `short` is the working sheet a
+ * statistician sits down with: the objectives, the outcomes they are measured
+ * by, and the analysis map. Nothing is summarised or reworded between them, so
+ * the short one is a view of the same plan rather than a second opinion about
+ * it.
+ */
+export type SapVariant = "full" | "short";

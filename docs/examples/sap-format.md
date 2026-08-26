@@ -19,11 +19,30 @@ sample-size basis, which the glance box carried, is kept and printed with the
 statistical rules, because a target n without its assumptions is not a
 calculation.
 
-Two renderings of the same reference study sit in this folder, so the format can
-be read rather than described:
+## Two documents, one plan
 
-- [example-sap.md](example-sap.md) - the whole plan as Markdown
-- `sap-route-map.docx` - the same plan as Word, in the house style
+The plan downloads in two cuts:
+
+| | What it carries |
+|---|---|
+| **Full** | Everything in the table above: the route map. |
+| **Short** | The objectives, the outcomes and the analysis map, and nothing else. What a statistician sits down with. |
+
+The short one is a **view** of the full one, not a summary of it. Nothing is
+reworded between them: the same objectives, the same outcome definitions, the
+same analysis in every cell of the map, from the same rule table. A summary
+would be a second document that could disagree with the first, which is the one
+thing a plan must never do.
+
+Its sections are not numbered. The full plan's Section 2 is the variable table
+and the short plan's middle section is the outcomes, so sharing the numbers
+would say it is the first three sections of the full plan, and it is not.
+
+Four renderings of the same reference study sit in this folder, so the formats
+can be read rather than described:
+
+- [example-sap.md](example-sap.md) and `sap-route-map.docx` - the full plan
+- [example-sap-short.md](example-sap-short.md) and `sap-short.docx` - the short one
 
 Both come from `src/lib/render/sap-md.ts` and `sap-docx.ts`, which
 [sap-md.test.ts](../../src/lib/render/sap-md.test.ts) holds to the same

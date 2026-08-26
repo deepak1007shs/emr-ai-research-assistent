@@ -47,24 +47,31 @@ export async function GET(
   const numbers = tableNumbers((shells?.spec as ShellTablesSpec | undefined) ?? null);
   const name = slugify(protocol?.filename ?? "study");
 
+  // The short plan is the same plan, cut to what a statistician works from:
+  // the objectives, the outcomes and the analysis map. Not a summary of the
+  // full one, which would be a second document that could disagree with it.
+  const short = request.nextUrl.searchParams.get("doc") === "short";
+  const variant = short ? ("short" as const) : ("full" as const);
+  const suffix = short ? "statistical-analysis-plan-short" : "statistical-analysis-plan";
+
   // Markdown for reading in a terminal or pasting into an email; Word for
   // handing over. Both come from the same spec, so they cannot disagree.
   if (request.nextUrl.searchParams.get("format") === "md") {
-    return new Response(buildSapMarkdown(data.spec as SapSpec, numbers), {
+    return new Response(buildSapMarkdown(data.spec as SapSpec, numbers, { variant }), {
       headers: {
         "Content-Type": "text/markdown; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${name}-statistical-analysis-plan.md"`,
+        "Content-Disposition": `attachment; filename="${name}-${suffix}.md"`,
       },
     });
   }
 
-  const buffer = await buildSapDocx(data.spec as SapSpec, numbers);
+  const buffer = await buildSapDocx(data.spec as SapSpec, numbers, { variant });
 
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type":
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "Content-Disposition": `attachment; filename="${name}-statistical-analysis-plan.docx"`,
+      "Content-Disposition": `attachment; filename="${name}-${suffix}.docx"`,
     },
   });
 }
