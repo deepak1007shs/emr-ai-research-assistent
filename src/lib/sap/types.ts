@@ -1,8 +1,10 @@
 /**
  * The analysis model behind the Statistical Analysis Plan.
  *
- * Small on purpose. It holds what the SAP's two sections need, and what the case
- * record form and shell tables will later read, so all three stay in step.
+ * This object owns the registries. Every variable and every outcome is declared
+ * once, with an id and a single authoritative label, and the case report form
+ * and the shell tables refer to those ids rather than repeating the words. Two
+ * documents cannot disagree about a string that exists in one place.
  */
 
 export type DataType =
@@ -14,40 +16,20 @@ export type Comparison =
   | "two_groups"        // converted versus completed
   | "many_groups"       // three or more
   | "association"       // outcome regressed on predictors
-  | "adjusted"          // the same, with confounders
+  | "adjusted"          // the same, with confounders held constant
   | "paired"            // before and after in the same patient
   | "correlation"
   | "agreement"
   | "descriptive";      // frequencies, no test
 
+export type Role =
+  | "outcome" | "predictor" | "confounder" | "effect_modifier"
+  | "mediator" | "collider" | "descriptor";
+
 /** The second classification every outcome carries, from the teaching slide. */
 export type Domain =
   | "clinical" | "laboratory" | "radiological" | "functional"
   | "patient_reported" | "economic" | "composite";
-
-/**
- * The five questions an outcome must answer, held as five fields rather than one
- * sentence. A sentence can silently omit one; five fields cannot, and the
- * renderer composes them into the cell.
- */
-export type Outcome = {
-  /** What exactly will be measured. */
-  what: string;
-  /** How it will be measured. */
-  how: string;
-  /** Using which instrument. */
-  instrument: string;
-  /** At what time. */
-  when: string;
-  /** In which units. */
-  units: string;
-  /** Clinical, laboratory, radiological, functional, patient-reported, economic, composite. */
-  domain: Domain;
-};
-
-export type Role =
-  | "outcome" | "predictor" | "confounder" | "effect_modifier"
-  | "mediator" | "collider" | "descriptor";
 
 export type Objective = {
   /** P1, P2, S1, S2... */
@@ -58,7 +40,10 @@ export type Objective = {
 };
 
 export type Variable = {
-  name: string;
+  /** var_age, var_bmi. Referenced by the form and the tables. */
+  id: string;
+  /** The single authoritative wording. Nothing else stores a copy. */
+  label: string;
   data_type: DataType;
   unit_coding: string;
   role: Role;
@@ -66,21 +51,43 @@ export type Variable = {
   exclusion_reason?: string;
 };
 
+/**
+ * The five questions an outcome must answer, held as five fields rather than one
+ * sentence. A sentence can silently omit one; five fields cannot.
+ */
+export type Outcome = {
+  /** out_conversion. Referenced by analyses and by table rows. */
+  id: string;
+  /** What exactly will be measured. Also the outcome's authoritative label. */
+  what: string;
+  /** How it will be measured. */
+  how: string;
+  /** Using which instrument. */
+  instrument: string;
+  /** At what time. */
+  when: string;
+  /** In which units. */
+  units: string;
+  domain: Domain;
+  /** The variables that measure it, by id. */
+  source_variable_ids: string[];
+};
+
 export type AnalysisRow = {
   objective_id: string;
   /** "P1 - conversion rate" */
   label: string;
-  /** The five answers. The renderer folds them into the Outcome cell. */
-  outcome: Outcome;
-  /** "(single-group estimate)" when there are none. */
-  predictors: string;
+  /** The outcome this analyses, by id. */
+  outcome_id: string;
+  /** The predictors, by id. Empty for a single-group estimate. */
+  predictor_ids: string[];
   data_type: DataType;
   comparison: Comparison;
   paired: boolean;
-  /** Set to true when the data are known to be skewed, which forces a rank test. */
+  /** True when the data are known to be skewed, which forces a rank test. */
   skewed?: boolean;
-  /** T3, T4... */
-  table_ref: string;
+  /** T1, T2... the id of the table this fills. */
+  table_id: string;
   /** The model may depart from the rule table, but must say why in public. */
   test_override?: string;
   override_reason?: string;
@@ -95,8 +102,38 @@ export type SapSpec = {
   aim: string;
   objectives: Objective[];
   variables: Variable[];
+  outcomes: Outcome[];
   analyses: AnalysisRow[];
   /** Expected events, for the degrees-of-freedom note. */
   expected_events?: number;
   sample_size?: number;
 };
+
+/* ---- the registry lookups every document uses --------------------- */
+
+export function variableIndex(spec: SapSpec): Map<string, Variable> {
+  return new Map((spec.variables ?? []).map((v) => [v.id, v]));
+}
+
+export function outcomeIndex(spec: SapSpec): Map<string, Outcome> {
+  return new Map((spec.outcomes ?? []).map((o) => [o.id, o]));
+}
+
+/** The authoritative label for a variable, or the id when it does not resolve. */
+export function labelOf(spec: SapSpec, variableId: string): string {
+  return variableIndex(spec).get(variableId)?.label ?? variableId;
+}
+
+/**
+ * True when a stored plan carries the ids the case report form and the shell
+ * tables link to. A plan built before the three documents were linked has
+ * variables with a name and no id; building a form from it would produce a
+ * document that only looks linked. Such a plan is rebuilt, not patched.
+ */
+export function isLinkable(spec: SapSpec | null | undefined): boolean {
+  if (!spec) return false;
+  const variables = spec.variables ?? [];
+  const outcomes = spec.outcomes ?? [];
+  if (!variables.length) return false;
+  return variables.every((v) => Boolean(v?.id)) && outcomes.every((o) => Boolean(o?.id));
+}

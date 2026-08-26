@@ -12,7 +12,7 @@ import {
 } from "docx";
 import { HOUSE_BORDER, HOUSE_STYLES, plain } from "./house-style";
 import { chooseTest, degreesOfFreedomNote } from "../sap/choose-test.ts";
-import type { Outcome, SapSpec } from "../sap/types.ts";
+import { outcomeIndex, variableIndex, type Outcome, type SapSpec } from "../sap/types.ts";
 
 /**
  * The Statistical Analysis Plan: two sections.
@@ -122,14 +122,31 @@ export async function buildSapDocx(spec: SapSpec): Promise<Buffer> {
     ),
   );
 
+  // Labels come from the registry, never from a copy held here, so this document
+  // cannot describe a variable differently from the form or the tables.
+  const byVariable = variableIndex(spec);
+  const byOutcome = outcomeIndex(spec);
+
   const reasons = new Map<string, string>();
   const rows = spec.analyses.map((row) => {
     const chosen = chooseTest(row);
     if (chosen) reasons.set(chosen.test, chosen.why);
     const test = chosen
-      ? `${chosen.test} -> ${row.table_ref}`
-      : `NO RULE COVERS THIS ROW. Decide the test and record it. -> ${row.table_ref}`;
-    return [row.label, outcomeCell(row.outcome), row.predictors, row.data_type, test];
+      ? `${chosen.test} -> ${row.table_id}`
+      : `NO RULE COVERS THIS ROW. Decide the test and record it. -> ${row.table_id}`;
+
+    const outcome = byOutcome.get(row.outcome_id);
+    const predictors = (row.predictor_ids ?? [])
+      .map((id) => byVariable.get(id)?.label ?? id)
+      .join(", ");
+
+    return [
+      row.label,
+      outcome ? outcomeCell(outcome) : `UNKNOWN OUTCOME ${row.outcome_id}`,
+      predictors || "(single-group estimate)",
+      row.data_type,
+      test,
+    ];
   });
 
   doc.push(
@@ -155,7 +172,7 @@ export async function buildSapDocx(spec: SapSpec): Promise<Buffer> {
 
   const adjusted = spec.analyses.find((a) => a.comparison === "adjusted");
   if (spec.expected_events !== undefined && adjusted) {
-    const predictorCount = adjusted.predictors.split(",").filter((p) => p.trim()).length;
+    const predictorCount = (adjusted.predictor_ids ?? []).length;
     const { note } = degreesOfFreedomNote(spec.expected_events, predictorCount);
     doc.push(
       new Paragraph({
@@ -177,7 +194,7 @@ export async function buildSapDocx(spec: SapSpec): Promise<Buffer> {
       }),
     );
     for (const v of excluded) {
-      doc.push(para(`${v.name} is a ${v.role}. ${v.exclusion_reason}`));
+      doc.push(para(`${v.label} is a ${v.role}. ${v.exclusion_reason}`));
     }
     doc.push(para("Neither enters any model."));
   }

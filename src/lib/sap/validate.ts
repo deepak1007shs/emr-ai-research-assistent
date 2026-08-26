@@ -1,4 +1,5 @@
 import type { SapSpec } from "./types.ts";
+import { outcomeIndex, variableIndex } from "./types.ts";
 import { chooseTest } from "./choose-test.ts";
 
 /**
@@ -73,33 +74,101 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
     }
   }
 
-  /* ---- the five questions ------------------------------------------ */
+  /* ---- referential integrity: every id resolves --------------------- */
+
+  const byVariable = variableIndex(spec);
+  const byOutcome = outcomeIndex(spec);
+
+  const variableIds = new Set<string>();
+  for (const v of variables) {
+    if (variableIds.has(v.id)) error("REF01", `The variable id ${v.id} is used twice.`);
+    variableIds.add(v.id);
+  }
+
+  const outcomeIds = new Set<string>();
+  for (const o of spec.outcomes ?? []) {
+    if (outcomeIds.has(o.id)) error("REF02", `The outcome id ${o.id} is used twice.`);
+    outcomeIds.add(o.id);
+  }
+
+  // One concept, one wording. Two labels the same means one concept has two
+  // identities, which is how documents start disagreeing.
+  const labels = new Map<string, string>();
+  for (const v of variables) {
+    const key = v.label.trim().toLowerCase();
+    const first = labels.get(key);
+    if (first) error("REF03", `${first} and ${v.id} are both labelled "${v.label}". One concept has one wording.`);
+    else labels.set(key, v.id);
+  }
+
+  // The form and the tables resolve variables and outcomes through one map, so
+  // an id used by both would silently overwrite one of them.
+  for (const o of spec.outcomes ?? []) {
+    if (variableIds.has(o.id)) {
+      error("REF11", `${o.id} is the id of both a variable and an outcome. An id names one thing.`);
+    }
+  }
+
+  // One concept, one wording, for outcomes too.
+  const outcomeLabels = new Map<string, string>();
+  for (const o of spec.outcomes ?? []) {
+    const key = o.what?.trim().toLowerCase();
+    if (!key) continue;
+    const first = outcomeLabels.get(key);
+    if (first) {
+      error("REF12", `${first} and ${o.id} both measure "${o.what}". Two outcomes with one wording are one outcome.`);
+    } else outcomeLabels.set(key, o.id);
+  }
 
   for (const a of analyses) {
+    if (!byOutcome.has(a.outcome_id)) {
+      error("REF04", `${a.objective_id} analyses ${a.outcome_id}, which is not a declared outcome.`);
+    }
+    for (const id of a.predictor_ids ?? []) {
+      if (!byVariable.has(id)) {
+        error("REF05", `${a.objective_id} adjusts for ${id}, which is not a declared variable.`);
+      }
+    }
+  }
+
+  for (const o of spec.outcomes ?? []) {
+    for (const id of o.source_variable_ids ?? []) {
+      if (!byVariable.has(id)) {
+        error("REF06", `Outcome ${o.id} is measured by ${id}, which is not a declared variable.`);
+      }
+    }
+  }
+
+  /* ---- the five questions ------------------------------------------ */
+
+  for (const o of spec.outcomes ?? []) {
     const missing = (["what", "how", "instrument", "when", "units"] as const).filter(
-      (key) => !a.outcome?.[key]?.trim(),
+      (key) => !o[key]?.trim(),
     );
     if (missing.length) {
       error(
         "OUT01",
-        `The outcome for ${a.objective_id} does not say: ${missing.join(", ")}. An outcome is not defined until all five questions are answered.`,
+        `Outcome ${o.id} does not say: ${missing.join(", ")}. An outcome is not defined until all five questions are answered.`,
       );
     }
-    if (!a.outcome?.domain) {
-      error("OUT02", `The outcome for ${a.objective_id} has no domain. Classify it clinical, laboratory, radiological, functional, patient-reported, economic or composite.`);
+    if (!o.domain) {
+      error("OUT02", `Outcome ${o.id} has no domain. Classify it clinical, laboratory, radiological, functional, patient-reported, economic or composite.`);
     }
   }
 
   /* ---- adjustment integrity ---------------------------------------- */
 
+  // Caught by id, so a mediator cannot slip through on a spelling difference.
   const excluded = variables.filter((v) => v.role === "mediator" || v.role === "collider");
+  const excludedIds = new Set(excluded.map((v) => v.id));
+
   for (const a of analyses) {
-    const named = a.predictors.toLowerCase();
-    for (const v of excluded) {
-      if (named.includes(v.name.toLowerCase())) {
+    for (const id of a.predictor_ids ?? []) {
+      if (excludedIds.has(id)) {
+        const v = byVariable.get(id)!;
         error(
           "ADJ01",
-          `${a.objective_id} adjusts for ${v.name}, which is a ${v.role}. ${
+          `${a.objective_id} adjusts for ${v.label}, which is a ${v.role}. ${
             v.role === "mediator"
               ? "It lies on the path being measured, so adjusting for it removes the effect."
               : "It is caused by the outcome, so conditioning on it creates a spurious association."
@@ -107,10 +176,18 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
         );
       }
     }
+    // Nor may an analysis adjust for the thing it is measuring.
+    const outcome = byOutcome.get(a.outcome_id);
+    for (const id of outcome?.source_variable_ids ?? []) {
+      if ((a.predictor_ids ?? []).includes(id)) {
+        error("ADJ04", `${a.objective_id} adjusts for ${byVariable.get(id)?.label ?? id}, which is what it is measuring.`);
+      }
+    }
   }
+
   for (const v of excluded) {
     if (!v.exclusion_reason?.trim()) {
-      warn("ADJ02", `${v.name} is named a ${v.role} but does not say why it is excluded. The reason prints in the plan.`);
+      warn("ADJ02", `${v.label} is named a ${v.role} but does not say why it is excluded. The reason prints in the plan.`);
     }
   }
 
@@ -127,15 +204,15 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
     if (a.test_override && !a.override_reason?.trim()) {
       error("TEST02", `${a.objective_id} overrides the standard test but gives no reason. An override that is not explained cannot be judged.`);
     }
-    if (!a.table_ref) {
+    if (!a.table_id) {
       error("TBL01", `${a.objective_id} points at no table.`);
     } else {
-      if (seenTables.has(a.table_ref)) {
-        warn("TBL02", `${a.table_ref} is used by more than one row. Two analyses sharing a table is usually a numbering slip.`);
+      if (seenTables.has(a.table_id)) {
+        warn("TBL02", `${a.table_id} is used by more than one row. Two analyses sharing a table is usually a numbering slip.`);
       }
-      seenTables.add(a.table_ref);
-      if (a.table_ref !== `T${i + 1}`) {
-        warn("TBL03", `${a.objective_id} points at ${a.table_ref}, but it is row ${i + 1}. Number the tables in the order the rows appear.`);
+      seenTables.add(a.table_id);
+      if (a.table_id !== `T${i + 1}`) {
+        warn("TBL03", `${a.objective_id} points at ${a.table_id}, but it is row ${i + 1}. Number the tables in the order the rows appear.`);
       }
     }
   });
@@ -144,7 +221,7 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
 
   const adjusted = analyses.find((a) => a.comparison === "adjusted");
   if (adjusted && spec.expected_events !== undefined) {
-    const count = adjusted.predictors.split(",").filter((p) => p.trim()).length;
+    const count = (adjusted.predictor_ids ?? []).length;
     if (count > Math.floor(spec.expected_events / 10)) {
       warn(
         "ADJ03",

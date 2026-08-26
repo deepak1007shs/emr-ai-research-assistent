@@ -10,7 +10,16 @@ export type FieldType =
   | "Number" | "Date" | "Single-select" | "Multi-select" | "Single-select + text" | "Text" | "Text / Date";
 
 export type CrfField = {
-  /** The label as it appears on the form. */
+  /**
+   * The variable this field collects, by id, when the analysis plan declares
+   * one. The label is then read from the plan's registry, so the form and the
+   * plan cannot describe it differently.
+   */
+  variable_id?: string;
+  /**
+   * The label, for a field the plan does not know about: identifiers, and
+   * anything collected but not analysed. Ignored when variable_id is set.
+   */
   label: string;
   type: FieldType;
   /** The answer space: options, a unit, or a blank. Composed by the renderer. */
@@ -38,8 +47,11 @@ export type CrfSection = {
 };
 
 export type DerivedValue = {
+  /** The variable this computes, by id, when the plan declares one. */
+  variable_id?: string;
   name: string;
-  from: string[];
+  /** The ids of the fields it is computed from. Each must be collected. */
+  from_variable_ids: string[];
   how: string;
 };
 
@@ -52,17 +64,25 @@ export type DataElement = {
 
 export type RollCallEntry = {
   role: "exposure" | "primary_outcome" | "secondary_outcome" | "confounder";
-  variable: string;
+  /** The variable or outcome this role refers to, by id. */
+  ref_id: string;
   /**
-   * The exact label of the field that captures it, so the claim can be checked.
-   * A section-and-item reference would be a pointer nothing can verify.
-   * Empty when nothing captures it.
+   * The id of the variable the capturing field collects. Checked against the
+   * form, so the claim cannot be a pointer to nothing. Empty when nothing
+   * captures it, which is itself the finding.
    */
-  field: string;
+  field_variable_id: string;
   where: string;
 };
 
 export type CrfSpec = {
+  /**
+   * id to label, copied from the analysis plan's registry when the form is
+   * built. Written by code, never retyped by the model, so a variable is worded
+   * the same on the form as it is in the plan. It also lets the form render and
+   * re-validate on its own, without loading the plan again.
+   */
+  labels: Record<string, string>;
   title: string;
   institution: string;
   /** The visits, in chronological order. These are the grid's columns. */

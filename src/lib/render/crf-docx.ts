@@ -94,6 +94,17 @@ export function responseFor(field: CrfField): string {
 }
 
 export async function buildCrfDocx(spec: CrfSpec): Promise<Buffer> {
+  // Every wording comes from the plan's registry, resolved by id. The form
+  // cannot call a variable something the plan does not call it.
+  // An id the registry cannot resolve falls back to the wording carried here,
+  // so a plan that has moved on since the form was built degrades to the old
+  // wording rather than printing "var_age" on a form a patient is seen with.
+  const labelOf = (id: string, fallback = "") => spec.labels?.[id] ?? fallback ?? id;
+  const nameOf = (f: CrfField) => (f.variable_id ? labelOf(f.variable_id, f.label) : f.label);
+  const fieldLabels = new Map<string, string>();
+  for (const f of [...spec.identifiers, ...spec.sections.flatMap((s) => s.fields)]) {
+    if (f.variable_id) fieldLabels.set(f.variable_id, f.label);
+  }
   const doc: Block[] = [];
 
   /* ---- the data-collection plan ------------------------------------ */
@@ -133,8 +144,8 @@ export async function buildCrfDocx(spec: CrfSpec): Promise<Buffer> {
       ["Role", "Variable", "Field", "Where captured"],
       spec.roll_call.map((r) => [
         r.role.replace(/_/g, " "),
-        r.variable,
-        r.field || "NOT CAPTURED",
+        labelOf(r.ref_id, fieldLabels.get(r.ref_id) ?? r.ref_id),
+        r.field_variable_id ? labelOf(r.field_variable_id, fieldLabels.get(r.field_variable_id) ?? r.field_variable_id) : "NOT CAPTURED",
         r.where,
       ]),
     ),
@@ -173,7 +184,7 @@ export async function buildCrfDocx(spec: CrfSpec): Promise<Buffer> {
   const fieldRows = (fields: CrfField[]) =>
     fields.map((f, i) => [
       String(i + 1),
-      f.primary_outcome ? `${f.label} (primary outcome)` : f.label,
+      f.primary_outcome ? `${nameOf(f)} (primary outcome)` : nameOf(f),
       f.type,
       responseFor(f),
     ]);
@@ -194,7 +205,13 @@ export async function buildCrfDocx(spec: CrfSpec): Promise<Buffer> {
     doc.push(
       table(
         ["Value", "Calculated from", "How"],
-        spec.derived.map((d) => [d.name, d.from.join("; "), d.how]),
+        spec.derived.map((d) => [
+          d.variable_id ? labelOf(d.variable_id, d.name) : d.name,
+          d.from_variable_ids
+            .map((id) => labelOf(id, fieldLabels.get(id) ?? id))
+            .join("; "),
+          d.how,
+        ]),
       ),
     );
     doc.push(

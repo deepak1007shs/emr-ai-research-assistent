@@ -37,7 +37,16 @@ function obj<T extends Record<string, unknown>>(properties: T, description?: str
 }
 
 const FIELD = obj({
-  label: { ...str, description: "The label as it appears on the form." },
+  variable_id: {
+    ...str,
+    description:
+      "The id of the variable this field collects, from the analysis plan's registry. Empty only for identifiers and for data collected but never analysed.",
+  },
+  label: {
+    ...str,
+    description:
+      "The label, used ONLY when variable_id is empty. When variable_id is set, leave this empty: the wording is taken from the plan so the two documents cannot disagree.",
+  },
   type: {
     type: "string",
     enum: ["Number", "Date", "Single-select", "Multi-select", "Single-select + text", "Text", "Text / Date"],
@@ -72,11 +81,15 @@ export const CRF_JSON_SCHEMA = obj({
   roll_call: {
     type: "array",
     description:
-      "Every analytic role, confirmed to have a field. List confounders one by one, never as 'etc'. The field must be the EXACT label of a field on the form, so the claim can be checked.",
+      "Every analytic role, confirmed to have a field. List confounders one by one, never as 'etc'. Everything here is an id from the analysis plan, so the claim can be checked against the form.",
     items: obj({
       role: { type: "string", enum: ["exposure", "primary_outcome", "secondary_outcome", "confounder"] },
-      variable: str,
-      field: { ...str, description: "The exact label of the field that captures it." },
+      ref_id: { ...str, description: "The id of the variable or outcome, from the plan." },
+      field_variable_id: {
+        ...str,
+        description:
+          "The variable_id of the field on this form that captures it, or a calculated value's variable_id. Empty only when nothing on the form captures it.",
+      },
       where: { ...str, description: "The visit at which it is captured." },
     }),
   },
@@ -112,8 +125,15 @@ export const CRF_JSON_SCHEMA = obj({
     description:
       "Values computed during analysis, never fields. Their ingredients MUST all be fields on the form. Length of stay comes from two dates; BMI from height and weight; a band from the number it was banded from; a score from its items.",
     items: obj({
-      name: str,
-      from: { ...strArray, description: "The exact labels of the fields it is computed from." },
+      variable_id: {
+        ...str,
+        description: "The id of the variable this computes, when the plan declares one. Empty otherwise.",
+      },
+      name: { ...str, description: "Used only when variable_id is empty." },
+      from_variable_ids: {
+        ...strArray,
+        description: "The variable_ids of the fields it is computed from. Every one must be a field on this form.",
+      },
       how: str,
     }),
   },
@@ -135,6 +155,10 @@ The form collects raw and rich data, never computed values. Dates rather than
 durations. The reading rather than a yes or no. A score's items rather than its
 total. The number rather than the band. Anything that can be calculated is listed
 separately as a calculated value, with the fields it comes from.
+
+Refer to every variable by the id the analysis plan gave it, and do not retype its
+wording. The plan, this form and the shell tables all point at the same ids, so a
+variable named once is named the same in all three documents.
 
 Pre-print every option with a box. Show the unit on every number. Give every date
 a mask. A field a data collector has to interpret is a field two collectors will
@@ -169,7 +193,12 @@ export async function buildCrfSpec(
       text: `The analysis plan for this study, which the form must serve. Every outcome
 and every confounder here needs a field:
 
-${JSON.stringify({ objectives: sap.objectives, variables: sap.variables, analyses: sap.analyses })}`,
+${JSON.stringify({
+        objectives: sap.objectives,
+        variables: sap.variables,
+        outcomes: sap.outcomes,
+        analyses: sap.analyses,
+      })}`,
     },
   ];
 
@@ -232,20 +261,33 @@ sections and their fields.`,
   // Empty strings are the schema's way of saying "not applicable".
   const tidyField = (f: CrfSpec["identifiers"][number]) => ({
     ...f,
+    variable_id: f.variable_id?.trim() || undefined,
     options: f.options?.length ? f.options : undefined,
     unit: f.unit?.trim() || undefined,
     note: f.note?.trim() || undefined,
     primary_outcome: f.primary_outcome || undefined,
   });
 
+  // The wording is copied from the plan's registry rather than retyped, so the
+  // form cannot call a variable something the plan does not call it.
+  const labels: Record<string, string> = {};
+  for (const v of sap.variables ?? []) labels[v.id] = v.label;
+  for (const o of sap.outcomes ?? []) labels[o.id] = o.what;
+
   const spec: CrfSpec = {
     ...raw,
     title: sap.title,
+    labels,
     identifiers: (raw.identifiers ?? []).map(tidyField),
     sections: (raw.sections ?? []).map((s) => ({
       ...s,
       note: s.note?.trim() || undefined,
       fields: (s.fields ?? []).map(tidyField),
+    })),
+    derived: (raw.derived ?? []).map((d) => ({
+      ...d,
+      variable_id: d.variable_id?.trim() || undefined,
+      from_variable_ids: d.from_variable_ids ?? [],
     })),
   };
 

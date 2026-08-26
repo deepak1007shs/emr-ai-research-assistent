@@ -1,5 +1,6 @@
 import type { ShellTablesSpec } from "./types.ts";
 import type { SapSpec } from "../sap/types.ts";
+import { outcomeIndex, variableIndex } from "../sap/types.ts";
 import type { Finding } from "../sap/validate.ts";
 
 /**
@@ -107,23 +108,84 @@ export function validateTables(
   /* ---- against the analysis plan ------------------------------------ */
 
   if (sap) {
+    const byVariable = variableIndex(sap);
+    const byOutcome = outcomeIndex(sap);
+    const nameOf = (id: string) =>
+      byVariable.get(id)?.label ?? byOutcome.get(id)?.what ?? spec.labels?.[id] ?? id;
+
     const numbers = new Set(tables.map((t) => `T${t.number}`));
     for (const analysis of sap.analyses ?? []) {
-      if (analysis.table_ref && !numbers.has(analysis.table_ref)) {
+      if (analysis.table_id && !numbers.has(analysis.table_id)) {
         error(
           "TBL14",
-          `The analysis plan sends ${analysis.objective_id} to ${analysis.table_ref}, but there is no such table, so that analysis would never be reported.`,
+          `The analysis plan sends ${analysis.objective_id} to ${analysis.table_id}, but there is no such table, so that analysis would never be reported.`,
         );
       }
     }
 
-    const referenced = new Set((sap.analyses ?? []).map((a) => a.table_ref));
+    const byTable = new Map((sap.analyses ?? []).map((a) => [a.table_id, a]));
     for (const t of tables) {
-      if (t.block !== "descriptive" && !referenced.has(`T${t.number}`)) {
+      const analysis = byTable.get(`T${t.number}`);
+      if (t.block !== "descriptive" && !analysis) {
         warn(
           "TBL15",
           `Table ${t.number} is not filled by any analysis in the plan. Either an analysis is missing, or the table is.`,
         );
+      }
+
+      // Every row that claims a variable must claim one the plan declared.
+      for (const row of t.rows) {
+        if (row.variable_id && !byVariable.has(row.variable_id)) {
+          error(
+            "REF08",
+            `Table ${t.number} has a row for ${row.variable_id}, which the analysis plan does not declare.`,
+          );
+        }
+      }
+
+      if (t.outcome_id && !byOutcome.has(t.outcome_id)) {
+        error(
+          "REF09",
+          `Table ${t.number} reports ${t.outcome_id}, which is not an outcome in the analysis plan.`,
+        );
+      }
+
+      // The table and the analysis that fills it must report the same outcome.
+      if (analysis && t.outcome_id && analysis.outcome_id !== t.outcome_id) {
+        error(
+          "TBL16",
+          `Table ${t.number} reports "${nameOf(t.outcome_id)}", but the analysis that fills it (${analysis.objective_id}) measures "${nameOf(analysis.outcome_id)}".`,
+        );
+      }
+
+      // An adjusted column must adjust for what the plan said it would.
+      if (t.adjusted_for?.length) {
+        for (const id of t.adjusted_for) {
+          const variable = byVariable.get(id);
+          if (!variable) {
+            error(
+              "REF10",
+              `Table ${t.number} adjusts for ${id}, which the analysis plan does not declare.`,
+            );
+            continue;
+          }
+          if (variable.role === "mediator" || variable.role === "collider") {
+            error(
+              "TBL17",
+              `Table ${t.number} adjusts for "${variable.label}", which is a ${variable.role}. Adjusting for it removes part of the effect the study is trying to measure.`,
+            );
+          }
+        }
+        if (analysis) {
+          const planned = new Set(analysis.predictor_ids ?? []);
+          const extra = t.adjusted_for.filter((id) => !planned.has(id));
+          if (extra.length) {
+            warn(
+              "TBL18",
+              `Table ${t.number} adjusts for ${extra.map(nameOf).join(", ")}, which ${analysis.objective_id} does not list as a predictor. Either the plan or the table is out of date.`,
+            );
+          }
+        }
       }
     }
   }

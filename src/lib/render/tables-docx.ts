@@ -59,20 +59,21 @@ function cell(text: string, options: { bold?: boolean; centre?: boolean; span?: 
   });
 }
 
-function drawTable(table: ShellTable): Block[] {
+function drawTable(table: ShellTable, labelOf: (id: string, fallback: string) => string): Block[] {
   const blocks: Block[] = [];
   blocks.push(h(`Table ${table.number}: ${table.title}`, HeadingLevel.HEADING_2));
 
   const width = table.columns.length;
 
   const rows = table.rows.map((row) => {
+    const label = row.variable_id ? labelOf(row.variable_id, row.label) : row.label;
     if (row.heading) {
       // A variable heading spans the table; its categories carry the numbers.
-      return new TableRow({ children: [cell(row.label, { bold: true, span: width })] });
+      return new TableRow({ children: [cell(label, { bold: true, span: width })] });
     }
     return new TableRow({
       children: [
-        cell(row.indent ? `    ${row.label}` : row.label),
+        cell(row.indent ? `    ${label}` : label),
         // Empty on purpose. This is a shell, not a result.
         ...Array.from({ length: width - 1 }, () => cell("", { centre: true })),
       ],
@@ -99,6 +100,11 @@ function drawTable(table: ShellTable): Block[] {
 
 export async function buildTablesDocx(spec: ShellTablesSpec): Promise<Buffer> {
   const doc: Block[] = [];
+  // Row wording comes from the plan's registry, resolved by id, so a table and
+  // the form it will be filled from cannot name the same variable differently.
+  // An unresolved id falls back to the wording the row carries, so a table
+  // never prints "var_sex" where a variable name belongs.
+  const labelOf = (id: string, fallback: string) => spec.labels?.[id] ?? fallback ?? id;
 
   doc.push(
     new Paragraph({
@@ -135,7 +141,7 @@ export async function buildTablesDocx(spec: ShellTablesSpec): Promise<Buffer> {
         ),
       );
     }
-    for (const table of inBlock) doc.push(...drawTable(table));
+    for (const table of inBlock) doc.push(...drawTable(table, labelOf));
   }
 
   return Packer.toBuffer(new Document({ styles: HOUSE_STYLES, sections: [{ children: doc }] }));

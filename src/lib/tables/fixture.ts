@@ -3,6 +3,14 @@ import type { ShellTablesSpec } from "./types.ts";
 /** Shaped after the DrUtkarsh results document, with the cells empty. */
 export const tablesFixture: ShellTablesSpec = {
   title: "Factors Associated with Intraoperative Conversion during TAPP Repair of Ventral Hernia",
+  labels: {
+    var_age: "Age (years)",
+    var_age_group: "Age group",
+    var_sex: "Sex",
+    var_bmi: "Body mass index (kg/m2)",
+    var_conversion: "Conversion to another technique",
+    out_conversion: "Intraoperative conversion",
+  },
   groups: ["Converted", "Completed as TAPP"],
   tables: [
     {
@@ -18,16 +26,16 @@ export const tablesFixture: ShellTablesSpec = {
         "P value",
       ],
       rows: [
-        { label: "Age (years)", heading: true },
+        { variable_id: "var_age", label: "Age (years)", heading: true },
         { label: "Mean ± SD", indent: true },
-        { label: "Age group", heading: true },
+        { variable_id: "var_age_group", label: "Age group", heading: true },
         { label: "< 40 years", indent: true },
         { label: "40 to 60 years", indent: true },
         { label: "> 60 years", indent: true },
-        { label: "Sex", heading: true },
+        { variable_id: "var_sex", label: "Sex", heading: true },
         { label: "Male", indent: true },
         { label: "Female", indent: true },
-        { label: "Body mass index (kg/m2)", heading: true },
+        { variable_id: "var_bmi", label: "Body mass index (kg/m2)", heading: true },
         { label: "Mean ± SD", indent: true },
       ],
       test_applied:

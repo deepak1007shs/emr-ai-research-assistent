@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { validateSap } from "./validate.ts";
 import type { SapSpec } from "./types.ts";
+import { isLinkable } from "./types.ts";
 
-const outcome = (what: string) => ({
+const outcome = (id: string, what: string) => ({
+  id,
   what,
   how: "the surgeon's record",
   instrument: "study proforma, item 27",
   when: "the index operation",
   units: "Yes / No",
   domain: "clinical" as const,
+  source_variable_ids: ["var_conversion"],
 });
 
 const clean = (): SapSpec => ({
@@ -23,23 +26,25 @@ const clean = (): SapSpec => ({
     { id: "S1", tier: "secondary", question: "Which factors are associated with conversion?" },
   ],
   variables: [
-    { name: "Conversion", data_type: "binary", unit_coding: "Yes / No", role: "outcome" },
-    { name: "Age", data_type: "continuous", unit_coding: "Years", role: "confounder" },
+    { id: "var_conversion", label: "Conversion", data_type: "binary", unit_coding: "Yes / No", role: "outcome" },
+    { id: "var_age", label: "Age", data_type: "continuous", unit_coding: "Years", role: "confounder" },
     {
-      name: "Operative duration", data_type: "continuous", unit_coding: "Minutes", role: "mediator",
+      id: "var_duration", label: "Operative duration", data_type: "continuous",
+      unit_coding: "Minutes", role: "mediator",
       exclusion_reason: "It lies on the path being measured.",
     },
   ],
+  outcomes: [outcome("out_conversion", "Intraoperative conversion")],
   analyses: [
     {
-      objective_id: "P1", label: "P1 - rate", outcome: outcome("Intraoperative conversion"),
-      predictors: "(single-group estimate)", data_type: "binary", comparison: "single_group",
-      paired: false, table_ref: "T1",
+      objective_id: "P1", label: "P1 - rate", outcome_id: "out_conversion",
+      predictor_ids: [], data_type: "binary", comparison: "single_group",
+      paired: false, table_id: "T1",
     },
     {
-      objective_id: "S1", label: "S1 - factors", outcome: outcome("Intraoperative conversion"),
-      predictors: "Age", data_type: "binary", comparison: "adjusted",
-      paired: false, table_ref: "T2",
+      objective_id: "S1", label: "S1 - factors", outcome_id: "out_conversion",
+      predictor_ids: ["var_age"], data_type: "binary", comparison: "adjusted",
+      paired: false, table_id: "T2",
     },
   ],
 });
@@ -77,6 +82,18 @@ describe("validateSap", () => {
     expect(codes(s)).toContain("MAP01");
   });
 
+  it("REF05 - a predictor that is not a declared variable", () => {
+    const s = clean();
+    s.analyses[1].predictor_ids = ["var_does_not_exist"];
+    expect(codes(s)).toContain("REF05");
+  });
+
+  it("REF03 - two variables sharing a label, so one concept has two identities", () => {
+    const s = clean();
+    s.variables[1].label = "Conversion";
+    expect(codes(s)).toContain("REF03");
+  });
+
   it("MAP02 - a row naming an objective that does not exist", () => {
     const s = clean();
     s.analyses[0].objective_id = "P9";
@@ -85,15 +102,15 @@ describe("validateSap", () => {
 
   it("OUT01 - an outcome that does not answer all five questions", () => {
     const s = clean();
-    s.analyses[0].outcome.instrument = "";
+    s.outcomes[0].instrument = "";
     const findings = validateSap(s).findings;
     expect(findings.map((f) => f.code)).toContain("OUT01");
     expect(findings.find((f) => f.code === "OUT01")?.message).toContain("instrument");
   });
 
-  it("ADJ01 - a mediator in the predictor list", () => {
+  it("ADJ01 - a mediator in the predictor list, caught by id not spelling", () => {
     const s = clean();
-    s.analyses[1].predictors = "Age, Operative duration";
+    s.analyses[1].predictor_ids = ["var_age", "var_duration"];
     const findings = validateSap(s).findings;
     expect(findings.map((f) => f.code)).toContain("ADJ01");
     expect(findings.find((f) => f.code === "ADJ01")?.message).toContain("removes the effect");
@@ -102,17 +119,21 @@ describe("validateSap", () => {
   it("ADJ01 - a collider in the predictor list", () => {
     const s = clean();
     s.variables.push({
-      name: "Postoperative complication", data_type: "binary", unit_coding: "Yes / No",
-      role: "collider", exclusion_reason: "It is caused by conversion.",
+      id: "var_complication", label: "Postoperative complication", data_type: "binary",
+      unit_coding: "Yes / No", role: "collider", exclusion_reason: "It is caused by conversion.",
     });
-    s.analyses[1].predictors = "Age, Postoperative complication";
+    s.analyses[1].predictor_ids = ["var_age", "var_complication"];
     expect(codes(s)).toContain("ADJ01");
   });
 
   it("ADJ03 - more predictors than the events afford", () => {
     const s = clean();
     s.expected_events = 10;
-    s.analyses[1].predictors = "Age, BMI, previous surgery";
+    s.variables.push(
+      { id: "var_bmi", label: "BMI", data_type: "continuous", unit_coding: "kg/m2", role: "confounder" },
+      { id: "var_prev", label: "Previous surgery", data_type: "binary", unit_coding: "Yes / No", role: "confounder" },
+    );
+    s.analyses[1].predictor_ids = ["var_age", "var_bmi", "var_prev"];
     expect(codes(s)).toContain("ADJ03");
   });
 
@@ -131,7 +152,7 @@ describe("validateSap", () => {
 
   it("TBL03 - tables not numbered in row order", () => {
     const s = clean();
-    s.analyses[1].table_ref = "T7";
+    s.analyses[1].table_id = "T7";
     expect(codes(s)).toContain("TBL03");
   });
 
@@ -141,7 +162,38 @@ describe("validateSap", () => {
     expect(validateSap(withWarning).ok).toBe(true);
 
     const withError = clean();
-    withError.analyses[0].outcome.units = "";
+    withError.outcomes[0].units = "";
     expect(validateSap(withError).ok).toBe(false);
+  });
+});
+
+describe("one id names one thing", () => {
+  it("REF11 - a variable and an outcome sharing an id", () => {
+    const s = clean();
+    s.outcomes[0].id = s.variables[0].id;
+    s.analyses[0].outcome_id = s.variables[0].id;
+    expect(codes(s)).toContain("REF11");
+  });
+
+  it("REF12 - two outcomes measuring the same thing", () => {
+    const s = clean();
+    s.outcomes.push({ ...s.outcomes[0], id: "out_copy" });
+    expect(codes(s)).toContain("REF12");
+  });
+});
+
+describe("isLinkable", () => {
+  it("accepts a plan whose variables and outcomes carry ids", () => {
+    expect(isLinkable(clean())).toBe(true);
+  });
+
+  it("refuses a plan built before the documents were linked", () => {
+    const s = clean() as unknown as { variables: { id?: string }[] };
+    delete s.variables[0].id;
+    expect(isLinkable(s as never)).toBe(false);
+  });
+
+  it("refuses nothing at all", () => {
+    expect(isLinkable(null)).toBe(false);
   });
 });

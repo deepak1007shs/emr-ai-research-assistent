@@ -19,56 +19,56 @@ const spec: SapSpec = {
     { id: "S2", tier: "secondary", question: "Does operative duration differ between converted and completed cases?" },
   ],
   variables: [
-    { name: "Intraoperative conversion", data_type: "binary", unit_coding: "Yes / No", role: "outcome" },
-    { name: "Age", data_type: "continuous", unit_coding: "Years", role: "confounder" },
+    { id: "var_conversion", label: "Intraoperative conversion", data_type: "binary", unit_coding: "Yes / No", role: "outcome" },
+    { id: "var_age", label: "Age", data_type: "continuous", unit_coding: "Years", role: "confounder" },
+    { id: "var_bmi", label: "Body mass index", data_type: "continuous", unit_coding: "kg/m2", role: "confounder" },
+    { id: "var_prev", label: "Previous abdominal surgery", data_type: "binary", unit_coding: "Yes / No", role: "confounder" },
     {
-      name: "Operative duration", data_type: "continuous", unit_coding: "Minutes", role: "mediator",
+      id: "var_duration", label: "Operative duration", data_type: "continuous", unit_coding: "Minutes", role: "mediator",
       exclusion_reason: "It lies on the path between operative difficulty and conversion, so adjusting for it would remove the effect being measured.",
     },
     {
-      name: "Postoperative complication", data_type: "binary", unit_coding: "Yes / No", role: "collider",
+      id: "var_complication", label: "Postoperative complication", data_type: "binary", unit_coding: "Yes / No", role: "collider",
       exclusion_reason: "It is caused by conversion, so conditioning on it would create a spurious association.",
+    },
+  ],
+  outcomes: [
+    {
+      id: "out_conversion",
+      what: "Intraoperative conversion",
+      how: "the surgeon's decision to abandon TAPP dissection",
+      instrument: "study proforma, item 27",
+      when: "the index operation",
+      units: "proportion (%) with 95% CI",
+      domain: "clinical",
+      source_variable_ids: ["var_conversion"],
+    },
+    {
+      id: "out_duration",
+      what: "Operative duration",
+      how: "skin incision to skin closure",
+      instrument: "theatre clock",
+      when: "the index operation",
+      units: "minutes",
+      domain: "clinical",
+      source_variable_ids: ["var_duration"],
     },
   ],
   analyses: [
     {
-      objective_id: "P1", label: "P1 - conversion rate",
-      outcome: {
-        what: "Intraoperative conversion",
-        how: "the surgeon's decision to abandon TAPP dissection",
-        instrument: "study proforma, item 27",
-        when: "the index operation",
-        units: "proportion (%) with 95% CI",
-        domain: "clinical",
-      },
-      predictors: "(single-group estimate)", data_type: "binary", comparison: "single_group",
-      paired: false, table_ref: "T1",
+      objective_id: "P1", label: "P1 - conversion rate", outcome_id: "out_conversion",
+      predictor_ids: [], data_type: "binary", comparison: "single_group",
+      paired: false, table_id: "T1",
     },
     {
-      objective_id: "S1", label: "S1 - factors, adjusted",
-      outcome: {
-        what: "Intraoperative conversion",
-        how: "the surgeon's decision to abandon TAPP dissection",
-        instrument: "study proforma, item 27",
-        when: "the index operation",
-        units: "Yes / No",
-        domain: "clinical",
-      },
-      predictors: "Age, BMI, previous abdominal surgery", data_type: "binary", comparison: "adjusted",
-      paired: false, table_ref: "T2",
+      objective_id: "S1", label: "S1 - factors, adjusted", outcome_id: "out_conversion",
+      predictor_ids: ["var_age", "var_bmi", "var_prev"], data_type: "binary", comparison: "adjusted",
+      paired: false, table_id: "T2",
     },
     {
-      objective_id: "S2", label: "S2 - operative duration",
-      outcome: {
-        what: "Operative duration",
-        how: "skin incision to skin closure",
-        instrument: "theatre clock",
-        when: "the index operation",
-        units: "minutes",
-        domain: "clinical",
-      },
-      predictors: "Conversion status", data_type: "continuous", comparison: "two_groups",
-      paired: false, skewed: true, table_ref: "T3",
+      objective_id: "S2", label: "S2 - operative duration", outcome_id: "out_duration",
+      predictor_ids: ["var_conversion"], data_type: "continuous", comparison: "two_groups",
+      paired: false, skewed: true, table_id: "T3",
     },
   ],
 };
@@ -143,7 +143,7 @@ describe("the SAP document", () => {
   it("says so loudly when no rule covers a row", async () => {
     const gap: SapSpec = {
       ...spec,
-      analyses: [{ ...spec.analyses[0], data_type: "count", comparison: "agreement" }],
+      analyses: [{ ...spec.analyses[0], data_type: "count" as const, comparison: "agreement" as const }],
     };
     const { visible } = await read(gap);
     expect(visible).toContain("NO RULE COVERS THIS ROW");

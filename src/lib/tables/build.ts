@@ -50,6 +50,16 @@ export const TABLES_JSON_SCHEMA = obj({
     items: obj({
       number: { type: "integer" },
       block: { type: "string", enum: ["descriptive", "primary", "secondary", "exploratory"] },
+      outcome_id: {
+        ...str,
+        description:
+          "The id of the outcome this table reports, from the analysis plan. It must be the outcome of the analysis whose table this is. Empty for a descriptive table.",
+      },
+      adjusted_for: {
+        ...strArray,
+        description:
+          "For an effect table: the variable ids the adjusted column adjusts for. They must be the predictors the plan lists for this analysis. Empty otherwise.",
+      },
       title: {
         ...str,
         description:
@@ -69,7 +79,16 @@ export const TABLES_JSON_SCHEMA = obj({
         description:
           "A variable with sub-parts becomes a heading row followed by indented rows: 'Age (years)' as a heading, then 'Mean +/- SD'; 'Sex' as a heading, then each level. A single-line variable is one plain row.",
         items: obj({
-          label: str,
+          variable_id: {
+            ...str,
+            description:
+              "The id of the variable this row reports, from the analysis plan. Set it on the heading row of a variable, or on a plain single-line row. Empty for a sub-row such as 'Mean +/- SD' or a category name.",
+          },
+          label: {
+            ...str,
+            description:
+              "Used when variable_id is empty. When variable_id is set, leave this empty: the wording comes from the plan.",
+          },
           heading: { type: "boolean", description: "True for a variable heading that spans the table." },
           indent: { type: "boolean", description: "True for a sub-row under a heading." },
         }),
@@ -100,6 +119,10 @@ Where an analysis is adjusted, the table shows the unadjusted and the adjusted
 effect side by side, each with a 95% confidence interval and its own p value, so
 a reader can see what the adjustment did. Never label a column Model 1 or Model 2.
 
+Refer to every variable and every outcome by the id the analysis plan gave it,
+and do not retype its wording. The plan, the case report form and these tables all
+point at the same ids, so a variable named once is named the same in all three.
+
 Keep the tables simple to read. A table a supervisor cannot follow at a glance
 will be redrawn by hand, and then it no longer matches the plan.`;
 
@@ -125,7 +148,13 @@ export async function buildTablesSpec(
       text: `The analysis plan. Every row here needs the table it names, and the test
 named on that table must be the test the plan chose:
 
-${JSON.stringify({ title: sap.title, objectives: sap.objectives, variables: sap.variables, analyses: sap.analyses })}`,
+${JSON.stringify({
+        title: sap.title,
+        objectives: sap.objectives,
+        variables: sap.variables,
+        outcomes: sap.outcomes,
+        analyses: sap.analyses,
+      })}`,
     },
   ];
 
@@ -136,8 +165,11 @@ ${JSON.stringify({ title: sap.title, objectives: sap.objectives, variables: sap.
 table can only describe variables this form collects:
 
 ${JSON.stringify({
-  sections: crf.sections.map((s) => ({ title: s.title, fields: s.fields.map((f) => f.label) })),
-  derived: crf.derived.map((d) => d.name),
+  sections: crf.sections.map((s) => ({
+    title: s.title,
+    fields: s.fields.map((f) => f.variable_id ?? f.label),
+  })),
+  derived: crf.derived.map((d) => d.variable_id ?? d.name),
 })}`,
     });
   }
@@ -187,14 +219,23 @@ the primary outcome, then each secondary outcome, then anything exploratory.`,
 
   const raw = JSON.parse(text) as ShellTablesSpec;
 
+  // The wording is copied from the plan's registry rather than retyped.
+  const labels: Record<string, string> = {};
+  for (const v of sap.variables ?? []) labels[v.id] = v.label;
+  for (const o of sap.outcomes ?? []) labels[o.id] = o.what;
+
   const spec: ShellTablesSpec = {
     ...raw,
     title: sap.title,
+    labels,
     tables: (raw.tables ?? []).map((t) => ({
       ...t,
+      outcome_id: t.outcome_id?.trim() || undefined,
+      adjusted_for: t.adjusted_for?.length ? t.adjusted_for : undefined,
       test_applied: t.test_applied?.trim() || undefined,
       footnote: t.footnote?.trim() || undefined,
       rows: (t.rows ?? []).map((r) => ({
+        variable_id: r.variable_id?.trim() || undefined,
         label: r.label,
         heading: r.heading || undefined,
         indent: r.indent || undefined,

@@ -1,53 +1,26 @@
 import type { CrfSpec } from "./types.ts";
 import type { SapSpec } from "../sap/types.ts";
+import { variableIndex } from "../sap/types.ts";
 import type { Finding } from "../sap/validate.ts";
 
 /**
  * Checks a case report form against the analysis plan it must serve.
  *
- * The roll-call in the data-collection plan is advisory when a human writes it.
- * Here it is enforced: every outcome and every confounder the plan names must
- * have a field, and a derived value must never be a field at all.
+ * Everything links by id. There is no word matching here: a form and a plan that
+ * refer to the same variable refer to the same id, or the build fails. The fuzzy
+ * matcher this file used to carry existed only because there were no ids.
  */
 
-const normalise = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-
-/** Every field label on the form, flattened. */
-function allFieldLabels(crf: CrfSpec): string[] {
-  return [
-    ...crf.identifiers.map((f) => f.label),
-    ...crf.sections.flatMap((s) => s.fields.map((f) => f.label)),
-  ];
+/** Every variable id the form collects, whether captured or derived. */
+function capturedIds(crf: CrfSpec): Set<string> {
+  const ids = new Set<string>();
+  for (const f of crf.identifiers) if (f.variable_id) ids.add(f.variable_id);
+  for (const s of crf.sections) for (const f of s.fields) if (f.variable_id) ids.add(f.variable_id);
+  return ids;
 }
 
-/** Loose match: "Age" matches "Age at enrolment", but not "Percentage". */
-function hasField(labels: string[], name: string): boolean {
-  const target = normalise(name);
-  return labels.some((label) => {
-    const l = normalise(label);
-    return l === target || l.includes(target) || target.includes(l);
-  });
-}
-
-/**
- * Whether the study captures a variable at all.
- *
- * Label matching alone is too brittle: the plan may call it "intraoperative
- * conversion" while the form says "conversion to another technique". The
- * roll-call names the field explicitly, so it is consulted first; a label match
- * and a derivation are the fallbacks.
- */
-function isCaptured(crf: CrfSpec, name: string, labels: string[]): boolean {
-  const target = normalise(name);
-  // The named field must actually exist, or the roll-call is only a claim.
-  const inRollCall = crf.roll_call.some(
-    (r) =>
-      normalise(r.variable) === target &&
-      r.field?.trim() &&
-      hasField(labels, r.field),
-  );
-  const derived = crf.derived.some((d) => normalise(d.name) === target);
-  return inRollCall || derived || hasField(labels, name);
+function derivedIds(crf: CrfSpec): Set<string> {
+  return new Set(crf.derived.map((d) => d.variable_id).filter((id): id is string => Boolean(id)));
 }
 
 export function validateCrf(crf: CrfSpec, sap?: SapSpec): { ok: boolean; findings: Finding[] } {
@@ -55,7 +28,10 @@ export function validateCrf(crf: CrfSpec, sap?: SapSpec): { ok: boolean; finding
   const error = (code: string, message: string) => out.push({ code, severity: "ERROR", message });
   const warn = (code: string, message: string) => out.push({ code, severity: "WARN", message });
 
-  const labels = allFieldLabels(crf);
+  const captured = capturedIds(crf);
+  const derived = derivedIds(crf);
+  const byVariable = sap ? variableIndex(sap) : new Map();
+  const nameOf = (id: string) => byVariable.get(id)?.label ?? crf.labels?.[id] ?? id;
 
   /* ---- the form itself --------------------------------------------- */
 
@@ -66,33 +42,47 @@ export function validateCrf(crf: CrfSpec, sap?: SapSpec): { ok: boolean; finding
     if (section.letter !== expected) {
       warn("CRF02", `Section "${section.title}" is lettered ${section.letter} but is section ${i + 1}. Letter them A onward in order.`);
     }
-    if (!section.fields.length) {
-      error("CRF03", `Section ${section.letter} has no fields.`);
-    }
+    if (!section.fields.length) error("CRF03", `Section ${section.letter} has no fields.`);
+
     for (const field of section.fields) {
+      const name = field.variable_id ? nameOf(field.variable_id) : field.label;
       if (/select/i.test(field.type) && !field.options?.length) {
-        error("CRF04", `"${field.label}" is a ${field.type} with no options. Every choice must be pre-printed, or two data collectors will write different things.`);
+        error("CRF04", `"${name}" is a ${field.type} with no options. Every choice must be pre-printed, or two data collectors will write different things.`);
       }
       if (field.type === "Number" && !field.unit) {
-        error("CRF05", `"${field.label}" is a number with no unit. A number without a unit cannot be analysed.`);
+        error("CRF05", `"${name}" is a number with no unit. A number without a unit cannot be analysed.`);
+      }
+      if (field.variable_id && sap && !byVariable.has(field.variable_id)) {
+        error("REF07", `A field claims to collect ${field.variable_id}, which the analysis plan does not declare.`);
       }
     }
   });
 
   /* ---- derived values are never fields ----------------------------- */
 
-  for (const derived of crf.derived) {
-    if (hasField(labels, derived.name)) {
+  // The wording every field carries, for the values the plan never declared.
+  // This is exact equality after trimming and case folding, not a substring
+  // test: two entries either say the same thing or they do not.
+  const key = (v: string) => v.trim().toLowerCase();
+  const fieldWordings = new Set<string>();
+  for (const f of crf.identifiers) fieldWordings.add(key(f.label));
+  for (const s of crf.sections) for (const f of s.fields) fieldWordings.add(key(f.label));
+
+  for (const d of crf.derived) {
+    const duplicated = d.variable_id
+      ? captured.has(d.variable_id)
+      : fieldWordings.has(key(d.name));
+    if (duplicated) {
       error(
         "CRF06",
-        `"${derived.name}" is calculated from ${derived.from.join(" and ")}, but it also appears as a field. A computed value entered by hand cannot be audited; collect its ingredients instead.`,
+        `"${d.name}" is calculated, but a field also collects it. A computed value entered by hand cannot be audited; collect its ingredients instead.`,
       );
     }
-    for (const ingredient of derived.from) {
-      if (!hasField(labels, ingredient)) {
+    for (const id of d.from_variable_ids) {
+      if (!captured.has(id)) {
         error(
           "CRF07",
-          `"${derived.name}" is calculated from "${ingredient}", which the form never collects, so it cannot be calculated.`,
+          `"${d.name}" is calculated from ${nameOf(id)}, which the form never collects, so it cannot be calculated.`,
         );
       }
     }
@@ -111,47 +101,54 @@ export function validateCrf(crf: CrfSpec, sap?: SapSpec): { ok: boolean; finding
     }
   }
 
-  /* ---- the roll-call, enforced ------------------------------------- */
+  /* ---- the roll-call, enforced by id -------------------------------- */
 
   for (const entry of crf.roll_call) {
-    if (entry.field?.trim() && !hasField(labels, entry.field)) {
-      error(
-        "ROLL05",
-        `The roll-call says "${entry.variable}" is captured by "${entry.field}", but no field on the form has that label.`,
-      );
-    }
-    if (!entry.field?.trim()) {
+    if (!entry.field_variable_id?.trim()) {
       error(
         "ROLL01",
-        `The ${entry.role.replace(/_/g, " ")} "${entry.variable}" has no field on the form. A variable the study exists to measure cannot be left uncollected.`,
+        `The ${entry.role.replace(/_/g, " ")} ${nameOf(entry.ref_id)} has no field on the form. A variable the study exists to measure cannot be left uncollected.`,
+      );
+      continue;
+    }
+    if (!captured.has(entry.field_variable_id) && !derived.has(entry.field_variable_id)) {
+      error(
+        "ROLL05",
+        `The roll-call says ${nameOf(entry.ref_id)} is captured by ${entry.field_variable_id}, but no field on the form collects that.`,
       );
     }
   }
 
   if (sap) {
-    // Every outcome the plan analyses, and every confounder it adjusts for.
-    for (const analysis of sap.analyses ?? []) {
-      const outcome = analysis.outcome?.what;
-      if (outcome && !isCaptured(crf, outcome, labels)) {
+    // Every outcome the plan measures, by the ids it measures it with.
+    for (const outcome of sap.outcomes ?? []) {
+      for (const id of outcome.source_variable_ids ?? []) {
+        if (!captured.has(id) && !derived.has(id)) {
+          error(
+            "ROLL02",
+            `The plan measures "${outcome.what}" using ${nameOf(id)}, but no field collects it and nothing derives it.`,
+          );
+        }
+      }
+    }
+
+    // Every confounder any analysis adjusts for.
+    const adjustedFor = new Set((sap.analyses ?? []).flatMap((a) => a.predictor_ids ?? []));
+    for (const id of adjustedFor) {
+      if (!captured.has(id) && !derived.has(id)) {
         error(
-          "ROLL02",
-          `The analysis plan measures "${outcome}" for ${analysis.objective_id}, but no field on the form collects it and nothing derives it.`,
+          "ROLL03",
+          `The plan adjusts for ${nameOf(id)}, but the form does not collect it. An adjusted analysis cannot be run on a variable that was never recorded.`,
         );
       }
     }
 
     for (const variable of sap.variables ?? []) {
-      if (variable.role === "confounder" && !isCaptured(crf, variable.name, labels)) {
-        error(
-          "ROLL03",
-          `The analysis plan adjusts for "${variable.name}", but the form does not collect it. An adjusted analysis cannot be run on a variable that was never recorded.`,
-        );
-      }
-      if ((variable.role === "mediator" || variable.role === "collider") && hasField(labels, variable.name)) {
-        // Collecting it is fine and often necessary; using it is not. Say so once.
+      if ((variable.role === "mediator" || variable.role === "collider") && captured.has(variable.id)) {
+        // Collecting it is fine and often necessary; using it is not.
         warn(
           "ROLL04",
-          `"${variable.name}" is collected and is a ${variable.role}. That is fine, but it must stay out of every model.`,
+          `"${variable.label}" is collected and is a ${variable.role}. That is fine, but it must stay out of every model.`,
         );
       }
     }

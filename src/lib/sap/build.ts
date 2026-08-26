@@ -24,6 +24,7 @@ export class SapError extends Error {
 }
 
 const str = { type: "string" } as const;
+const strArray = { type: "array", items: str } as const;
 
 function obj<T extends Record<string, unknown>>(properties: T, description?: string) {
   return {
@@ -59,9 +60,10 @@ export const SAP_JSON_SCHEMA = obj({
   variables: {
     type: "array",
     description:
-      "Outcomes first, then predictors, then confounders, then descriptors. A mediator lies on the path between exposure and outcome; a collider is caused by the outcome. Both must be named as such and excluded from every model.",
+      "The registry. Every variable is declared exactly once here with an id, and everything else refers to that id. Outcomes first, then predictors, then confounders, then descriptors. A mediator lies on the path between exposure and outcome; a collider is caused by the outcome. Both must be named as such and excluded from every model.",
     items: obj({
-      name: str,
+      id: { ...str, description: "var_age, var_bmi. Lower case, begins var_, unique." },
+      label: { ...str, description: "The single authoritative wording. No two variables share a label." },
       data_type: {
         type: "string",
         enum: ["binary", "continuous", "ordinal", "nominal", "count", "time_to_event"],
@@ -77,31 +79,40 @@ export const SAP_JSON_SCHEMA = obj({
       },
     }),
   },
+  outcomes: {
+    type: "array",
+    description:
+      "The outcome registry. Each is declared once with an id, and analyses refer to that id. Every outcome answers all five questions.",
+    items: obj({
+      id: { ...str, description: "out_conversion. Lower case, begins out_, unique." },
+      what: { ...str, description: "What exactly will be measured. This is the outcome's label." },
+      how: { ...str, description: "How it will be measured." },
+      instrument: { ...str, description: "Using which instrument, form, scale or record." },
+      when: { ...str, description: "At what time point." },
+      units: { ...str, description: "In which units, or the category set." },
+      domain: {
+        type: "string",
+        enum: ["clinical", "laboratory", "radiological", "functional", "patient_reported", "economic", "composite"],
+        description: "The second classification every outcome carries, alongside its rank.",
+      },
+      source_variable_ids: {
+        ...strArray,
+        description: "The ids of the variables that measure it. Each must be in the variable registry.",
+      },
+    }),
+  },
   analyses: {
     type: "array",
     description:
-      "One row per objective, in the order of the objectives. Do NOT name a statistical test: the test is chosen from the data type and the comparison by the application, so that it is the same every time.",
+      "One row per objective, in the order of the objectives. Refer to outcomes and variables by id, never by repeating their words. Do NOT name a statistical test: the test is chosen from the data type and the comparison by the application, so that it is the same every time.",
     items: obj({
       objective_id: { ...str, description: "The id from objectives, e.g. P1." },
       label: { ...str, description: "'P1 - conversion rate'. The id, then a few words." },
-      outcome: obj(
-        {
-          what: { ...str, description: "What exactly will be measured." },
-          how: { ...str, description: "How it will be measured." },
-          instrument: { ...str, description: "Using which instrument, form, scale or record." },
-          when: { ...str, description: "At what time point." },
-          units: { ...str, description: "In which units, or the category set." },
-          domain: {
-            type: "string",
-            enum: ["clinical", "laboratory", "radiological", "functional", "patient_reported", "economic", "composite"],
-            description: "The second classification every outcome carries, alongside its rank.",
-          },
-        },
-        "The five questions. Every field is required: an outcome is not defined until all five are answered.",
-      ),
-      predictors: {
-        ...str,
-        description: "The predictors, comma separated, or '(single-group estimate)' when there are none.",
+      outcome_id: { ...str, description: "The id of the outcome this analyses." },
+      predictor_ids: {
+        ...strArray,
+        description:
+          "The ids of the predictors, from the variable registry. Empty for a single-group estimate. Never include a mediator or a collider.",
       },
       data_type: {
         type: "string",
@@ -119,7 +130,7 @@ export const SAP_JSON_SCHEMA = obj({
         description:
           "True when the outcome is known to be skewed, such as length of stay or duration, which forces a rank test.",
       },
-      table_ref: { ...str, description: "T1, T2, T3... numbered in order from 1." },
+      table_id: { ...str, description: "T1, T2, T3... numbered in order from 1." },
       test_override: {
         ...str,
         description:
@@ -146,7 +157,12 @@ measured, how, using which instrument, at what time, and in which units. Fold al
 five into the outcome sentence.
 
 Do not name a statistical test. The application chooses it from the data type and
-the comparison, so that the same study always yields the same plan.`;
+the comparison, so that the same study always yields the same plan.
+
+Declare every variable and every outcome exactly once, each with an id, and refer
+to them by that id everywhere else. The case report form and the shell tables will
+point at the same ids, so a concept named once here is named once in all three
+documents.`;
 
 export type SapResult = {
   spec: SapSpec;
@@ -248,8 +264,10 @@ objective. Number the tables T1 upward in the order the rows appear.`,
       ...v,
       exclusion_reason: v.exclusion_reason?.trim() || undefined,
     })),
+    outcomes: raw.outcomes ?? [],
     analyses: (raw.analyses ?? []).map((a) => ({
       ...a,
+      predictor_ids: a.predictor_ids ?? [],
       test_override: a.test_override?.trim() || undefined,
       override_reason: a.override_reason?.trim() || undefined,
     })),
