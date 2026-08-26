@@ -29,6 +29,13 @@
   --header-h: 3.25rem;
 
   /*
+   * The rail. In rem, so it grows with the type, and named here so its width
+   * is one number rather than a class buried in the frame. The drawer on a
+   * narrow screen keeps the ratio it always had to this.
+   */
+  --rail-w: 12.8rem;
+
+  /*
    * The documents are Times New Roman by house rule, so the screen is too.
    * What is read here and what is downloaded should look like one document,
    * not two.

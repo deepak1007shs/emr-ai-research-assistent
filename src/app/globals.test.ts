@@ -37,11 +37,18 @@ describe("the app's own type", () => {
     expect(size).toBeLessThanOrEqual(28);
   });
 
+  it("keeps the rail's width in rem, so it grows with the type it holds", () => {
+    // A rail pinned in pixels would crowd its own filenames the next time the
+    // root size moves.
+    expect(css).toMatch(/--rail-w:\s*[\d.]+rem/);
+  });
+
   it("sizes everything in rem, so the root size actually moves it", () => {
     // A px length in a layout class would not scale with the root, and the app
     // would come apart unevenly as the size changes.
     expect(css).not.toMatch(/--header-h:\s*\d+px/);
     expect(css).toMatch(/--header-h:\s*[\d.]+rem/);
+    expect(css).not.toMatch(/--rail-w:\s*\d+px/);
   });
 
   it("leaves the downloaded document at its house size", () => {

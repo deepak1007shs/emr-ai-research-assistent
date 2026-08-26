@@ -36,7 +36,7 @@ export function WorkspaceFrame({
     <div className="flex flex-1">
       {/* The rail sticks under the header and scrolls on its own, so a long
           document does not carry the list of protocols away with it. */}
-      <aside className="no-print sticky top-[var(--header-h)] hidden h-[calc(100vh-var(--header-h))] w-64 shrink-0 overflow-hidden border-r border-border bg-surface-sunken md:block">
+      <aside className="no-print sticky top-[var(--header-h)] hidden h-[calc(100vh-var(--header-h))] w-[var(--rail-w)] shrink-0 overflow-hidden border-r border-border bg-surface-sunken md:block">
         <ProtocolRail
           protocols={protocols}
           activeProtocolId={protocolId}
@@ -46,7 +46,7 @@ export function WorkspaceFrame({
 
       {railOpen && (
         <div className="no-print fixed inset-0 z-30 flex md:hidden">
-          <div className="h-full w-72 max-w-[85vw] overflow-hidden border-r border-border bg-surface-sunken">
+          <div className="h-full w-[calc(var(--rail-w)*1.125)] max-w-[85vw] overflow-hidden border-r border-border bg-surface-sunken">
             <ProtocolRail
               protocols={protocols}
               activeProtocolId={protocolId}
