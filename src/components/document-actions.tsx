@@ -9,17 +9,29 @@ import type { ReactNode } from "react";
 export function DocumentActions({
   href,
   label,
+  alsoHref,
+  alsoLabel,
   children,
 }: {
   href: string;
   label: string;
+  /** A second format of the same document, where one exists. */
+  alsoHref?: string;
+  alsoLabel?: string;
   children?: ReactNode;
 }) {
   return (
     <div className="no-print flex flex-wrap items-start justify-between gap-3">
-      <a href={href} className="btn btn-primary">
-        {label}
-      </a>
+      <div className="flex flex-wrap gap-2">
+        <a href={href} className="btn btn-primary">
+          {label}
+        </a>
+        {alsoHref && (
+          <a href={alsoHref} className="btn btn-quiet">
+            {alsoLabel}
+          </a>
+        )}
+      </div>
       <div>{children}</div>
     </div>
   );

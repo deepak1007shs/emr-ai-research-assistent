@@ -44,7 +44,12 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
 
   return (
     <div className="space-y-6">
-      <DocumentActions href={`/api/sap/${plan.id}/export`} label="Download SAP (.docx)">
+      <DocumentActions
+        href={`/api/sap/${plan.id}/export`}
+        label="Download SAP (.docx)"
+        alsoHref={`/api/sap/${plan.id}/export?format=md`}
+        alsoLabel=".md"
+      >
         <BuildButton
           kind="sap"
           protocolId={id}

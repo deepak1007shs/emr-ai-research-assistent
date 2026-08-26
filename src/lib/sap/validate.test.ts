@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { validateSap } from "./validate.ts";
 import type { SapSpec } from "./types.ts";
 import { sapFixture } from "./fixture.ts";
+import { outcomeDefinition } from "./types.ts";
 import { isLinkable } from "./types.ts";
 
 const outcome = (id: string, what: string) => ({
@@ -277,5 +278,35 @@ describe("the route map is complete", () => {
   it("passes the fixture, which is a complete route map", () => {
     const findings = validateSap(clean()).findings.filter((f) => f.severity === "ERROR");
     expect(findings, JSON.stringify(findings, null, 2)).toEqual([]);
+  });
+});
+
+describe("outcomeDefinition", () => {
+  it("joins the five fragments into sentences, not into a stutter", () => {
+    const said = outcomeDefinition({
+      id: "out_x",
+      what: "Intraoperative conversion",
+      how: "the surgeon's decision to abandon TAPP dissection",
+      instrument: "study proforma, item 27",
+      when: "the index operation",
+      units: "proportion (%) with 95% CI",
+      domain: "clinical",
+      source_variable_ids: [],
+    });
+
+    expect(said).toBe(
+      "The surgeon's decision to abandon TAPP dissection. Recorded from study proforma, item 27, at the index operation. Reported in proportion (%) with 95% CI.",
+    );
+    // No lowercase word left stranded after a full stop.
+    expect(said).not.toMatch(/\.\s+[a-z]/);
+  });
+
+  it("says nothing when the outcome answers nothing", () => {
+    expect(
+      outcomeDefinition({
+        id: "out_x", what: "x", how: "", instrument: "", when: "", units: "",
+        domain: "clinical", source_variable_ids: [],
+      }),
+    ).toBe("");
   });
 });

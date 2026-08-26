@@ -16,8 +16,18 @@ The plan follows the route-map format, section for section:
 | 7 | **Needs Checking** — the decisions still open, to settle with the guide. |
 | — | **Document control and sign-off** — version, dates, signatures, amendment log. |
 
-`sap-route-map.docx` in this folder is the format rendered from the reference
-study, so it can be opened rather than described.
+Two renderings of the same reference study sit in this folder, so the format can
+be read rather than described:
+
+- [example-sap.md](example-sap.md) - the whole plan as Markdown
+- `sap-route-map.docx` - the same plan as Word, in the house style
+
+Both come from `src/lib/render/sap-md.ts` and `sap-docx.ts`, which
+[sap-md.test.ts](../../src/lib/render/sap-md.test.ts) holds to the same
+sections in the same order. A second renderer that drifts is worse than no
+second renderer: someone would read one and hand over the other.
+
+The plan downloads in either format from its page.
 
 ## Two rules the format depends on
 

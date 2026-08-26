@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildSapDocx } from "@/lib/render/sap-docx";
+import { buildSapMarkdown } from "@/lib/render/sap-md";
 import type { SapSpec } from "@/lib/sap/types";
 import { tableNumbers, type ShellTablesSpec } from "@/lib/tables/types";
 
@@ -14,7 +15,7 @@ function slugify(filename: string): string {
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
@@ -43,16 +44,27 @@ export async function GET(
     .limit(1)
     .maybeSingle();
 
-  const buffer = await buildSapDocx(
-    data.spec as SapSpec,
-    tableNumbers((shells?.spec as ShellTablesSpec | undefined) ?? null),
-  );
+  const numbers = tableNumbers((shells?.spec as ShellTablesSpec | undefined) ?? null);
+  const name = slugify(protocol?.filename ?? "study");
+
+  // Markdown for reading in a terminal or pasting into an email; Word for
+  // handing over. Both come from the same spec, so they cannot disagree.
+  if (request.nextUrl.searchParams.get("format") === "md") {
+    return new Response(buildSapMarkdown(data.spec as SapSpec, numbers), {
+      headers: {
+        "Content-Type": "text/markdown; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${name}-statistical-analysis-plan.md"`,
+      },
+    });
+  }
+
+  const buffer = await buildSapDocx(data.spec as SapSpec, numbers);
 
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type":
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "Content-Disposition": `attachment; filename="${slugify(protocol?.filename ?? "study")}-statistical-analysis-plan.docx"`,
+      "Content-Disposition": `attachment; filename="${name}-statistical-analysis-plan.docx"`,
     },
   });
 }

@@ -270,12 +270,28 @@ export function outcomeCell(outcome: Outcome): string {
  * The cell carries the name and where it comes from; this carries the rest.
  */
 export function outcomeDefinition(outcome: Outcome): string {
-  const parts: string[] = [];
-  if (outcome.how) parts.push(outcome.how);
-  if (outcome.instrument) parts.push(`Recorded from ${outcome.instrument}`);
-  if (outcome.when) parts.push(`at ${outcome.when}`);
-  if (outcome.units) parts.push(`Reported in ${outcome.units}`);
-  return parts.join(". ") + (parts.length ? "." : "");
+  // The five answers are written as fragments, so they are joined into
+  // sentences rather than pushed together with full stops between them: "the
+  // surgeon's decision. at the index operation." is not a definition anyone
+  // wants to read in a document they are about to sign.
+  const capitalise = (v: string) => v.charAt(0).toUpperCase() + v.slice(1);
+
+  const sentences: string[] = [];
+  if (outcome.how) sentences.push(capitalise(outcome.how.trim().replace(/\.$/, "")));
+
+  const where = [
+    outcome.instrument ? `recorded from ${outcome.instrument.trim().replace(/\.$/, "")}` : "",
+    outcome.when ? `at ${outcome.when.trim().replace(/\.$/, "")}` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
+  if (where) sentences.push(capitalise(where));
+
+  if (outcome.units) {
+    sentences.push(`Reported in ${outcome.units.trim().replace(/\.$/, "")}`);
+  }
+
+  return sentences.length ? `${sentences.join(". ")}.` : "";
 }
 
 /**
