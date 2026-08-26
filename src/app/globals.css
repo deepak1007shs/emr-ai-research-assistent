@@ -27,6 +27,13 @@
 
   /* The workspace header, which the rail sticks beneath. */
   --header-h: 3.25rem;
+
+  /*
+   * The documents are Times New Roman by house rule, so the screen is too.
+   * What is read here and what is downloaded should look like one document,
+   * not two.
+   */
+  --font-document: "Times New Roman", Times, "Liberation Serif", serif;
 }
 
 :root[data-theme="dark"] {
@@ -59,14 +66,29 @@
   --color-danger-soft: var(--danger-soft);
   --color-warn: var(--warn);
   --color-warn-soft: var(--warn-soft);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-document);
+  --font-serif: var(--font-document);
   --font-mono: var(--font-geist-mono);
+}
+
+/*
+ * A little larger than the browser default, which everything else is sized
+ * against in rem, so one number moves the whole app rather than a hundred
+ * classes.
+ */
+html {
+  font-size: 17px;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-document);
+}
+
+/* Serif numerals in a table read better lining than old-style. */
+table {
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 /*
