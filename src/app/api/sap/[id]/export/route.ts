@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildSapDocx } from "@/lib/render/sap-docx";
 import type { SapSpec } from "@/lib/sap/types";
+import { tableNumbers, type ShellTablesSpec } from "@/lib/tables/types";
 
 export const runtime = "nodejs";
 
@@ -21,7 +22,7 @@ export async function GET(
 
   const { data, error } = await supabase
     .from("sap_plans")
-    .select("spec, protocols ( filename )")
+    .select("spec, protocol_id, protocols ( filename )")
     .eq("id", id)
     .single();
 
@@ -31,7 +32,21 @@ export async function GET(
   }
 
   const protocol = data.protocols as unknown as { filename: string } | null;
-  const buffer = await buildSapDocx(data.spec as SapSpec);
+  // The shell tables own the numbering once they exist, so the downloaded plan
+  // points at the table a reader will actually find.
+  const { data: shells } = await supabase
+    .from("shell_tables")
+    .select("spec")
+    .eq("protocol_id", data.protocol_id)
+    .eq("status", "ready")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const buffer = await buildSapDocx(
+    data.spec as SapSpec,
+    tableNumbers((shells?.spec as ShellTablesSpec | undefined) ?? null),
+  );
 
   return new Response(new Uint8Array(buffer), {
     headers: {

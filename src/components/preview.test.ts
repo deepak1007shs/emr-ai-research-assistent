@@ -11,6 +11,7 @@ import { sapFixture } from "@/lib/sap/fixture.ts";
 import { chooseTest } from "@/lib/sap/choose-test.ts";
 import { crfFixture } from "@/lib/crf/fixture.ts";
 import { tablesFixture } from "@/lib/tables/fixture.ts";
+import { tableNumbers } from "@/lib/tables/types.ts";
 
 /**
  * What you read on screen is what you download.
@@ -175,5 +176,50 @@ describe("a stored document that predates a field", () => {
     const thin = { ...structuredClone(tablesFixture), labels: undefined };
     const screen = screenText(TablesPreview({ spec: thin as never }));
     expect(screen).toContain("Sex");
+  });
+});
+
+describe("who owns a table number", () => {
+  it("the plan shows its own number until the tables exist", () => {
+    const screen = screenText(SapPreview({ spec: sapFixture }));
+    expect(screen).toContain("T1");
+  });
+
+  it("and the tables' number once they do", async () => {
+    // The plan wrote T1 for P1 before it knew two baseline tables would come
+    // first. The tables document says P1 is reported by Table 3.
+    const numbers = tableNumbers(tablesFixture);
+    expect(numbers.P1).toBe(3);
+
+    const screen = screenText(SapPreview({ spec: sapFixture, tableNumbers: numbers }));
+    const page = await pageText(await buildSapDocx(sapFixture, numbers));
+
+    for (const text of [screen, page]) {
+      expect(text).toContain("Table 3");
+    }
+  });
+});
+
+describe("the analysis map stays readable", () => {
+  it("keeps the outcome cell short and puts the definition underneath", async () => {
+    const spec = structuredClone(sapFixture);
+    spec.outcomes[0].how =
+      "a very long description of exactly how the surgeon decides, running on and on so that a cell holding it would be a paragraph";
+
+    const screen = screenText(SapPreview({ spec }));
+    const page = await pageText(await buildSapDocx(spec));
+
+    for (const text of [screen, page]) {
+      // The long text appears once, in the definitions, not in the map's cell.
+      expect(text).toContain("How each outcome is defined");
+      expect(text.split("a very long description").length - 1).toBe(1);
+    }
+  });
+
+  it("names every measured outcome in the definitions", () => {
+    const screen = screenText(SapPreview({ spec: sapFixture }));
+    for (const outcome of sapFixture.outcomes) {
+      expect(screen).toContain(outcome.what);
+    }
   });
 });

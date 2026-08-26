@@ -146,9 +146,23 @@ export function isLinkable(spec: SapSpec | null | undefined): boolean {
  */
 export function outcomeCell(outcome: Outcome): string {
   const parts = [outcome.what];
-  if (outcome.how && outcome.how !== outcome.what) parts.push(outcome.how);
-  if (outcome.instrument) parts.push(`by ${outcome.instrument}`);
   if (outcome.when) parts.push(`at ${outcome.when}`);
-  if (outcome.units) parts.push(`in ${outcome.units}`);
+  if (outcome.instrument) parts.push(`from ${outcome.instrument}`);
   return parts.join(", ");
+}
+
+/**
+ * The full definition, for the note under the map.
+ *
+ * All five answers are held so that none can be quietly omitted, but printing
+ * all five in a table cell gives a paragraph per row and a map nobody reads.
+ * The cell carries the name and where it comes from; this carries the rest.
+ */
+export function outcomeDefinition(outcome: Outcome): string {
+  const parts: string[] = [];
+  if (outcome.how) parts.push(outcome.how);
+  if (outcome.instrument) parts.push(`Recorded from ${outcome.instrument}`);
+  if (outcome.when) parts.push(`at ${outcome.when}`);
+  if (outcome.units) parts.push(`Reported in ${outcome.units}`);
+  return parts.join(". ") + (parts.length ? "." : "");
 }

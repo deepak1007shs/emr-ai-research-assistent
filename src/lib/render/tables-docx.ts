@@ -10,7 +10,7 @@ import {
   TextRun,
   WidthType,
 } from "docx";
-import { HOUSE_BORDER, HOUSE_STYLES, plain } from "./house-style";
+import { HOUSE_BORDER, HOUSE_STYLES, plain } from "./house-style.ts";
 import type { ShellTable, ShellTablesSpec, TableBlock } from "../tables/types.ts";
 
 /**

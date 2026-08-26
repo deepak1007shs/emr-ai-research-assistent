@@ -200,3 +200,32 @@ describe("a calculated value with no id of its own", () => {
     expect(codes(c)).toContain("CRF06");
   });
 });
+
+describe("a form's own keys", () => {
+  it("lets a raw ingredient the plan never declares carry a key of its own", () => {
+    // The plan analyses body mass index; the form must collect height and
+    // weight, which the plan has no variable for.
+    const c = clean();
+    c.sections[0].fields.push({
+      variable_id: "waist_cm",
+      label: "Waist circumference",
+      type: "Number",
+      unit: "cm",
+    });
+    c.derived.push({
+      name: "Waist to height ratio",
+      from_variable_ids: ["waist_cm", "var_height"],
+      how: "Waist divided by height",
+    });
+    expect(codes(c, sap())).not.toContain("REF07");
+    expect(codes(c, sap())).not.toContain("CRF07");
+  });
+
+  it("REF07 - but still catches an id that pretends to be the plan's", () => {
+    const c = clean();
+    c.sections[0].fields[0].variable_id = "var_not_in_the_plan";
+    const findings = validateCrf(c, sap()).findings;
+    expect(findings.map((f) => f.code)).toContain("REF07");
+    expect(findings.find((f) => f.code === "REF07")?.message).toContain("without the var_ prefix");
+  });
+});

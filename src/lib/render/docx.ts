@@ -11,7 +11,7 @@ import {
   WidthType,
 } from "docx";
 import type { ActionSpec, ReviewSpec } from "@/lib/protocol/schema";
-import { HOUSE_BORDER, HOUSE_STYLES, plain } from "./house-style";
+import { HOUSE_BORDER, HOUSE_STYLES, plain } from "./house-style.ts";
 
 /**
  * The Word renderer.

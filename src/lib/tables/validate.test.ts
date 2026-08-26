@@ -13,7 +13,11 @@ const sap = (): SapSpec => ({
   design: "prospective observational cohort",
   guideline: "STROBE",
   aim: "An aim.",
-  objectives: [{ id: "P1", tier: "primary", question: "What proportion convert?" }],
+  objectives: [
+    { id: "P1", tier: "primary", question: "What proportion convert?" },
+    { id: "S1", tier: "secondary", question: "Which factors are associated with conversion?" },
+    { id: "S2", tier: "secondary", question: "Does operative duration differ?" },
+  ],
   variables: [
     { id: "var_age", label: "Age (years)", data_type: "continuous", unit_coding: "Years", role: "confounder" },
     {
@@ -54,6 +58,26 @@ const sap = (): SapSpec => ({
       comparison: "single_group",
       paired: false,
       table_id: "T2",
+    },
+    {
+      objective_id: "S1",
+      label: "S1 - factors",
+      outcome_id: "out_conversion",
+      predictor_ids: ["var_age"],
+      data_type: "binary",
+      comparison: "adjusted",
+      paired: false,
+      table_id: "T3",
+    },
+    {
+      objective_id: "S2",
+      label: "S2 - operative duration",
+      outcome_id: "out_conversion",
+      predictor_ids: [],
+      data_type: "continuous",
+      comparison: "two_groups",
+      paired: false,
+      table_id: "T4",
     },
   ],
 });
@@ -117,13 +141,19 @@ describe("validateTables", () => {
     expect(codes(s)).toContain("TBL13");
   });
 
-  it("TBL14 - the plan sends an analysis to a table that does not exist", () => {
+  it("TBL14 - an analysis no table reports", () => {
     const s = clean();
-    const p = sap();
-    p.analyses[0].table_id = "T9";
-    const findings = validateTables(s, p).findings;
+    // The table that reported P1 now says it reports nothing.
+    s.tables[2].fills = [];
+    const findings = validateTables(s, sap()).findings;
     expect(findings.map((f) => f.code)).toContain("TBL14");
     expect(findings.find((f) => f.code === "TBL14")?.message).toContain("never be reported");
+  });
+
+  it("TBL19 - two tables claiming the same analysis", () => {
+    const s = clean();
+    s.tables[3].fills = ["P1"];
+    expect(codes(s, sap())).toContain("TBL19");
   });
 
   it("REF08 - a row reports a variable the plan does not declare", () => {
@@ -132,11 +162,9 @@ describe("validateTables", () => {
     expect(codes(s, sap())).toContain("REF08");
   });
 
-  it("TBL16 - the table and the analysis that fills it report different outcomes", () => {
+  it("TBL16 - a table and the analysis it reports measure different outcomes", () => {
     const s = clean();
     const p = sap();
-    // T4 is the effect table; point the analysis at it, then mismatch the outcome.
-    p.analyses[0].table_id = "T4";
     p.outcomes.push({
       id: "out_other",
       what: "Postoperative length of stay",
@@ -147,6 +175,7 @@ describe("validateTables", () => {
       domain: "clinical",
       source_variable_ids: [],
     });
+    // Table 4 says it reports S1, whose outcome is conversion, not this one.
     s.tables[3].outcome_id = "out_other";
     const findings = validateTables(s, p).findings;
     expect(findings.map((f) => f.code)).toContain("TBL16");
@@ -172,8 +201,7 @@ describe("validateTables", () => {
   it("TBL18 - the table adjusts for something the plan never listed", () => {
     const s = clean();
     const p = sap();
-    p.analyses[0].table_id = "T4";
-    p.analyses[0].predictor_ids = ["var_age"];
+    // S1 lists var_age only; table 4, which reports S1, adjusts for two.
     s.tables[3].adjusted_for = ["var_age", "var_bmi"];
     const findings = validateTables(s, p).findings;
     expect(findings.map((f) => f.code)).toContain("TBL18");

@@ -45,6 +45,15 @@ export type ShellTable = {
   /** The outcome this table reports, by id. Absent on a descriptive table. */
   outcome_id?: string;
   /**
+   * The objectives this table reports, by id.
+   *
+   * The plan numbers its own tables before anyone knows how many baseline
+   * tables there will be, so the two documents cannot agree on a number. They
+   * agree on this instead: the tables document owns the numbering, and says
+   * which analyses each of its tables answers.
+   */
+  fills?: string[];
+  /**
    * The variable ids the adjusted column adjusts for. Checked against the
    * analysis that fills this table, so the adjustment set cannot drift from the
    * one the plan declared.
@@ -72,3 +81,21 @@ export type ShellTablesSpec = {
   groups: string[];
   tables: ShellTable[];
 };
+
+/**
+ * Which table reports each objective.
+ *
+ * The plan writes a provisional table id against every analysis before anyone
+ * knows how many baseline tables the study needs. Once the shell tables exist
+ * they are the authority, and this is how the plan is told what its numbers
+ * really are.
+ */
+export function tableNumbers(spec: ShellTablesSpec | null | undefined): Record<string, number> {
+  const numbers: Record<string, number> = {};
+  for (const table of spec?.tables ?? []) {
+    for (const objectiveId of table.fills ?? []) {
+      if (!(objectiveId in numbers)) numbers[objectiveId] = table.number;
+    }
+  }
+  return numbers;
+}

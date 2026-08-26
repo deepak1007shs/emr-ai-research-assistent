@@ -1,5 +1,11 @@
 import { chooseTest, degreesOfFreedomNote } from "@/lib/sap/choose-test";
-import { outcomeCell, outcomeIndex, variableIndex, type SapSpec } from "@/lib/sap/types";
+import {
+  outcomeCell,
+  outcomeDefinition,
+  outcomeIndex,
+  variableIndex,
+  type SapSpec,
+} from "@/lib/sap/types";
 import { line, plain } from "@/lib/render/plain";
 import { DocHeading, DocSection, DocTable, DocumentShell, Note, Td } from "./document-shell";
 
@@ -13,7 +19,18 @@ import { DocHeading, DocSection, DocTable, DocumentShell, Note, Td } from "./doc
 
 const HEADERS = ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical test -> Table #"];
 
-export function SapPreview({ spec }: { spec: SapSpec }) {
+export function SapPreview({
+  spec,
+  tableNumbers,
+}: {
+  spec: SapSpec;
+  /**
+   * Objective id to the table that reports it, from the shell tables. The plan's
+   * own table_id is provisional: it was written before anyone knew how many
+   * baseline tables the study needed.
+   */
+  tableNumbers?: Record<string, number>;
+}) {
   const byVariable = variableIndex(spec);
   const byOutcome = outcomeIndex(spec);
 
@@ -33,6 +50,8 @@ export function SapPreview({ spec }: { spec: SapSpec }) {
     const chosen = chooseTest(row);
     if (chosen) reasons.set(chosen.test, chosen.why);
     const outcome = byOutcome.get(row.outcome_id);
+    const number = tableNumbers?.[row.objective_id];
+    const where = number ? `Table ${number}` : row.table_id;
 
     return {
       label: row.label,
@@ -42,8 +61,8 @@ export function SapPreview({ spec }: { spec: SapSpec }) {
         "(single-group estimate)",
       dataType: row.data_type,
       test: chosen
-        ? `${chosen.test} -> ${row.table_id}`
-        : `NO RULE COVERS THIS ROW. Decide the test and record it. -> ${row.table_id}`,
+        ? `${chosen.test} -> ${where}`
+        : `NO RULE COVERS THIS ROW. Decide the test and record it. -> ${where}`,
       covered: Boolean(chosen),
     };
   });
@@ -53,6 +72,11 @@ export function SapPreview({ spec }: { spec: SapSpec }) {
     spec.expected_events !== undefined && adjusted
       ? degreesOfFreedomNote(spec.expected_events, (adjusted.predictor_ids ?? []).length).note
       : null;
+
+  // The five questions in full, under the map rather than inside its cells.
+  const measured = (spec.outcomes ?? []).filter((o) =>
+    analyses.some((a) => a.outcome_id === o.id),
+  );
 
   const excluded = variables.filter(
     (v) => (v.role === "mediator" || v.role === "collider") && v.exclusion_reason,
@@ -95,6 +119,18 @@ export function SapPreview({ spec }: { spec: SapSpec }) {
             </tr>
           ))}
         </DocTable>
+
+        {measured.length > 0 && (
+          <div className="space-y-1.5">
+            <DocHeading>How each outcome is defined</DocHeading>
+            {measured.map((outcome) => (
+              <p key={outcome.id} className="text-xs leading-relaxed">
+                <span className="font-semibold">{plain(outcome.what)}.</span>{" "}
+                {plain(outcomeDefinition(outcome))}
+              </p>
+            ))}
+          </div>
+        )}
 
         {reasons.size > 0 && (
           <div className="space-y-1.5">

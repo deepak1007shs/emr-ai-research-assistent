@@ -10,9 +10,15 @@ import {
   TextRun,
   WidthType,
 } from "docx";
-import { HOUSE_BORDER, HOUSE_STYLES, plain } from "./house-style";
+import { HOUSE_BORDER, HOUSE_STYLES, plain } from "./house-style.ts";
 import { chooseTest, degreesOfFreedomNote } from "../sap/choose-test.ts";
-import { outcomeCell, outcomeIndex, variableIndex, type SapSpec } from "../sap/types.ts";
+import {
+  outcomeCell,
+  outcomeDefinition,
+  outcomeIndex,
+  variableIndex,
+  type SapSpec,
+} from "../sap/types.ts";
 
 /**
  * The Statistical Analysis Plan: two sections.
@@ -64,7 +70,11 @@ function cell(text: string, bold = false) {
 const HEADERS = ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical test -> Table #"];
 
 
-export async function buildSapDocx(spec: SapSpec): Promise<Buffer> {
+export async function buildSapDocx(
+  spec: SapSpec,
+  /** Objective id to the table that reports it, once the shell tables exist. */
+  tableNumbers?: Record<string, number>,
+): Promise<Buffer> {
   const doc: Block[] = [];
 
   doc.push(
@@ -117,9 +127,11 @@ export async function buildSapDocx(spec: SapSpec): Promise<Buffer> {
   const rows = spec.analyses.map((row) => {
     const chosen = chooseTest(row);
     if (chosen) reasons.set(chosen.test, chosen.why);
+    const number = tableNumbers?.[row.objective_id];
+    const where = number ? `Table ${number}` : row.table_id;
     const test = chosen
-      ? `${chosen.test} -> ${row.table_id}`
-      : `NO RULE COVERS THIS ROW. Decide the test and record it. -> ${row.table_id}`;
+      ? `${chosen.test} -> ${where}`
+      : `NO RULE COVERS THIS ROW. Decide the test and record it. -> ${where}`;
 
     const outcome = byOutcome.get(row.outcome_id);
     const predictors = (row.predictor_ids ?? [])
@@ -146,6 +158,32 @@ export async function buildSapDocx(spec: SapSpec): Promise<Buffer> {
   );
 
   // ---- the notes under the map
+
+  // The five questions in full. The map's cell carries the name and where it
+  // comes from; a table cell holding all five is a paragraph nobody reads.
+  const measured = (spec.outcomes ?? []).filter((o) =>
+    spec.analyses.some((a) => a.outcome_id === o.id),
+  );
+  if (measured.length) {
+    doc.push(
+      new Paragraph({
+        spacing: { before: 200, after: 100 },
+        children: [new TextRun({ text: "How each outcome is defined.", bold: true })],
+      }),
+    );
+    for (const outcome of measured) {
+      doc.push(
+        new Paragraph({
+          spacing: { after: 100 },
+          children: [
+            new TextRun({ text: `${line(outcome.what)}. `, bold: true }),
+            new TextRun({ text: plain(outcomeDefinition(outcome)) }),
+          ],
+        }),
+      );
+    }
+  }
+
   if (reasons.size) {
     doc.push(
       new Paragraph({

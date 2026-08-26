@@ -86,8 +86,16 @@ export const SAP_JSON_SCHEMA = obj({
       "The outcome registry. Each is declared once with an id, and analyses refer to that id. Every outcome answers all five questions.",
     items: obj({
       id: { ...str, description: "out_conversion. Lower case, begins out_, unique." },
-      what: { ...str, description: "What exactly will be measured. This is the outcome's label." },
-      how: { ...str, description: "How it will be measured." },
+      what: {
+        ...str,
+        description:
+          "The outcome's NAME: two to eight words, e.g. 'Intraoperative conversion' or 'Postoperative length of stay'. This is the wording that prints as a table heading and as a field label on the case report form, so it must be short. The detail belongs in how.",
+      },
+      how: {
+        ...str,
+        description:
+          "How it will be measured, in full. This is where the definition goes: what counts as an event, what the threshold is, who records it.",
+      },
       instrument: { ...str, description: "Using which instrument, form, scale or record." },
       when: { ...str, description: "At what time point." },
       units: { ...str, description: "In which units, or the category set." },

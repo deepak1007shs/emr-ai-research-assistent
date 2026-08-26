@@ -6,6 +6,8 @@ import { BuildButton } from "@/components/build-button";
 import { NotBuilt } from "@/components/not-built";
 import { DocumentActions } from "@/components/document-actions";
 import type { SapSpec } from "@/lib/sap/types";
+import type { ShellTablesSpec } from "@/lib/tables/types";
+import { tableNumbers } from "@/lib/tables/types";
 
 export const metadata = { title: "Statistical Analysis Plan — SAP Builder" };
 
@@ -16,8 +18,9 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
   const { id } = await params;
   const supabase = await createClient();
 
-  const [plan, review] = await Promise.all([
+  const [plan, shells, review] = await Promise.all([
     loadCurrent<SapSpec>(supabase, "sap_plans", id),
+    loadCurrent<ShellTablesSpec>(supabase, "shell_tables", id),
     supabase
       .from("reviews")
       .select("id")
@@ -48,7 +51,9 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
         />
       </DocumentActions>
       <FindingsPanel findings={plan.findings} />
-      <SapPreview spec={plan.spec} />
+      {/* Once the shell tables exist they own the numbering, so the plan
+          prints the number the reader will actually find. */}
+      <SapPreview spec={plan.spec} tableNumbers={tableNumbers(shells?.spec)} />
     </div>
   );
 }

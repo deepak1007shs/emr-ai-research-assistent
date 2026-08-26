@@ -41,12 +41,12 @@ const FIELD = obj({
   variable_id: {
     ...str,
     description:
-      "The id of the variable this field collects, from the analysis plan's registry. Empty only for identifiers and for data collected but never analysed.",
+      "How this field is referred to everywhere else on the form. When the analysis plan declares this variable, copy its id EXACTLY: those begin var_ or out_, and inventing one that begins var_ is an error. When the plan does not declare it, because it is a raw ingredient the plan derives from (height and weight when the plan analyses body mass index, the two dates when it analyses length of stay), give it a short key of your own WITHOUT the var_ prefix, such as height_cm. Empty only for a field nothing else refers to.",
   },
   label: {
     ...str,
     description:
-      "The label, used ONLY when variable_id is empty. When variable_id is set, leave this empty: the wording is taken from the plan so the two documents cannot disagree.",
+      "Always fill this in: it is what prints on the form. When variable_id names a variable in the plan, the plan's wording replaces it, so the two documents cannot disagree.",
   },
   type: {
     type: "string",
@@ -130,10 +130,11 @@ export const CRF_JSON_SCHEMA = obj({
         ...str,
         description: "The id of the variable this computes, when the plan declares one. Empty otherwise.",
       },
-      name: { ...str, description: "Used only when variable_id is empty." },
+      name: { ...str, description: "The name this calculated value is printed under. Always fill it in." },
       from_variable_ids: {
         ...strArray,
-        description: "The variable_ids of the fields it is computed from. Every one must be a field on this form.",
+        description:
+          "The variable_id of each field it is computed from, exactly as that field carries it. Every one must be a field on this form.",
       },
       how: str,
     }),
@@ -151,6 +152,11 @@ Two rules govern what goes on the form.
 Every variable the analysis plan names must have a field. An outcome nobody
 collects cannot be measured, and a confounder nobody records cannot be adjusted
 for. List confounders one by one.
+
+A field that collects a variable the plan analyses carries that variable's id,
+copied from the plan. A field that collects a raw ingredient the plan does not
+declare carries a short key of your own instead. Both belong on the form: the
+plan analyses body mass index, and the form collects height and weight.
 
 The form collects raw and rich data, never computed values. Dates rather than
 durations. The reading rather than a yes or no. A score's items rather than its
@@ -250,21 +256,31 @@ sections and their fields.`,
 
   const raw = JSON.parse(text) as CrfSpec;
 
-  // Empty strings are the schema's way of saying "not applicable".
-  const tidyField = (f: CrfSpec["identifiers"][number]) => ({
-    ...f,
-    variable_id: f.variable_id?.trim() || undefined,
-    options: f.options?.length ? f.options : undefined,
-    unit: f.unit?.trim() || undefined,
-    note: f.note?.trim() || undefined,
-    primary_outcome: f.primary_outcome || undefined,
-  });
-
   // The wording is copied from the plan's registry rather than retyped, so the
   // form cannot call a variable something the plan does not call it.
   const labels: Record<string, string> = {};
   for (const v of sap.variables ?? []) labels[v.id] = v.label;
   for (const o of sap.outcomes ?? []) labels[o.id] = o.what;
+
+  // A field's id is how the rest of the form refers to it. When the plan
+  // declares that variable the id is the plan's, and the wording comes from the
+  // registry; otherwise it is the form's own key for a raw value the plan
+  // derives from, and the field carries its own wording. Both are real ids: a
+  // calculated value has to be able to name the fields it is computed from.
+  const tidyField = (f: CrfSpec["identifiers"][number]) => {
+    const variable_id = f.variable_id?.trim() || undefined;
+    return {
+      ...f,
+      variable_id,
+      // A field with no wording prints as a blank line on a paper form, so the
+      // registry's wording stands in when the model left the label empty.
+      label: f.label?.trim() || (variable_id ? (labels[variable_id] ?? "") : "") || "",
+      options: f.options?.length ? f.options : undefined,
+      unit: f.unit?.trim() || undefined,
+      note: f.note?.trim() || undefined,
+      primary_outcome: f.primary_outcome || undefined,
+    };
+  };
 
   const spec: CrfSpec = {
     ...raw,
@@ -276,11 +292,16 @@ sections and their fields.`,
       note: s.note?.trim() || undefined,
       fields: (s.fields ?? []).map(tidyField),
     })),
-    derived: (raw.derived ?? []).map((d) => ({
-      ...d,
-      variable_id: d.variable_id?.trim() || undefined,
-      from_variable_ids: d.from_variable_ids ?? [],
-    })),
+    derived: (raw.derived ?? []).map((d) => {
+      const variable_id = d.variable_id?.trim() || undefined;
+      return {
+        ...d,
+        variable_id,
+        // A calculated value with no name prints as a blank row.
+        name: d.name?.trim() || (variable_id ? (labels[variable_id] ?? variable_id) : ""),
+        from_variable_ids: d.from_variable_ids ?? [],
+      };
+    }),
   };
 
   const { findings } = validateCrf(spec, sap);

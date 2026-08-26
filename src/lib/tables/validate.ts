@@ -113,23 +113,42 @@ export function validateTables(
     const nameOf = (id: string) =>
       byVariable.get(id)?.label ?? byOutcome.get(id)?.what ?? spec.labels?.[id] ?? id;
 
-    const numbers = new Set(tables.map((t) => `T${t.number}`));
+    // The tables document owns the numbering, and says which analyses each of
+    // its tables answers. The plan's own table_id was assigned before anyone
+    // knew how many baseline tables the study needed, so it is not checked
+    // against a number: it is checked against this.
+    const analysisOf = new Map((sap.analyses ?? []).map((a) => [a.objective_id, a]));
+    const byObjective = new Map<string, (typeof tables)[number]>();
+    for (const t of tables) {
+      for (const objectiveId of t.fills ?? []) {
+        if (byObjective.has(objectiveId)) {
+          error(
+            "TBL19",
+            `${objectiveId} is reported by both Table ${byObjective.get(objectiveId)!.number} and Table ${t.number}. One analysis, one table.`,
+          );
+        } else {
+          byObjective.set(objectiveId, t);
+        }
+      }
+    }
+
     for (const analysis of sap.analyses ?? []) {
-      if (analysis.table_id && !numbers.has(analysis.table_id)) {
+      if (!byObjective.has(analysis.objective_id)) {
         error(
           "TBL14",
-          `The analysis plan sends ${analysis.objective_id} to ${analysis.table_id}, but there is no such table, so that analysis would never be reported.`,
+          `No table reports ${analysis.objective_id}, so that analysis would never be reported.`,
         );
       }
     }
 
-    const byTable = new Map((sap.analyses ?? []).map((a) => [a.table_id, a]));
     for (const t of tables) {
-      const analysis = byTable.get(`T${t.number}`);
-      if (t.block !== "descriptive" && !analysis) {
+      const filled = (t.fills ?? [])
+        .map((id) => analysisOf.get(id))
+        .filter((a): a is NonNullable<typeof a> => Boolean(a));
+      if (t.block !== "descriptive" && !filled.length) {
         warn(
           "TBL15",
-          `Table ${t.number} is not filled by any analysis in the plan. Either an analysis is missing, or the table is.`,
+          `Table ${t.number} reports no analysis in the plan. Either an analysis is missing, or the table is.`,
         );
       }
 
@@ -150,12 +169,16 @@ export function validateTables(
         );
       }
 
-      // The table and the analysis that fills it must report the same outcome.
-      if (analysis && t.outcome_id && analysis.outcome_id !== t.outcome_id) {
-        error(
-          "TBL16",
-          `Table ${t.number} reports "${nameOf(t.outcome_id)}", but the analysis that fills it (${analysis.objective_id}) measures "${nameOf(analysis.outcome_id)}".`,
-        );
+      // The table and the analyses it reports must be about the same outcome.
+      if (t.outcome_id) {
+        for (const a of filled) {
+          if (a.outcome_id !== t.outcome_id) {
+            error(
+              "TBL16",
+              `Table ${t.number} reports "${nameOf(t.outcome_id)}", but ${a.objective_id}, which it says it fills, measures "${nameOf(a.outcome_id)}".`,
+            );
+          }
+        }
       }
 
       // An adjusted column must adjust for what the plan said it would.
@@ -176,15 +199,15 @@ export function validateTables(
             );
           }
         }
-        if (analysis) {
-          const planned = new Set(analysis.predictor_ids ?? []);
-          const extra = t.adjusted_for.filter((id) => !planned.has(id));
-          if (extra.length) {
-            warn(
-              "TBL18",
-              `Table ${t.number} adjusts for ${extra.map(nameOf).join(", ")}, which ${analysis.objective_id} does not list as a predictor. Either the plan or the table is out of date.`,
-            );
-          }
+        const planned = new Set(filled.flatMap((a) => a.predictor_ids ?? []));
+        const extra = filled.length ? t.adjusted_for.filter((id) => !planned.has(id)) : [];
+        if (extra.length) {
+          warn(
+            "TBL18",
+            `Table ${t.number} adjusts for ${extra.map(nameOf).join(", ")}, which ${filled
+              .map((a) => a.objective_id)
+              .join(" or ")} does not list as a predictor. Either the plan or the table is out of date.`,
+          );
         }
       }
     }

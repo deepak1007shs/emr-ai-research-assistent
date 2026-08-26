@@ -67,6 +67,7 @@ export const tablesFixture: ShellTablesSpec = {
     {
       number: 3,
       block: "primary",
+      fills: ["P1"],
       kind: "distribution",
       title: "Rate of intraoperative conversion (n = 125)",
       columns: ["Outcome", "n", "%", "95% CI"],
@@ -79,6 +80,7 @@ export const tablesFixture: ShellTablesSpec = {
     {
       number: 4,
       block: "secondary",
+      fills: ["S1"],
       kind: "effect",
       title: "Factors associated with intraoperative conversion (n = 125)",
       columns: [
@@ -101,6 +103,7 @@ export const tablesFixture: ShellTablesSpec = {
     {
       number: 5,
       block: "exploratory",
+      fills: ["S2"],
       kind: "comparative",
       title: "Operative duration by conversion status (n = 125)",
       columns: [

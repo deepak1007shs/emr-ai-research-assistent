@@ -56,6 +56,11 @@ export const TABLES_JSON_SCHEMA = obj({
         description:
           "The id of the outcome this table reports, from the analysis plan. It must be the outcome of the analysis whose table this is. Empty for a descriptive table.",
       },
+      fills: {
+        ...strArray,
+        description:
+          "The objective ids this table reports, e.g. ['P1'] or ['S1','S2'] when one table answers two. Empty for a descriptive table. Every objective in the plan must be filled by exactly one table, and you number the tables yourself: ignore the plan's table_id, which was assigned before anyone knew how many baseline tables there would be.",
+      },
       adjusted_for: {
         ...strArray,
         description:
@@ -64,7 +69,7 @@ export const TABLES_JSON_SCHEMA = obj({
       title: {
         ...str,
         description:
-          "The full title including the denominator, e.g. 'Demographic profile by conversion status (n = 125)'.",
+          "The full title, which MUST end with the denominator in brackets: 'Demographic profile by conversion status (n = 125)'. Use the study's sample size. A table without its n cannot be read on its own.",
       },
       kind: {
         type: "string",
@@ -124,6 +129,15 @@ Refer to every variable and every outcome by the id the analysis plan gave it,
 and do not retype its wording. The plan, the case report form and these tables all
 point at the same ids, so a variable named once is named the same in all three.
 
+You number the tables, not the plan. The plan assigned a table id to each
+analysis before it knew how many baseline tables this study needs, so those
+numbers are provisional. Number yours from 1 in the order they are printed,
+descriptive first, and say in the fills field which objectives each table answers.
+Every
+objective in the plan gets exactly one table.
+
+Every title ends with its denominator in brackets.
+
 Keep the tables simple to read. A table a supervisor cannot follow at a glance
 will be redrawn by hand, and then it no longer matches the plan.`;
 
@@ -155,6 +169,8 @@ named on that table must be the test the plan chose:
 
 ${JSON.stringify({
         title: sap.title,
+        sample_size: sap.sample_size,
+        expected_events: sap.expected_events,
         objectives: sap.objectives,
         variables: sap.variables,
         outcomes: sap.outcomes,
@@ -239,6 +255,7 @@ the primary outcome, then each secondary outcome, then anything exploratory.`,
     tables: (raw.tables ?? []).map((t) => ({
       ...t,
       outcome_id: t.outcome_id?.trim() || undefined,
+      fills: t.fills?.length ? t.fills : undefined,
       adjusted_for: t.adjusted_for?.length ? t.adjusted_for : undefined,
       test_applied: t.test_applied?.trim() || undefined,
       footnote: t.footnote?.trim() || undefined,

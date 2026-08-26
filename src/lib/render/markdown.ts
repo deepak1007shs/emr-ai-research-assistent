@@ -9,4 +9,4 @@
  * `build()` is synchronous and has no await points, so its module-level buffer
  * cannot interleave between concurrent requests on Node's single thread.
  */
-export { build } from "./build_review_md";
+export { build } from "./build_review_md.js";

@@ -11,6 +11,17 @@ import type { Finding } from "../sap/validate.ts";
  * matcher this file used to carry existed only because there were no ids.
  */
 
+/**
+ * An id that claims to come from the analysis plan.
+ *
+ * The plan's ids are prefixed; a form is free to key its own raw fields any
+ * other way. Without that convention a typo and a legitimate local key are
+ * indistinguishable, and one of them has to be reported.
+ */
+function isPlanId(id: string): boolean {
+  return /^(var|out)_/.test(id);
+}
+
 /** Every variable id the form collects, whether captured or derived. */
 function capturedIds(crf: CrfSpec): Set<string> {
   const ids = new Set<string>();
@@ -52,8 +63,14 @@ export function validateCrf(crf: CrfSpec, sap?: SapSpec): { ok: boolean; finding
       if (field.type === "Number" && !field.unit) {
         error("CRF05", `"${name}" is a number with no unit. A number without a unit cannot be analysed.`);
       }
-      if (field.variable_id && sap && !byVariable.has(field.variable_id)) {
-        error("REF07", `A field claims to collect ${field.variable_id}, which the analysis plan does not declare.`);
+      // A field's id is either the plan's, or the form's own key for a raw
+      // value the plan derives from. The prefix is what tells them apart, so a
+      // near-miss on a real id is caught and a legitimate local key is not.
+      if (field.variable_id && sap && isPlanId(field.variable_id) && !byVariable.has(field.variable_id)) {
+        error(
+          "REF07",
+          `A field claims to collect ${field.variable_id}, which looks like a variable from the analysis plan but is not one. Either correct the id, or give the field a key of its own without the var_ prefix.`,
+        );
       }
     }
   });
