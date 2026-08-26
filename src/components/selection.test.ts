@@ -19,7 +19,7 @@ const doc = (id: string | null, kind: ProtocolRow["documents"]["sap"]["kind"]) =
 const protocols: ProtocolRow[] = [
   {
     id: "p1",
-    filename: "jay.docx",
+    filename: "first-study.docx",
     created_at: "2026-08-01T00:00:00.000Z",
     documents: {
       review: doc("r1", "review"),
@@ -30,7 +30,7 @@ const protocols: ProtocolRow[] = [
   },
   {
     id: "p2",
-    filename: "suman.pdf",
+    filename: "second-study.pdf",
     created_at: "2026-08-02T00:00:00.000Z",
     documents: {
       review: doc("r2", "review"),
@@ -74,12 +74,12 @@ describe("withoutRedundant", () => {
 
 describe("describe", () => {
   it("names a protocol rather than counting it", () => {
-    expect(describeSelection([protocolKey("p2")], protocols)).toEqual(["suman.pdf"]);
+    expect(describeSelection([protocolKey("p2")], protocols)).toEqual(["second-study.pdf"]);
   });
 
   it("names a document by what it is and which study it belongs to", () => {
     expect(describeSelection([documentKey("crf", "c1")], protocols)).toEqual([
-      "the case report form of jay.docx",
+      "the case report form of first-study.docx",
     ]);
   });
 
@@ -88,6 +88,6 @@ describe("describe", () => {
       [protocolKey("p1"), documentKey("sap", "s2"), documentKey("review", "r2")],
       protocols,
     );
-    expect(names).toEqual(["jay.docx", "the analysis plan of suman.pdf", "the review of suman.pdf"]);
+    expect(names).toEqual(["first-study.docx", "the analysis plan of second-study.pdf", "the review of second-study.pdf"]);
   });
 });
