@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { loadKnowledge } from "../protocol/knowledge.ts";
+import { explainApiError } from "../protocol/api-error.ts";
 import { decisionsBlock } from "../protocol/answers.ts";
 import { EFFORT, MODEL } from "../protocol/analyze.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
@@ -244,7 +245,15 @@ sections and their fields.`,
     }
   });
 
-  const message = await stream.finalMessage();
+  let message;
+  try {
+    message = await stream.finalMessage();
+  } catch (error) {
+    // Said in words. Without this the raw JSON body reaches the screen.
+    const explained = explainApiError(error);
+    if (explained) throw new CrfError(explained);
+    throw error;
+  }
   if (message.stop_reason === "max_tokens") {
     throw new CrfError("The form was cut off before it finished.");
   }

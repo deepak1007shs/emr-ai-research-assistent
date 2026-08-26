@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { loadKnowledge } from "../protocol/knowledge.ts";
+import { explainApiError } from "../protocol/api-error.ts";
 import { decisionsBlock } from "../protocol/answers.ts";
 import { EFFORT, MODEL } from "../protocol/analyze.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
@@ -98,6 +99,16 @@ export const SAP_JSON_SCHEMA = obj({
     type: "integer",
     description:
       "For a binary primary outcome, n multiplied by the expected proportion. 0 when the outcome is not binary or the proportion is unknown.",
+  },
+  sample_size_note: {
+    ...str,
+    description:
+      "The minimal clinically important difference the study is powered to detect, its source, the assumed variability or event rate, alpha, power and the dropout allowance. A target n on its own is not a calculation. Where the protocol gives none, begin with 'TODO: ' and say what must be added.",
+  },
+  priority_confounder_ids: {
+    ...strArray,
+    description:
+      "The variable ids adjustment will actually use, in priority order, respecting about ten outcome events per variable. Fewer than the candidate list where the events do not afford them.",
   },
   objectives: {
     type: "array",
@@ -299,7 +310,15 @@ objective. Number the tables T1 upward in the order the rows appear.`,
     }
   });
 
-  const message = await stream.finalMessage();
+  let message;
+  try {
+    message = await stream.finalMessage();
+  } catch (error) {
+    // Said in words. Without this the raw JSON body reaches the screen.
+    const explained = explainApiError(error);
+    if (explained) throw new SapError(explained);
+    throw error;
+  }
 
   if (message.stop_reason === "max_tokens") {
     throw new SapError("The plan was cut off before it finished.");

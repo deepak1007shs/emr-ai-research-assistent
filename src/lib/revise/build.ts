@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { MODEL } from "../protocol/analyze.ts";
+import { explainApiError } from "../protocol/api-error.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { SapSpec } from "../sap/types.ts";
 import type { CrfSpec } from "../crf/types.ts";
@@ -165,7 +166,15 @@ Return only the entities that change.`,
     }
   });
 
-  const message = await stream.finalMessage();
+  let message;
+  try {
+    message = await stream.finalMessage();
+  } catch (error) {
+    // Said in words. Without this the raw JSON body reaches the screen.
+    const explained = explainApiError(error);
+    if (explained) throw new ReviseError(explained);
+    throw error;
+  }
   if (message.stop_reason === "max_tokens") {
     throw new ReviseError("The revision was cut off before it finished.");
   }

@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { EFFORT, MODEL } from "../protocol/analyze.ts";
 import { decisionsBlock } from "../protocol/answers.ts";
+import { explainApiError } from "../protocol/api-error.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { SapSpec } from "./types.ts";
 
@@ -216,7 +217,14 @@ ${tests.map((t) => `- ${t}`).join("\n")}`,
     }
   });
 
-  const message = await stream.finalMessage();
+  let message;
+  try {
+    message = await stream.finalMessage();
+  } catch (error) {
+    const explained = explainApiError(error);
+    if (explained) throw new Error(explained);
+    throw error;
+  }
   const text = message.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
     .map((b) => b.text)
