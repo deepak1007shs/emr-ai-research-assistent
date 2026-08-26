@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { validateSap } from "./validate.ts";
 import type { SapSpec } from "./types.ts";
+import { sapFixture } from "./fixture.ts";
 import { isLinkable } from "./types.ts";
 
 const outcome = (id: string, what: string) => ({
@@ -15,9 +16,8 @@ const outcome = (id: string, what: string) => ({
 });
 
 const clean = (): SapSpec => ({
+  ...structuredClone(sapFixture),
   title: "A study",
-  design: "prospective observational cohort",
-  guideline: "STROBE",
   aim: "To estimate the conversion rate and identify associated factors.",
   sample_size: 125,
   expected_events: 100,
@@ -45,6 +45,26 @@ const clean = (): SapSpec => ({
       objective_id: "S1", label: "S1 - factors", outcome_id: "out_conversion",
       predictor_ids: ["var_age"], data_type: "binary", comparison: "adjusted",
       paired: false, table_id: "T2",
+    },
+  ],
+  // Internally consistent with the variables and analyses above: a plan whose
+  // sections disagree with each other is what these guards exist to catch, so
+  // the baseline they are measured against must not.
+  priority_confounder_ids: ["var_age"],
+  assumption_checks: [
+    {
+      test: "Proportion with 95% CI (Clopper-Pearson exact)",
+      assumption: "One group, and every patient counted once",
+      how_checked: "Design check.",
+      if_violated: "Account for the clustering.",
+      example: "Each operation contributes one conversion outcome.",
+    },
+    {
+      test: "Multivariable binary logistic regression, adjusted OR with 95% CI",
+      assumption: "At least ten outcome events per predictor",
+      how_checked: "Count conversions and divide by the model terms.",
+      if_violated: "Reduce the predictors, or use Firth regression.",
+      example: "At 100 expected events the model affords ten predictors.",
     },
   ],
 });
@@ -195,5 +215,67 @@ describe("isLinkable", () => {
 
   it("refuses nothing at all", () => {
     expect(isLinkable(null)).toBe(false);
+  });
+});
+
+describe("the route map is complete", () => {
+  it("MAP04 - an estimand with no endpoint", () => {
+    const s = clean();
+    s.estimand.endpoint = "";
+    expect(codes(s)).toContain("MAP04");
+  });
+
+  it("MAP06 - no missing-data method, which is the one chosen after the fact", () => {
+    const s = clean();
+    s.rules.missing_data = "  ";
+    const findings = validateSap(s).findings;
+    expect(findings.map((f) => f.code)).toContain("MAP06");
+    expect(findings.find((f) => f.code === "MAP06")?.message).toContain("not a method");
+  });
+
+  it("MAP08 - interim analyses unmentioned, which is not the same as none", () => {
+    const s = clean();
+    s.interim = "";
+    expect(codes(s)).toContain("MAP08");
+  });
+
+  it("MAP11 - nobody has said who is analysed", () => {
+    const s = clean();
+    s.populations = [];
+    expect(codes(s)).toContain("MAP11");
+  });
+
+  it("MAP14 - a test the plan chooses whose assumptions are never stated", () => {
+    const s = clean();
+    s.assumption_checks = [];
+    expect(codes(s)).toContain("MAP14");
+  });
+
+  it("MAP15 - assumptions for a test this study does not run", () => {
+    const s = clean();
+    s.assumption_checks = [
+      {
+        test: "Cox proportional-hazards regression",
+        assumption: "Proportional hazards",
+        how_checked: "Schoenfeld residuals",
+        if_violated: "Time-varying covariate",
+        example: "Not applicable to this study.",
+      },
+    ];
+    expect(codes(s)).toContain("MAP15");
+  });
+
+  it("MAP17 - a mediator named as a priority confounder", () => {
+    const s = clean();
+    const mediator = s.variables.find((v) => v.role === "mediator")!;
+    s.priority_confounder_ids = [mediator.id];
+    const findings = validateSap(s).findings;
+    expect(findings.map((f) => f.code)).toContain("MAP17");
+    expect(findings.find((f) => f.code === "MAP17")?.message).toContain("remove part of the effect");
+  });
+
+  it("passes the fixture, which is a complete route map", () => {
+    const findings = validateSap(clean()).findings.filter((f) => f.severity === "ERROR");
+    expect(findings, JSON.stringify(findings, null, 2)).toEqual([]);
   });
 });

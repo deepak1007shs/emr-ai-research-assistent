@@ -2,16 +2,13 @@ import { describe, expect, it } from "vitest";
 import { validateCrf } from "./validate.ts";
 import { crfFixture } from "./fixture.ts";
 import type { CrfSpec } from "./types.ts";
-import type { SapSpec } from "../sap/types.ts";
+import type { SapRegistry } from "../sap/types.ts";
 
 const clean = () => structuredClone(crfFixture) as CrfSpec;
-const codes = (crf: CrfSpec, sap?: SapSpec) => validateCrf(crf, sap).findings.map((f) => f.code);
+const codes = (crf: CrfSpec, sap?: SapRegistry) => validateCrf(crf, sap).findings.map((f) => f.code);
 
-const sap = (): SapSpec => ({
+const sap = (): SapRegistry => ({
   title: "A study",
-  design: "prospective observational cohort",
-  guideline: "STROBE",
-  aim: "An aim.",
   objectives: [{ id: "P1", tier: "primary", question: "What proportion convert?" }],
   variables: [
     { id: "var_age", label: "Age", data_type: "continuous", unit_coding: "Years", role: "confounder" },

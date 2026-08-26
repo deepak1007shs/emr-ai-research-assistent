@@ -1,5 +1,5 @@
 import type { ShellTablesSpec } from "./types.ts";
-import type { SapSpec } from "../sap/types.ts";
+import type { SapRegistry } from "../sap/types.ts";
 import { outcomeIndex, variableIndex } from "../sap/types.ts";
 import type { Finding } from "../sap/validate.ts";
 
@@ -16,7 +16,7 @@ const EFFECT = /\b(or|rr|hr|odds ratio|risk ratio|hazard ratio|difference|mean d
 
 export function validateTables(
   spec: ShellTablesSpec,
-  sap?: SapSpec,
+  sap?: SapRegistry,
 ): { ok: boolean; findings: Finding[] } {
   const out: Finding[] = [];
   const error = (code: string, message: string) => out.push({ code, severity: "ERROR", message });

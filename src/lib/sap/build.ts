@@ -6,6 +6,8 @@ import type { TokenUsage } from "../protocol/pricing.ts";
 import type { ExtractedProtocol } from "../protocol/extract.ts";
 import type { SapSpec } from "./types.ts";
 import { validateSap, type Finding } from "./validate.ts";
+import { chooseTest } from "./choose-test.ts";
+import { buildSapRules, type RulesResult } from "./rules-stage.ts";
 
 /**
  * Builds the analysis model behind the SAP.
@@ -40,8 +42,57 @@ function obj<T extends Record<string, unknown>>(properties: T, description?: str
 export const SAP_JSON_SCHEMA = obj({
   title: { ...str, description: "The study title, corrected if the protocol's own is wrong." },
   design: { ...str, description: "The exact design, e.g. prospective observational cohort." },
+  setting: { ...str, description: "Department and institution, as one line." },
   guideline: { ...str, description: "CONSORT, STROBE, STARD, TRIPOD, PRISMA." },
+  glance: obj(
+    {
+      population: { ...str, description: "Who is studied, with the key inclusion and exclusion." },
+      what_is_measured: { ...str, description: "The exposure or intervention, and the main measurements." },
+      primary_outcome: { ...str, description: "The single most important endpoint." },
+      main_comparison: { ...str, description: "Before versus after, group A versus B, predictor versus outcome." },
+      sample_size_basis: { ...str, description: "The target n AND the basis for it." },
+    },
+    "A thirty-second summary. If a reader sees only this box, they should be able to say what the study is.",
+  ),
+  picot: obj(
+    {
+      framework: {
+        type: "string",
+        enum: ["PICOT", "PECOT"],
+        description: "PICOT when the investigator assigns the intervention, PECOT when they observe an exposure.",
+      },
+      population: str,
+      intervention_or_exposure: str,
+      comparator: {
+        ...str,
+        description: "Where there is no separate control group by design, say so and name the internal contrasts.",
+      },
+      outcome: str,
+      time: { ...str, description: "When the outcome is ascertained, and the study type." },
+      assembled_question: { ...str, description: "The whole clinical question as one sentence." },
+    },
+    "The clinical question decomposed. Every objective, variable and test below must trace back to it.",
+  ),
   aim: { ...str, description: "One or two sentences: the overall purpose." },
+  hypothesis: {
+    ...str,
+    description:
+      "The expected direction, e.g. 'Intervention X increases outcome Y'. Where the study is purely descriptive, say that it is and that no directional hypothesis is stated.",
+  },
+  estimand: obj(
+    {
+      treatment_condition: { ...str, description: "The intervention or exposure conditions being compared." },
+      population: { ...str, description: "The target patients, usually the primary analysis set." },
+      endpoint: { ...str, description: "The primary outcome as measured." },
+      intercurrent_strategy: {
+        ...str,
+        description:
+          "How discontinuation, rescue therapy or death are handled: treatment-policy, hypothetical, composite, while-on-treatment or principal-stratum.",
+      },
+      summary_measure: { ...str, description: "The effect measure with its interval: difference in means, OR, HR." },
+    },
+    "The primary estimand, ICH E9(R1). All five attributes: the estimand, not the test, is what the study is trying to estimate.",
+  ),
   sample_size: { type: "integer", description: "The total n the protocol states. 0 if absent." },
   expected_events: {
     type: "integer",
@@ -53,8 +104,8 @@ export const SAP_JSON_SCHEMA = obj({
     description:
       "Read each protocol objective word by word before writing it. 'Study' and 'evaluate' are not measurable and become estimate, compare or determine. 'Leading to' and 'effect of' claim causation an observational design cannot support and become 'associated with'. Unnamed factors must be named. Exactly one primary, id P1; secondaries S1, S2, S3.",
     items: obj({
-      id: { ...str, description: "P1, P2, S1, S2..." },
-      tier: { type: "string", enum: ["primary", "secondary"] },
+      id: { ...str, description: "P1, P2, S1, S2, E1..." },
+      tier: { type: "string", enum: ["primary", "secondary", "exploratory"] },
       question: { ...str, description: "Phrased as a question, so it names an outcome and a predictor." },
     }),
   },
@@ -152,9 +203,11 @@ export const SAP_JSON_SCHEMA = obj({
 
 const ROLE = `You are a senior medical research methodologist and trial statistician.
 
-You are reading a protocol and writing the two sections of its Statistical Analysis
-Plan: the objectives, rewritten as answerable questions, and the analysis map that
-links each question to its outcome, its predictors and the table it will fill.
+You are reading a protocol and writing the front half of its Statistical Analysis
+Plan as a route map: what the study is at a glance, the clinical question
+decomposed, the estimand, the objectives rewritten as answerable questions, the
+variable table, and the analysis map that links each question to its outcome, its
+predictors and the table it will fill.
 
 Read every objective word by word. A word that cannot be measured must be replaced
 by one that can. A word that claims more than the design supports must be softened
@@ -171,7 +224,13 @@ the comparison, so that the same study always yields the same plan.
 Declare every variable and every outcome exactly once, each with an id, and refer
 to them by that id everywhere else. The case report form and the shell tables will
 point at the same ids, so a concept named once here is named once in all three
-documents.`;
+documents.
+
+Where the protocol does not state something the plan needs, do not invent it and do
+not leave it blank. Write what it should say, opening with "TODO: ", so the
+investigator can see exactly what is missing and settle it with their guide. A
+sample size with no stated assumptions, an outcome scale with no cut-off and a
+missing-data method nobody chose are the three that matter most.`;
 
 export type SapResult = {
   spec: SapSpec;
@@ -254,7 +313,7 @@ objective. Number the tables T1 upward in the order the rows appear.`,
   const raw = JSON.parse(text) as SapSpec & { sample_size?: number; expected_events?: number };
 
   // Zero is the schema's way of saying "not stated"; carry it as absent.
-  const spec: SapSpec = {
+  const front: Omit<SapSpec, keyof RulesResult["rules"]> = {
     ...raw,
     sample_size: raw.sample_size || undefined,
     expected_events: raw.expected_events || undefined,
@@ -269,7 +328,32 @@ objective. Number the tables T1 upward in the order the rows appear.`,
       test_override: a.test_override?.trim() || undefined,
       override_reason: a.override_reason?.trim() || undefined,
     })),
+    priority_confounder_ids: raw.priority_confounder_ids ?? [],
   };
+
+  // The tests are chosen here, by rule, before the second call. That is the
+  // reason there is a second call: the assumptions belong to the test that was
+  // chosen, and a model asked for both at once would be guessing at its own
+  // output.
+  const tests = [
+    ...new Set(
+      front.analyses
+        .map((row) => row.test_override?.trim() || chooseTest(row)?.test)
+        .filter((t): t is string => Boolean(t)),
+    ),
+  ];
+
+  const second = await buildSapRules(front, tests, {
+    answers: options.answers,
+    onProgress: options.onProgress,
+    onUsage: (u) =>
+      options.onUsage?.({
+        ...u,
+        output_tokens: (message.usage.output_tokens ?? 0) + u.output_tokens,
+      }),
+  });
+
+  const spec: SapSpec = { ...front, ...second.rules };
 
   // Judged here rather than at render time, so the findings are stored with the
   // plan and a problem is visible before anyone downloads it.
@@ -280,10 +364,12 @@ objective. Number the tables T1 upward in the order the rows appear.`,
     findings,
     model: message.model,
     usage: {
-      input_tokens: message.usage.input_tokens,
-      output_tokens: message.usage.output_tokens,
-      cache_creation_input_tokens: message.usage.cache_creation_input_tokens ?? 0,
-      cache_read_input_tokens: message.usage.cache_read_input_tokens ?? 0,
+      input_tokens: message.usage.input_tokens + second.usage.input_tokens,
+      output_tokens: message.usage.output_tokens + second.usage.output_tokens,
+      cache_creation_input_tokens:
+        (message.usage.cache_creation_input_tokens ?? 0) + second.usage.cache_creation_input_tokens,
+      cache_read_input_tokens:
+        (message.usage.cache_read_input_tokens ?? 0) + second.usage.cache_read_input_tokens,
     },
   };
 }

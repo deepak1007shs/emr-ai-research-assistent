@@ -7,7 +7,16 @@ import {
   type SapSpec,
 } from "@/lib/sap/types";
 import { line, plain } from "@/lib/render/plain";
-import { DocHeading, DocSection, DocTable, DocumentShell, Note, Td } from "./document-shell";
+import {
+  DocHeading,
+  DocSection,
+  DocTable,
+  DocumentShell,
+  FactTable,
+  Labelled,
+  Note,
+  Td,
+} from "./document-shell";
 
 /**
  * The Statistical Analysis Plan, on screen.
@@ -42,6 +51,26 @@ export function SapPreview({
 
   const primary = objectives.filter((o) => o.tier === "primary");
   const secondary = objectives.filter((o) => o.tier === "secondary");
+  const exploratory = objectives.filter((o) => o.tier === "exploratory");
+
+  const ROLE_ORDER: Record<string, number> = {
+    outcome: 0, predictor: 1, effect_modifier: 2, confounder: 3,
+    mediator: 4, collider: 5, descriptor: 6,
+  };
+  const byRole = [...variables].sort(
+    (a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9),
+  );
+
+  const fw = spec.picot?.framework === "PICOT" ? "PICOT" : "PECOT";
+
+  // Grouped by test, because that is how the checks are read: you look up the
+  // test you are about to run.
+  const checksByTest = new Map<string, NonNullable<typeof spec.assumption_checks>>();
+  for (const check of spec.assumption_checks ?? []) {
+    const list = checksByTest.get(check.test) ?? [];
+    list.push(check);
+    checksByTest.set(check.test, list);
+  }
 
   // The test is derived here exactly as the renderer derives it, so the screen
   // cannot show a different test from the download.
@@ -84,9 +113,87 @@ export function SapPreview({
 
   return (
     <DocumentShell kind="Statistical Analysis Plan" title={plain(spec.title)}>
+      <p className="-mt-3 text-center text-xs text-muted italic">
+        {plain(`${spec.design}. ${spec.setting ?? ""}`)}
+      </p>
+
+      {spec.glance && (
+        <DocSection title="Section 0 - Study at a Glance">
+          <Note>
+            A thirty-second summary. If a reader sees only this box, they should be able to say
+            what the study is.
+          </Note>
+          <FactTable
+            rows={[
+              ["Title", plain(spec.title)],
+              ["Design", plain(spec.design)],
+              ["Population", plain(spec.glance.population)],
+              ["What is measured", plain(spec.glance.what_is_measured)],
+              ["Primary outcome", plain(spec.glance.primary_outcome)],
+              ["Main comparison", plain(spec.glance.main_comparison)],
+              ["Sample size", plain(spec.glance.sample_size_basis)],
+              ["Reporting guideline", plain(spec.guideline)],
+            ]}
+          />
+          {spec.sample_size_note && (
+            <Labelled label="Sample-size note.">{plain(spec.sample_size_note)}</Labelled>
+          )}
+        </DocSection>
+      )}
+
+      {spec.picot && (
+        <DocSection title={fw}>
+          <Note>
+            The clinical question decomposed. This is what every objective, variable and test
+            below must trace back to.
+          </Note>
+          <FactTable
+            rows={[
+              ["P - Population", plain(spec.picot.population)],
+              [
+                fw === "PICOT" ? "I - Intervention" : "E - Exposure",
+                plain(spec.picot.intervention_or_exposure),
+              ],
+              ["C - Comparator", plain(spec.picot.comparator)],
+              ["O - Outcome", plain(spec.picot.outcome)],
+              ["T - Time / type of study", plain(spec.picot.time)],
+            ]}
+          />
+          <Labelled label="Assembled question.">{plain(spec.picot.assembled_question)}</Labelled>
+        </DocSection>
+      )}
+
       <DocSection title="Section 1 - Objectives as Answerable Questions">
+        <Note>
+          Every objective is phrased as a question, because a question forces you to name an
+          outcome and a predictor, which is exactly what the statistics need.
+        </Note>
+
         <DocHeading>Aim</DocHeading>
         <p className="text-sm leading-relaxed">{plain(spec.aim)}</p>
+
+        {spec.hypothesis && (
+          <>
+            <DocHeading>Hypothesis</DocHeading>
+            <p className="text-sm leading-relaxed">{plain(spec.hypothesis)}</p>
+          </>
+        )}
+
+        {spec.estimand && (
+          <>
+            <DocHeading>Primary estimand (ICH E9(R1))</DocHeading>
+            <Note>The estimand, not the test, is what the study is trying to estimate.</Note>
+            <FactTable
+              rows={[
+                ["Treatment condition", plain(spec.estimand.treatment_condition)],
+                ["Population", plain(spec.estimand.population)],
+                ["Endpoint", plain(spec.estimand.endpoint)],
+                ["Intercurrent-event strategy", plain(spec.estimand.intercurrent_strategy)],
+                ["Population-level summary", plain(spec.estimand.summary_measure)],
+              ]}
+            />
+          </>
+        )}
 
         <DocHeading>Primary objective(s)</DocHeading>
         <ObjectiveList items={primary} />
@@ -97,9 +204,41 @@ export function SapPreview({
             <ObjectiveList items={secondary} />
           </>
         )}
+        {exploratory.length > 0 && (
+          <>
+            <DocHeading>Exploratory objectives (hypothesis-generating, not powered)</DocHeading>
+            <ObjectiveList items={exploratory} />
+          </>
+        )}
       </DocSection>
 
-      <DocSection title="Section 2 - Analysis Map">
+      <DocSection title="Section 2 - Variable Table">
+        <Note>
+          One row per variable. Once the data type and the role are set, the correct test follows
+          almost mechanically. Grouped by role: outcomes first, then predictors, then confounders,
+          then descriptors.
+        </Note>
+        <DocTable headers={["Variable", "Data type", "Unit / coding", "Role in analysis"]}>
+          {byRole.map((v) => (
+            <tr key={v.id}>
+              <Td bold>{plain(v.label)}</Td>
+              <Td>{v.data_type}</Td>
+              <Td>{plain(v.unit_coding)}</Td>
+              <Td>{v.role.replace(/_/g, " ")}</Td>
+            </tr>
+          ))}
+        </DocTable>
+        {spec.priority_confounder_ids?.length > 0 && (
+          <Labelled label="Priority confounders for adjustment.">
+            {spec.priority_confounder_ids
+              .map((id) => byVariable.get(id)?.label ?? id)
+              .join(", ")}
+            . Respecting about ten outcome events per variable.
+          </Labelled>
+        )}
+      </DocSection>
+
+      <DocSection title="Section 3 - Analysis Map">
         <Note>
           One row per objective. Every question is linked to its test AND to the empty results
           table it will fill.
@@ -161,6 +300,175 @@ export function SapPreview({
             <p className="text-xs leading-relaxed">Neither enters any model.</p>
           </div>
         )}
+      </DocSection>
+
+      {spec.rules && (
+        <DocSection title="Section 4 - General Statistical Rules">
+          <Note>Fixed upfront so they are never re-decided after seeing the data.</Note>
+          <Labelled label="Software.">{plain(spec.rules.software)}</Labelled>
+          <Labelled label="Normality.">{plain(spec.rules.normality)}</Labelled>
+          <Labelled label="Continuous data.">{plain(spec.rules.continuous_summary)}</Labelled>
+          <Labelled label="Categorical data.">{plain(spec.rules.categorical_summary)}</Labelled>
+          <Labelled label="Significance.">{plain(spec.rules.significance)}</Labelled>
+          <Labelled label="Effect estimates.">{plain(spec.rules.effect_estimates)}</Labelled>
+          <Labelled label="Missing data.">{plain(spec.rules.missing_data)}</Labelled>
+          <Labelled label="Multiplicity.">{plain(spec.rules.multiplicity)}</Labelled>
+          <Labelled label="Reproducibility.">{plain(spec.rules.reproducibility)}</Labelled>
+
+          {spec.populations?.length > 0 && (
+            <>
+              <DocHeading>Analysis populations (who is analysed)</DocHeading>
+              <DocTable headers={["Population", "Definition"]}>
+                {spec.populations.map((p, i) => (
+                  <tr key={i}>
+                    <Td bold>{plain(p.name)}</Td>
+                    <Td>{plain(p.definition)}</Td>
+                  </tr>
+                ))}
+              </DocTable>
+            </>
+          )}
+
+          {spec.baseline_comparison && (
+            <>
+              <DocHeading>Baseline comparison</DocHeading>
+              <p className="text-xs leading-relaxed">{plain(spec.baseline_comparison)}</p>
+            </>
+          )}
+
+          {spec.intercurrent_events?.length > 0 && (
+            <>
+              <DocHeading>Intercurrent events</DocHeading>
+              <Note>
+                These change what is being estimated. Missing data is a separate problem, handled
+                by the rule above.
+              </Note>
+              <DocTable headers={["Event", "Strategy"]}>
+                {spec.intercurrent_events.map((e, i) => (
+                  <tr key={i}>
+                    <Td bold>{plain(e.event)}</Td>
+                    <Td>{plain(e.strategy)}</Td>
+                  </tr>
+                ))}
+              </DocTable>
+            </>
+          )}
+
+          {spec.testing_hierarchy && (
+            <>
+              <DocHeading>Multiplicity and testing hierarchy</DocHeading>
+              <p className="text-xs leading-relaxed">{plain(spec.testing_hierarchy)}</p>
+            </>
+          )}
+
+          {spec.subgroups?.length > 0 && (
+            <>
+              <DocHeading>Subgroup and interaction analyses</DocHeading>
+              <Note>
+                Pre-specified. Effect modification is tested by an interaction term, never by
+                comparing within-subgroup p values.
+              </Note>
+              <DocTable headers={["Subgroup", "How it is tested"]}>
+                {spec.subgroups.map((g, i) => (
+                  <tr key={i}>
+                    <Td bold>{plain(g.subgroup)}</Td>
+                    <Td>{plain(g.how_tested)}</Td>
+                  </tr>
+                ))}
+              </DocTable>
+            </>
+          )}
+
+          {spec.interim && (
+            <>
+              <DocHeading>Interim analyses and stopping rules</DocHeading>
+              <p className="text-xs leading-relaxed">{plain(spec.interim)}</p>
+            </>
+          )}
+        </DocSection>
+      )}
+
+      {spec.steps?.length > 0 && (
+        <DocSection title="Section 5 - Step-by-Step Analysis Flow">
+          <Note>
+            The ladder for the primary objective. The same ladder works for almost any design.
+          </Note>
+          {spec.steps.map((step, i) => (
+            <Labelled key={i} label={`${plain(step.step)}.`}>
+              {plain(step.what)}
+            </Labelled>
+          ))}
+        </DocSection>
+      )}
+
+      {checksByTest.size > 0 && (
+        <DocSection title="Section 5A - Assumption Checking">
+          <Note>
+            The assumptions belong to the test that was chosen, so only the assumptions the
+            planned tests actually make are listed. For each: how it will be checked, what to do
+            if it is violated, and an example in this study&apos;s own terms.
+          </Note>
+          {[...checksByTest].map(([test, checks]) => (
+            <div key={test} className="space-y-2">
+              <DocHeading>{plain(test)}</DocHeading>
+              <DocTable
+                headers={["Assumption", "How it will be checked", "If violated", "Clinical example"]}
+              >
+                {checks.map((c, i) => (
+                  <tr key={i}>
+                    <Td bold>{plain(c.assumption)}</Td>
+                    <Td>{plain(c.how_checked)}</Td>
+                    <Td>{plain(c.if_violated)}</Td>
+                    <Td>{plain(c.example)}</Td>
+                  </tr>
+                ))}
+              </DocTable>
+            </div>
+          ))}
+        </DocSection>
+      )}
+
+      <DocSection title="Section 6 - Shell (Dummy) Tables">
+        <p className="text-xs leading-relaxed">
+          Every empty results table the thesis will contain, in the order it will appear, is laid
+          out in the Shell Tables document that accompanies this plan. Cells stay blank until the
+          data arrive, and each table names the test that produced it.
+        </p>
+      </DocSection>
+
+      {spec.flags?.length > 0 && (
+        <DocSection title="Section 7 - Needs Checking">
+          <Note>
+            Decisions still open. Keeping this list is what turns the plan into a working tool
+            rather than a finished-looking wall of text. Settle each with your guide before the
+            plan is signed.
+          </Note>
+          <DocTable headers={["Open decision", "Why it matters"]}>
+            {spec.flags.map((f, i) => (
+              <tr key={i}>
+                <Td bold>{plain(f.flag)}</Td>
+                <Td>{plain(f.why)}</Td>
+              </tr>
+            ))}
+          </DocTable>
+        </DocSection>
+      )}
+
+      <DocSection title="Document control and sign-off">
+        <p className="text-xs leading-relaxed">
+          Finalise, date and sign this plan before database lock and unblinding. Every analysis
+          above is pre-specified; any change after the sign-off date is a dated amendment
+          recording the version, the reason and who approved it.
+        </p>
+        <FactTable
+          rows={[
+            ["SAP version", "____"],
+            ["Date finalised", "____"],
+            ["Prepared by", "____"],
+            ["Approved by (guide / supervisor)", "____"],
+            ["Amendment log", "version - date - change - reason - approved by"],
+          ]}
+        />
       </DocSection>
 
       <Note>

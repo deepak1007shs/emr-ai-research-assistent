@@ -51,7 +51,7 @@ describe("the SAP preview", () => {
       "Aim",
       "Primary objective(s)",
       "Secondary objectives",
-      "Section 2 - Analysis Map",
+      "Section 3 - Analysis Map",
     ]) {
       expect(screen, heading).toContain(heading);
     }
@@ -221,5 +221,82 @@ describe("the analysis map stays readable", () => {
     for (const outcome of sapFixture.outcomes) {
       expect(screen).toContain(outcome.what);
     }
+  });
+});
+
+describe("the plan on screen is the plan you download", () => {
+  const SECTIONS = [
+    "Section 0 - Study at a Glance",
+    "Section 1 - Objectives as Answerable Questions",
+    "Primary estimand",
+    "Section 2 - Variable Table",
+    "Section 3 - Analysis Map",
+    "Section 4 - General Statistical Rules",
+    "Analysis populations",
+    "Section 5 - Step-by-Step Analysis Flow",
+    "Section 5A - Assumption Checking",
+    "Section 6 - Shell (Dummy) Tables",
+    "Section 7 - Needs Checking",
+    "Document control and sign-off",
+  ];
+
+  it("carries every section of the route map, in the same order as the document", async () => {
+    const screen = screenText(SapPreview({ spec: sapFixture }));
+    const page = await pageText(await buildSapDocx(sapFixture));
+
+    for (const text of [screen, page]) {
+      let at = -1;
+      for (const section of SECTIONS) {
+        const found = text.indexOf(section);
+        expect(found, `${section} is missing`).toBeGreaterThan(-1);
+        expect(found, `${section} is out of order`).toBeGreaterThan(at);
+        at = found;
+      }
+    }
+  });
+
+  it("shows every open decision, which is what a supervisor reads first", async () => {
+    const screen = screenText(SapPreview({ spec: sapFixture }));
+    const page = await pageText(await buildSapDocx(sapFixture));
+    for (const flag of sapFixture.flags) {
+      expect(screen, "on screen").toContain(flag.flag);
+      expect(page, "in the document").toContain(flag.flag);
+    }
+  });
+
+  it("groups the assumption checks under the test they belong to", async () => {
+    const screen = screenText(SapPreview({ spec: sapFixture }));
+    for (const check of sapFixture.assumption_checks) {
+      expect(screen).toContain(check.test);
+      expect(screen).toContain(check.if_violated);
+    }
+  });
+
+  it("lists the variables by role, outcomes first", () => {
+    const screen = screenText(SapPreview({ spec: sapFixture }));
+    const outcome = sapFixture.variables.find((v) => v.role === "outcome")!;
+    const descriptor = sapFixture.variables.find((v) => v.role === "confounder")!;
+    expect(screen.indexOf(outcome.label)).toBeLessThan(screen.indexOf(descriptor.label));
+  });
+});
+
+describe("a plan stored before the route map existed", () => {
+  it("renders the sections it has rather than throwing", async () => {
+    // A row read back is whatever was written to it. The old two-section plan
+    // has no glance, no estimand and no rules.
+    const old = structuredClone(sapFixture) as Record<string, unknown>;
+    for (const gone of [
+      "glance", "picot", "estimand", "rules", "populations",
+      "steps", "assumption_checks", "flags", "priority_confounder_ids",
+    ]) {
+      delete old[gone];
+    }
+
+    expect(() => screenText(SapPreview({ spec: old as never }))).not.toThrow();
+    await expect(buildSapDocx(old as never)).resolves.toBeInstanceOf(Buffer);
+
+    // What it does still have is still printed.
+    const screen = screenText(SapPreview({ spec: old as never }));
+    expect(screen).toContain("Section 3 - Analysis Map");
   });
 });

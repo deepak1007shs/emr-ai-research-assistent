@@ -1,18 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { validateTables } from "./validate.ts";
-import type { SapSpec } from "../sap/types.ts";
+import type { SapRegistry } from "../sap/types.ts";
 import { tablesFixture } from "./fixture.ts";
 import type { ShellTablesSpec } from "./types.ts";
 
 const clean = () => structuredClone(tablesFixture) as ShellTablesSpec;
-const codes = (s: ShellTablesSpec, plan?: SapSpec) =>
+const codes = (s: ShellTablesSpec, plan?: SapRegistry) =>
   validateTables(s, plan).findings.map((f) => f.code);
 
-const sap = (): SapSpec => ({
+const sap = (): SapRegistry => ({
   title: "A study",
-  design: "prospective observational cohort",
-  guideline: "STROBE",
-  aim: "An aim.",
   objectives: [
     { id: "P1", tier: "primary", question: "What proportion convert?" },
     { id: "S1", tier: "secondary", question: "Which factors are associated with conversion?" },

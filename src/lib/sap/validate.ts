@@ -139,6 +139,73 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
     }
   }
 
+  /* ---- the route map is complete ------------------------------------ */
+
+  // A section left blank reads as a section nobody thought about, which is
+  // exactly what a supervisor is checking for.
+  const required: [string, string, string][] = [
+    ["MAP01", spec.glance?.primary_outcome, "Section 0 does not name a primary outcome."],
+    ["MAP02", spec.glance?.sample_size_basis, "Section 0 gives no basis for the sample size."],
+    ["MAP03", spec.picot?.assembled_question, "The clinical question has not been assembled into one sentence."],
+    ["MAP04", spec.estimand?.endpoint, "The primary estimand does not name its endpoint."],
+    ["MAP05", spec.estimand?.intercurrent_strategy, "The primary estimand does not say how intercurrent events are handled."],
+    ["MAP06", spec.rules?.missing_data, "No missing-data method is stated. Chosen after seeing the data, it is not a method."],
+    ["MAP07", spec.rules?.multiplicity, "No multiplicity rule is stated."],
+    ["MAP08", spec.interim, "Interim analyses are not mentioned. Where there are none, say so."],
+    ["MAP09", spec.baseline_comparison, "Section 4 does not say how baseline balance is reported."],
+    ["MAP10", spec.testing_hierarchy, "No testing hierarchy is stated, so the order of testing is not fixed."],
+  ];
+  for (const [code, value, message] of required) {
+    if (!value?.trim()) error(code, message);
+  }
+
+  if (!spec.populations?.length) {
+    error("MAP11", "No analysis population is defined, so it is not stated who is analysed.");
+  }
+  if (!spec.steps?.length) {
+    error("MAP12", "Section 5 has no steps, so the plan says what to run but not in what order.");
+  }
+  if (!spec.flags?.length) {
+    warn(
+      "MAP13",
+      "Nothing is flagged as still open. A protocol with no open decisions is unusual; check that the list is empty because it was considered.",
+    );
+  }
+
+  // The assumptions belong to the tests actually chosen. One without the other
+  // is either an unexamined test or an assumption for a test nobody runs.
+  const chosen = new Set(
+    analyses
+      .map((row) => row.test_override?.trim() || chooseTest(row)?.test)
+      .filter((t): t is string => Boolean(t)),
+  );
+  const checked = new Set((spec.assumption_checks ?? []).map((c) => c.test));
+  for (const test of chosen) {
+    if (!checked.has(test)) {
+      warn("MAP14", `No assumption is stated for "${test}", which the plan chooses.`);
+    }
+  }
+  for (const test of checked) {
+    if (!chosen.has(test)) {
+      warn("MAP15", `Assumptions are stated for "${test}", which this study does not run.`);
+    }
+  }
+
+  // Adjustment can only use what is declared, and never a mediator or collider.
+  for (const id of spec.priority_confounder_ids ?? []) {
+    const variable = byVariable.get(id);
+    if (!variable) {
+      error("MAP16", `${id} is named as a priority confounder but is not a declared variable.`);
+      continue;
+    }
+    if (variable.role === "mediator" || variable.role === "collider") {
+      error(
+        "MAP17",
+        `"${variable.label}" is named as a priority confounder but is a ${variable.role}, so adjusting for it would remove part of the effect being measured.`,
+      );
+    }
+  }
+
   /* ---- the five questions ------------------------------------------ */
 
   for (const o of spec.outcomes ?? []) {

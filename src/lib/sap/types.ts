@@ -32,9 +32,9 @@ export type Domain =
   | "patient_reported" | "economic" | "composite";
 
 export type Objective = {
-  /** P1, P2, S1, S2... */
+  /** P1, P2, S1, S2, E1... */
   id: string;
-  tier: "primary" | "secondary";
+  tier: "primary" | "secondary" | "exploratory";
   /** Phrased as a question. */
   question: string;
 };
@@ -95,11 +95,102 @@ export type AnalysisRow = {
   test?: string;
 };
 
+/**
+ * Section 0. What the study is, in one box.
+ *
+ * If a reader sees only this, they should be able to say what the study is.
+ */
+export type Glance = {
+  population: string;
+  what_is_measured: string;
+  primary_outcome: string;
+  main_comparison: string;
+  /** The target n AND the basis for it, not just the number. */
+  sample_size_basis: string;
+};
+
+/** The clinical question decomposed. Everything below must trace back to it. */
+export type Picot = {
+  framework: "PICOT" | "PECOT";
+  population: string;
+  /** Intervention for a trial, exposure for an observational study. */
+  intervention_or_exposure: string;
+  comparator: string;
+  outcome: string;
+  time: string;
+  /** The whole question as one sentence. */
+  assembled_question: string;
+};
+
+/**
+ * The primary estimand, ICH E9(R1). Five attributes, because the estimand and
+ * not the test is what the study is trying to estimate.
+ */
+export type Estimand = {
+  treatment_condition: string;
+  population: string;
+  endpoint: string;
+  /** treatment-policy / hypothetical / composite / while-on-treatment / principal-stratum. */
+  intercurrent_strategy: string;
+  /** The effect measure with its interval: difference in means, OR, HR. */
+  summary_measure: string;
+};
+
+/** Section 4, fixed before the data are seen so they are never re-decided. */
+export type StatisticalRules = {
+  software: string;
+  normality: string;
+  continuous_summary: string;
+  categorical_summary: string;
+  significance: string;
+  effect_estimates: string;
+  missing_data: string;
+  multiplicity: string;
+  /** A fixed seed for anything stochastic, so the analysis reproduces. */
+  reproducibility: string;
+};
+
+/** Who is analysed. Named once, referred to by each analysis. */
+export type AnalysisPopulation = { name: string; definition: string };
+
+export type IntercurrentEvent = { event: string; strategy: string };
+
+export type Subgroup = { subgroup: string; how_tested: string };
+
+/** One numbered step of the ladder every design follows. */
+export type AnalysisStep = { step: string; what: string };
+
+/**
+ * Section 5A. The assumptions belong to the test that was chosen, so these are
+ * written after the tests are, and only for the tests actually planned.
+ */
+export type AssumptionCheck = {
+  /** The test these belong to, as the analysis map names it. */
+  test: string;
+  assumption: string;
+  how_checked: string;
+  if_violated: string;
+  /** A short example in this study's own clinical terms. */
+  example: string;
+};
+
+/** Section 7. A decision still open, to settle with the guide. */
+export type OpenFlag = { flag: string; why: string };
+
 export type SapSpec = {
   title: string;
   design: string;
+  /** Department and institution, as one line. */
+  setting: string;
   guideline: string;
+
+  glance: Glance;
+  picot: Picot;
+
   aim: string;
+  /** The expected direction, where the study has one. */
+  hypothesis: string;
+  estimand: Estimand;
   objectives: Objective[];
   variables: Variable[];
   outcomes: Outcome[];
@@ -107,20 +198,40 @@ export type SapSpec = {
   /** Expected events, for the degrees-of-freedom note. */
   expected_events?: number;
   sample_size?: number;
+  /**
+   * The MCID the study is powered to detect, its source, the assumed
+   * variability or event rate, alpha, power and the dropout allowance. A target
+   * n on its own is not a sample-size calculation.
+   */
+  sample_size_note: string;
+
+  /** The confounders adjustment will use, respecting ten events per variable. */
+  priority_confounder_ids: string[];
+
+  rules: StatisticalRules;
+  populations: AnalysisPopulation[];
+  baseline_comparison: string;
+  intercurrent_events: IntercurrentEvent[];
+  testing_hierarchy: string;
+  subgroups: Subgroup[];
+  interim: string;
+  steps: AnalysisStep[];
+  assumption_checks: AssumptionCheck[];
+  flags: OpenFlag[];
 };
 
 /* ---- the registry lookups every document uses --------------------- */
 
-export function variableIndex(spec: SapSpec): Map<string, Variable> {
+export function variableIndex(spec: SapRegistry): Map<string, Variable> {
   return new Map((spec.variables ?? []).map((v) => [v.id, v]));
 }
 
-export function outcomeIndex(spec: SapSpec): Map<string, Outcome> {
+export function outcomeIndex(spec: SapRegistry): Map<string, Outcome> {
   return new Map((spec.outcomes ?? []).map((o) => [o.id, o]));
 }
 
 /** The authoritative label for a variable, or the id when it does not resolve. */
-export function labelOf(spec: SapSpec, variableId: string): string {
+export function labelOf(spec: SapRegistry, variableId: string): string {
   return variableIndex(spec).get(variableId)?.label ?? variableId;
 }
 
@@ -166,3 +277,16 @@ export function outcomeDefinition(outcome: Outcome): string {
   if (outcome.units) parts.push(`Reported in ${outcome.units}`);
   return parts.join(". ") + (parts.length ? "." : "");
 }
+
+/**
+ * The part of the plan the other two documents actually read.
+ *
+ * A case report form and a set of shell tables need the registries and the
+ * analysis rows; they have no use for the estimand or the interim-analysis
+ * policy. Saying so keeps them from depending on the whole document.
+ */
+export type SapRegistry = Pick<
+  SapSpec,
+  "title" | "objectives" | "variables" | "outcomes" | "analyses"
+> &
+  Partial<Pick<SapSpec, "sample_size" | "expected_events">>;

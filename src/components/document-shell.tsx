@@ -111,3 +111,30 @@ export function Td({
     </td>
   );
 }
+
+/** The Item / Your study shape the glance and the PICOT box both use. */
+export function FactTable({ rows }: { rows: [string, string][] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-xs">
+        <tbody>
+          {rows.map(([label, value], i) => (
+            <tr key={i}>
+              <Td bold>{label}</Td>
+              <Td>{value}</Td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** A bold lead-in then the text, as the rules read. */
+export function Labelled({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <p className="text-xs leading-relaxed">
+      <span className="font-semibold">{label}</span> {children}
+    </p>
+  );
+}

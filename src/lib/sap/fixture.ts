@@ -10,10 +10,45 @@ export const sapFixture: SapSpec = {
   title:
     "Factors Associated with Intraoperative Conversion during TAPP Repair of Ventral Hernia",
   design: "prospective observational cohort",
+  setting: "Department of General Surgery, AIIMS Jodhpur",
   guideline: "STROBE",
+  glance: {
+    population:
+      "Adults undergoing elective TAPP repair of a ventral hernia at a single tertiary centre.",
+    what_is_measured:
+      "Patient, hernia and operative characteristics, and whether the planned TAPP approach was abandoned intraoperatively.",
+    primary_outcome: "Intraoperative conversion to an alternative technique.",
+    main_comparison: "Converted versus completed as TAPP.",
+    sample_size_basis:
+      "n = 125, from a single-proportion precision formula on an assumed conversion rate of 8% with 5% absolute precision.",
+  },
+  picot: {
+    framework: "PECOT",
+    population: "Adults undergoing elective TAPP repair of a ventral hernia.",
+    intervention_or_exposure:
+      "Patient, hernia and intraoperative factors present at the time of surgery.",
+    comparator: "Internal contrasts within the cohort; there is no unexposed group.",
+    outcome: "Intraoperative conversion to an alternative technique.",
+    time: "The index operation, with follow-up to 30 days.",
+    assembled_question:
+      "Among adults undergoing elective TAPP ventral hernia repair, what proportion are converted intraoperatively, and which patient, hernia and operative factors are associated with conversion?",
+  },
   aim: "To estimate the rate of intraoperative conversion during elective TAPP repair of ventral hernia, and to identify the factors associated with it.",
+  hypothesis:
+    "Larger defects, denser adhesions and less surgeon experience are associated with a higher risk of intraoperative conversion.",
+  estimand: {
+    treatment_condition: "Elective TAPP repair as planned at the start of the operation.",
+    population: "All enrolled patients in whom TAPP was started.",
+    endpoint: "Conversion to an alternative technique during the index operation.",
+    intercurrent_strategy:
+      "Treatment policy: an operation abandoned for an unrelated reason is still counted as it occurred.",
+    summary_measure: "Proportion with 95% CI, and adjusted odds ratios with 95% CI.",
+  },
   sample_size: 125,
   expected_events: 10,
+  sample_size_note:
+    "Powered for precision rather than for a comparison: an assumed conversion rate of 8% with 5% absolute precision at 95% confidence gives 113, inflated to 125 for 10% incomplete records. TODO: confirm the assumed rate against the unit's own audit.",
+  priority_confounder_ids: ["var_age", "var_bmi", "var_prev"],
   objectives: [
     { id: "P1", tier: "primary", question: "What proportion of operations are converted intraoperatively to an alternative technique?" },
     { id: "S1", tier: "secondary", question: "Which factors are associated with conversion?" },
@@ -70,6 +105,78 @@ export const sapFixture: SapSpec = {
       objective_id: "S2", label: "S2 - operative duration", outcome_id: "out_duration",
       predictor_ids: ["var_conversion"], data_type: "continuous", comparison: "two_groups",
       paired: false, skewed: true, table_id: "T3",
+    },
+  ],
+  rules: {
+    software: "IBM SPSS Statistics version 23.",
+    normality: "Shapiro-Wilk with histogram and Q-Q inspection, before choosing a parametric test.",
+    continuous_summary: "Mean +/- SD when normal, median (IQR) when skewed.",
+    categorical_summary: "Frequency (percentage).",
+    significance: "Two sided, p < 0.05.",
+    effect_estimates: "Every estimate reported with a 95% confidence interval, not a bare p value.",
+    missing_data:
+      "Complete case while missingness is under 5%, multiple imputation by chained equations otherwise. Last observation carried forward is not used.",
+    multiplicity:
+      "The primary outcome is confirmatory. Secondary outcomes are supportive and reported with unadjusted intervals; exploratory analyses use Benjamini-Hochberg.",
+    reproducibility: "A fixed random seed is set and reported for any stochastic procedure.",
+  },
+  populations: [
+    {
+      name: "Full analysis set",
+      definition: "Every enrolled patient in whom the TAPP approach was begun.",
+    },
+    {
+      name: "Complete case set",
+      definition: "Those with the primary outcome and all priority confounders recorded.",
+    },
+  ],
+  baseline_comparison:
+    "Baseline characteristics are summarised by conversion status. This is a cohort, so the comparison is descriptive and the p values are read as signals rather than as tests of balance.",
+  intercurrent_events: [
+    {
+      event: "Operation abandoned before dissection for an anaesthetic reason",
+      strategy: "Treatment policy: counted as it occurred, and flagged in a sensitivity analysis.",
+    },
+  ],
+  testing_hierarchy:
+    "The conversion rate is tested first. The adjusted model is reported next and is exploratory at this event count, so no alpha is spent on it.",
+  subgroups: [
+    {
+      subgroup: "Recurrent versus primary hernia",
+      how_tested: "An interaction term in the adjusted model, not a within-subgroup p value.",
+    },
+  ],
+  interim: "Single final analysis; no interim looks.",
+  steps: [
+    { step: "Step 1", what: "Describe every variable by the rules above, and report the conversion rate with its 95% CI." },
+    { step: "Step 2", what: "Compare each candidate predictor against conversion, unadjusted, for a crude estimate." },
+    { step: "Step 3", what: "Enter the priority confounders into a binary logistic model, respecting ten events per predictor." },
+    { step: "Step 4", what: "Repeat the primary analysis under the complete case and imputed sets to check it holds." },
+  ],
+  assumption_checks: [
+    {
+      test: "Multivariable binary logistic regression, adjusted OR with 95% CI",
+      assumption: "At least ten outcome events per predictor",
+      how_checked: "Count conversions and divide by the number of model terms.",
+      if_violated: "Reduce to the priority confounders, or use penalised (Firth) regression.",
+      example: "At 10 expected conversions the model affords one predictor, so the adjusted model is declared exploratory.",
+    },
+    {
+      test: "Mann-Whitney U; median (IQR) and Hodges-Lehmann difference",
+      assumption: "The two distributions have a similar shape",
+      how_checked: "Compare the histograms of the converted and completed groups.",
+      if_violated: "Read the result as a shift in distribution rather than a difference in medians.",
+      example: "Operative duration is right skewed in the converted group.",
+    },
+  ],
+  flags: [
+    {
+      flag: "The assumed conversion rate behind the sample size is not sourced.",
+      why: "A precision calculation is only as good as the rate it assumes, and the unit's own audit would settle it.",
+    },
+    {
+      flag: "Adhesion severity is graded but the grading system is not named.",
+      why: "Two surgeons will grade differently unless the scale is stated, and it is a predictor in the primary model.",
     },
   ],
 };

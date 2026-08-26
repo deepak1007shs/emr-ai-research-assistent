@@ -18,14 +18,54 @@ async function read(s: SapSpec = spec) {
 }
 
 describe("the SAP document", () => {
-  it("has the two sections and nothing else", async () => {
+  it("carries every section of the route map, in order", async () => {
     const { visible } = await read();
-    expect(visible).toContain("STATISTICAL ANALYSIS PLAN");
-    expect(visible).toContain("Section 1 - Objectives as Answerable Questions");
-    expect(visible).toContain("Section 2 - Analysis Map");
-    for (const dropped of ["Study at a Glance", "Variable Table", "Assumption Checking", "Needs Checking"]) {
-      expect(visible, `${dropped} should not appear`).not.toContain(dropped);
+    const order = [
+      "STATISTICAL ANALYSIS PLAN",
+      "Section 0 - Study at a Glance",
+      "Section 1 - Objectives as Answerable Questions",
+      "Primary estimand",
+      "Section 2 - Variable Table",
+      "Section 3 - Analysis Map",
+      "Section 4 - General Statistical Rules",
+      "Analysis populations",
+      "Section 5 - Step-by-Step Analysis Flow",
+      "Section 5A - Assumption Checking",
+      "Section 6 - Shell (Dummy) Tables",
+      "Section 7 - Needs Checking",
+      "Document control and sign-off",
+    ];
+    let at = -1;
+    for (const section of order) {
+      const found = visible.indexOf(section);
+      expect(found, `${section} is missing`).toBeGreaterThan(-1);
+      expect(found, `${section} is out of order`).toBeGreaterThan(at);
+      at = found;
     }
+  });
+
+  it("decomposes the question, and names the frame the design calls for", async () => {
+    const { visible } = await read();
+    // Observational, so PECOT rather than PICOT, and an exposure not an
+    // intervention.
+    expect(visible).toContain("PECOT");
+    expect(visible).toContain("E - Exposure");
+    expect(visible).toContain("Assembled question");
+  });
+
+  it("states the assumptions of the tests it actually chose", async () => {
+    const { visible } = await read();
+    for (const check of spec.assumption_checks) {
+      expect(visible, check.test).toContain(check.test);
+      expect(visible).toContain(check.assumption);
+      expect(visible).toContain(check.if_violated);
+    }
+  });
+
+  it("keeps the sample-size basis, not just the number", async () => {
+    const { visible } = await read();
+    expect(visible).toContain("Sample-size note");
+    expect(visible).toContain("TODO");
   });
 
   it("numbers the objectives P and S, as questions", async () => {

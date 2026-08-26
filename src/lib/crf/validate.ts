@@ -1,5 +1,5 @@
 import type { CrfSpec } from "./types.ts";
-import type { SapSpec } from "../sap/types.ts";
+import type { SapRegistry } from "../sap/types.ts";
 import { variableIndex } from "../sap/types.ts";
 import type { Finding } from "../sap/validate.ts";
 
@@ -34,7 +34,7 @@ function derivedIds(crf: CrfSpec): Set<string> {
   return new Set(crf.derived.map((d) => d.variable_id).filter((id): id is string => Boolean(id)));
 }
 
-export function validateCrf(crf: CrfSpec, sap?: SapSpec): { ok: boolean; findings: Finding[] } {
+export function validateCrf(crf: CrfSpec, sap?: SapRegistry): { ok: boolean; findings: Finding[] } {
   const out: Finding[] = [];
   const error = (code: string, message: string) => out.push({ code, severity: "ERROR", message });
   const warn = (code: string, message: string) => out.push({ code, severity: "WARN", message });
