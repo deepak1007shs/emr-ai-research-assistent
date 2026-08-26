@@ -6,6 +6,7 @@ import { MODEL } from "@/lib/protocol/analyze";
 import { costOf, type TokenUsage } from "@/lib/protocol/pricing";
 import type { SapSpec } from "@/lib/sap/types";
 import { isLinkable } from "@/lib/sap/types";
+import { loadDecisions } from "@/lib/workspace/decisions";
 
 export const runtime = "nodejs";
 export const maxDuration = 900;
@@ -75,15 +76,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let answers: string | null = null;
-  if (body.reviewId) {
-    const { data: reviewRow } = await supabase
-      .from("reviews")
-      .select("answers")
-      .eq("id", body.reviewId)
-      .single();
-    answers = reviewRow?.answers ?? null;
-  }
+  // Per-issue answers and the general box, folded into one block.
+  const { answers } = await loadDecisions(supabase, body.protocolId, body.reviewId);
 
   const download = await supabase.storage.from("protocols").download(protocolRow.storage_path);
   if (download.error || !download.data) {

@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { loadKnowledge } from "../protocol/knowledge.ts";
+import { decisionsBlock } from "../protocol/answers.ts";
 import { EFFORT, MODEL } from "../protocol/analyze.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { SapSpec } from "../sap/types.ts";
@@ -136,7 +137,11 @@ export type TablesResult = {
 export async function buildTablesSpec(
   sap: SapSpec,
   crf: CrfSpec | null,
-  options: { onProgress?: (note: string) => void; onUsage?: (usage: TokenUsage) => void } = {},
+  options: {
+    answers?: string | null;
+    onProgress?: (note: string) => void;
+    onUsage?: (usage: TokenUsage) => void;
+  } = {},
 ): Promise<TablesResult> {
   if (!process.env.ANTHROPIC_API_KEY) throw new TablesError("ANTHROPIC_API_KEY is not set.");
 
@@ -173,6 +178,9 @@ ${JSON.stringify({
 })}`,
     });
   }
+
+  const decisions = decisionsBlock(options.answers, "tables");
+  if (decisions) content.push({ type: "text", text: decisions });
 
   content.push({
     type: "text",

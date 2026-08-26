@@ -130,6 +130,16 @@ function DocumentBadge({ state }: { state: ProtocolRow["documents"][DocKind] }) 
       </span>
     );
   }
+  if (state.behindAnswers) {
+    return (
+      <span
+        className="ml-auto shrink-0 rounded px-1 text-[0.65rem] text-warn"
+        title="Built before your decisions were last edited. Build it again to use them."
+      >
+        older answers
+      </span>
+    );
+  }
   if (state.errors) {
     return (
       <span

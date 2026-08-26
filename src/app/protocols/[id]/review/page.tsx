@@ -5,6 +5,7 @@ import { ActionTable } from "@/components/action-table";
 import { ReviewDocument } from "@/components/review-document";
 import { UsagePanel } from "@/components/usage-panel";
 import { IssueAnswers } from "@/components/issue-answers";
+import { parseIssueAnswers } from "@/lib/protocol/answers";
 import type { TokenUsage } from "@/lib/protocol/pricing";
 
 export const metadata = { title: "Protocol Review — SAP Builder" };
@@ -15,7 +16,9 @@ export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/
 
   const { data: review } = await supabase
     .from("reviews")
-    .select("id, status, error, markdown, spec, action_spec, answers, model, usage, created_at")
+    .select(
+      "id, status, error, markdown, spec, action_spec, answers, issue_answers, model, usage, created_at",
+    )
     .eq("protocol_id", id)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -94,8 +97,10 @@ export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/
 
       <IssueAnswers
         reviewId={review.id}
+        actions={actions}
         issues={parsed.data.key_issues}
-        initial={review.answers}
+        initialGeneral={review.answers}
+        initialIssueAnswers={parseIssueAnswers(review.issue_answers)}
       />
 
       <ReviewDocument spec={parsed.data} />

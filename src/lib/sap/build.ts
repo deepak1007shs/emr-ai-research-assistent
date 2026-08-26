@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { loadKnowledge } from "../protocol/knowledge.ts";
+import { decisionsBlock } from "../protocol/answers.ts";
 import { EFFORT, MODEL } from "../protocol/analyze.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { ExtractedProtocol } from "../protocol/extract.ts";
@@ -196,19 +197,8 @@ export async function buildSapSpec(
         },
   ];
 
-  const answers = (options.answers ?? "").trim();
-  if (answers) {
-    content.push({
-      type: "text",
-      text: `The investigator has reviewed this protocol and made the following decisions.
-Where any conflicts with the protocol, the decision wins, and the plan must reflect
-the study as decided rather than as written.
-
-<investigator_decisions>
-${answers}
-</investigator_decisions>`,
-    });
-  }
+  const decisions = decisionsBlock(options.answers, "plan");
+  if (decisions) content.push({ type: "text", text: decisions });
 
   content.push({
     type: "text",

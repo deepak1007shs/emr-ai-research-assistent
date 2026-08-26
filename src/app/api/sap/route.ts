@@ -4,6 +4,7 @@ import { extractProtocol } from "@/lib/protocol/extract";
 import { buildSapSpec } from "@/lib/sap/build";
 import { MODEL } from "@/lib/protocol/analyze";
 import { costOf, type TokenUsage } from "@/lib/protocol/pricing";
+import { loadDecisions } from "@/lib/workspace/decisions";
 
 export const runtime = "nodejs";
 export const maxDuration = 900;
@@ -44,15 +45,8 @@ export async function POST(request: NextRequest) {
   }
 
   // The investigator's answers to the review's issues override the protocol.
-  let answers: string | null = null;
-  if (body.reviewId) {
-    const { data: reviewRow } = await supabase
-      .from("reviews")
-      .select("answers")
-      .eq("id", body.reviewId)
-      .single();
-    answers = reviewRow?.answers ?? null;
-  }
+  // Per-issue answers and the general box are folded into one block first.
+  const { answers } = await loadDecisions(supabase, body.protocolId, body.reviewId);
 
   const download = await supabase.storage.from("protocols").download(protocolRow.storage_path);
   if (download.error || !download.data) {

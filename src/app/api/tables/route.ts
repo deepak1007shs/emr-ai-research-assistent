@@ -5,6 +5,7 @@ import { MODEL } from "@/lib/protocol/analyze";
 import { costOf, type TokenUsage } from "@/lib/protocol/pricing";
 import type { SapSpec } from "@/lib/sap/types";
 import { isLinkable } from "@/lib/sap/types";
+import { loadDecisions } from "@/lib/workspace/decisions";
 import type { CrfSpec } from "@/lib/crf/types";
 
 export const runtime = "nodejs";
@@ -62,12 +63,16 @@ export async function POST(request: NextRequest) {
   // alone, which is thinner but not wrong.
   const { data: crfRow } = await supabase
     .from("crf_forms")
-    .select("spec")
+    .select("id, spec")
     .eq("protocol_id", body.protocolId)
     .eq("status", "ready")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  // The tables report the study as decided, not as written. Until now no
+  // decision reached them except through the plan.
+  const { answers } = await loadDecisions(supabase, body.protocolId);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -81,6 +86,7 @@ export async function POST(request: NextRequest) {
           sapRow.spec as SapSpec,
           (crfRow?.spec as CrfSpec | undefined) ?? null,
           {
+            answers,
             onProgress: (message) => send({ type: "status", message }),
             onUsage: (usage) => {
               const now = Date.now();
@@ -102,6 +108,7 @@ export async function POST(request: NextRequest) {
           .insert({
             protocol_id: body.protocolId,
             sap_id: sapRow.id,
+            crf_id: crfRow?.id ?? null,
             owner: user.id,
             status: "ready",
             spec: result.spec,

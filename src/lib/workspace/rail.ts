@@ -36,6 +36,8 @@ export type DocState = {
   id: string | null;
   /** Present but built from an older analysis plan, so its wording may disagree. */
   stale: boolean;
+  /** Built before the investigator last changed their decisions. */
+  behindAnswers: boolean;
   /** Errors and warnings recorded when it was built. */
   errors: number;
   warnings: number;
@@ -79,24 +81,31 @@ export async function loadRail(supabase: SupabaseClient): Promise<ProtocolRow[]>
     supabase.from("protocols").select("id, filename, created_at").order("created_at", { ascending: false }),
     supabase
       .from("reviews")
-      .select("id, protocol_id")
+      .select("id, protocol_id, answers_updated_at")
       .eq("status", "complete")
       .order("created_at", { ascending: false }),
-    ready("sap_plans", "id, protocol_id, validation"),
-    ready("crf_forms", "id, protocol_id, sap_id, validation"),
-    ready("shell_tables", "id, protocol_id, sap_id, validation"),
+    ready("sap_plans", "id, protocol_id, validation, created_at"),
+    ready("crf_forms", "id, protocol_id, sap_id, validation, created_at"),
+    ready("shell_tables", "id, protocol_id, sap_id, validation, created_at"),
   ]);
 
-  const latestReview = newestByProtocol(reviews.data as unknown as { protocol_id: string; id: string }[]);
-  const latestSap = newestByProtocol(
-    saps.data as unknown as { protocol_id: string; id: string; validation: unknown }[],
+  const latestReview = newestByProtocol(
+    reviews.data as unknown as {
+      protocol_id: string;
+      id: string;
+      answers_updated_at: string | null;
+    }[],
   );
-  const latestCrf = newestByProtocol(
-    crfs.data as unknown as { protocol_id: string; id: string; sap_id: string | null; validation: unknown }[],
-  );
-  const latestTables = newestByProtocol(
-    tables.data as unknown as { protocol_id: string; id: string; sap_id: string | null; validation: unknown }[],
-  );
+  type ArtifactRow = {
+    protocol_id: string;
+    id: string;
+    sap_id?: string | null;
+    validation: unknown;
+    created_at: string;
+  };
+  const latestSap = newestByProtocol(saps.data as unknown as ArtifactRow[]);
+  const latestCrf = newestByProtocol(crfs.data as unknown as ArtifactRow[]);
+  const latestTables = newestByProtocol(tables.data as unknown as ArtifactRow[]);
 
   return ((protocols.data as { id: string; filename: string; created_at: string }[] | null) ?? []).map(
     (protocol) => {
@@ -107,26 +116,49 @@ export async function loadRail(supabase: SupabaseClient): Promise<ProtocolRow[]>
 
       // A document built from a superseded plan describes the study by the
       // wording that plan carried, which is no longer the wording in force.
-      const staleAgainstSap = (row: { sap_id: string | null } | null) =>
+      const staleAgainstSap = (row: { sap_id?: string | null } | null) =>
         Boolean(row && sap && row.sap_id !== sap.id);
+
+      // A document built before the decisions were last edited was built from
+      // answers that have since changed.
+      const answersAt = review?.answers_updated_at
+        ? Date.parse(review.answers_updated_at)
+        : null;
+      const behind = (row: { created_at: string } | null) =>
+        Boolean(row && answersAt && Date.parse(row.created_at) < answersAt);
 
       return {
         id: protocol.id,
         filename: protocol.filename,
         created_at: protocol.created_at,
         documents: {
-          review: { kind: "review", id: review?.id ?? null, stale: false, errors: 0, warnings: 0 },
-          sap: { kind: "sap", id: sap?.id ?? null, stale: false, ...countFindings(sap?.validation) },
+          review: {
+            kind: "review",
+            id: review?.id ?? null,
+            stale: false,
+            behindAnswers: false,
+            errors: 0,
+            warnings: 0,
+          },
+          sap: {
+            kind: "sap",
+            id: sap?.id ?? null,
+            stale: false,
+            behindAnswers: behind(sap),
+            ...countFindings(sap?.validation),
+          },
           crf: {
             kind: "crf",
             id: crf?.id ?? null,
             stale: staleAgainstSap(crf),
+            behindAnswers: behind(crf),
             ...countFindings(crf?.validation),
           },
           tables: {
             kind: "tables",
             id: shell?.id ?? null,
             stale: staleAgainstSap(shell),
+            behindAnswers: behind(shell),
             ...countFindings(shell?.validation),
           },
         },

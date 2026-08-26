@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { loadKnowledge } from "../protocol/knowledge.ts";
+import { decisionsBlock } from "../protocol/answers.ts";
 import { EFFORT, MODEL } from "../protocol/analyze.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { ExtractedProtocol } from "../protocol/extract.ts";
@@ -202,17 +203,8 @@ ${JSON.stringify({
     },
   ];
 
-  const answers = (options.answers ?? "").trim();
-  if (answers) {
-    content.push({
-      type: "text",
-      text: `The investigator's decisions, which override the protocol where they conflict:
-
-<investigator_decisions>
-${answers}
-</investigator_decisions>`,
-    });
-  }
+  const decisions = decisionsBlock(options.answers, "form");
+  if (decisions) content.push({ type: "text", text: decisions });
 
   content.push({
     type: "text",
