@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { loadRail } from "@/lib/workspace/rail";
 import { RailWithSegment } from "@/components/rail-with-segment";
+import { ChatDock } from "@/components/chat-dock";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 /**
@@ -55,9 +56,16 @@ export default async function WorkspaceLayout({
           <RailWithSegment protocols={protocols} activeProtocolId={id} />
         </aside>
 
-        <main className="min-w-0 flex-1">
-          <div className="mx-auto w-full max-w-4xl px-6 py-8">{children}</div>
-        </main>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <main className="min-w-0 flex-1">
+            <div className="mx-auto w-full max-w-4xl px-6 py-8">{children}</div>
+          </main>
+          {/*
+            In the layout, so a proposal and a running request survive moving
+            between the documents of one protocol.
+          */}
+          <ChatDock protocolId={id} />
+        </div>
       </div>
     </div>
   );
