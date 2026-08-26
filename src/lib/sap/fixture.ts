@@ -82,19 +82,43 @@ export const sapFixture: SapSpec = {
   ],
   analyses: [
     {
-      objective_id: "P1", label: "P1 - conversion rate", outcome_id: "out_conversion",
-      predictor_ids: [], data_type: "binary", comparison: "single_group",
-      paired: false, table_id: "T1",
+      objective_ids: ["P1"],
+      label: "P1 - rate of intraoperative conversion",
+      outcome_ids: ["out_conversion"],
+      exposure_ids: [],
+      adjust_for_ids: [],
+      data_type: "binary",
+      comparison: "single_group",
+      pairing: "none",
+      frequency: "rare",
+      table_ids: ["T1"],
     },
     {
-      objective_id: "S1", label: "S1 - factors, adjusted", outcome_id: "out_conversion",
-      predictor_ids: ["var_age", "var_bmi", "var_prev"], data_type: "binary", comparison: "adjusted",
-      paired: false, table_id: "T2",
+      objective_ids: ["S1"],
+      label: "S1 - factors associated with conversion",
+      outcome_ids: ["out_conversion"],
+      exposure_ids: ["var_prev"],
+      adjust_for_ids: ["var_age", "var_bmi"],
+      data_type: "binary",
+      comparison: "adjusted",
+      pairing: "none",
+      frequency: "rare",
+      // Two tables: the crude estimate, then the model beside it.
+      table_ids: ["T2", "T3"],
     },
     {
-      objective_id: "S2", label: "S2 - operative duration", outcome_id: "out_duration",
-      predictor_ids: ["var_conversion"], data_type: "continuous", comparison: "two_groups",
-      paired: false, skewed: true, table_id: "T3",
+      objective_ids: ["S2"],
+      label: "S2 - operative duration by conversion status",
+      outcome_ids: ["out_duration"],
+      exposure_ids: ["var_conversion"],
+      adjust_for_ids: [],
+      data_type: "continuous",
+      comparison: "two_groups",
+      pairing: "none",
+      skewed: true,
+      no_adjustment_reason:
+        "not planned at this sample size; the adjusted model is already exploratory on the primary outcome",
+      table_ids: ["T4"],
     },
   ],
   rules: {
@@ -143,7 +167,23 @@ export const sapFixture: SapSpec = {
     { step: "Step 3", what: "Enter the priority confounders into a binary logistic model, respecting ten events per predictor." },
     { step: "Step 4", what: "Repeat the primary analysis under the complete case and imputed sets to check it holds." },
   ],
+  // One row per assumption of each analysis the rule table chooses, and no
+  // others: an assumption for a test this study does not run is noise.
   assumption_checks: [
+    {
+      test: "Proportion with exact (Clopper-Pearson) 95% CI",
+      assumption: "Every patient contributes one observation",
+      how_checked: "Design check: one operation, one row.",
+      if_violated: "Account for the clustering.",
+      example: "A patient having two hernias repaired at one sitting counts once.",
+    },
+    {
+      test: "Proportions with exact 95% CI, and the crude OR",
+      assumption: "Every patient contributes one observation",
+      how_checked: "Design check.",
+      if_violated: "Account for the clustering.",
+      example: "As above.",
+    },
     {
       test: "Multivariable binary logistic regression, adjusted OR with 95% CI",
       assumption: "At least ten outcome events per predictor",
@@ -152,11 +192,18 @@ export const sapFixture: SapSpec = {
       example: "At 10 expected conversions the model affords one predictor, so the adjusted model is declared exploratory.",
     },
     {
-      test: "Mann-Whitney U; median (IQR) and Hodges-Lehmann difference",
+      test: "Mann-Whitney U; median (IQR) per group and Hodges-Lehmann median difference with 95% CI",
       assumption: "The two distributions have a similar shape",
       how_checked: "Compare the histograms of the converted and completed groups.",
       if_violated: "Read the result as a shift in distribution rather than a difference in medians.",
       example: "Operative duration is right skewed in the converted group.",
+    },
+    {
+      test: "Quantile (median) regression, or linear regression on the log scale where that is interpretable",
+      assumption: "The quantile modelled is stable at this sample size",
+      how_checked: "Bootstrap the median difference and inspect the interval width.",
+      if_violated: "Report the unadjusted median difference alone.",
+      example: "With 125 operations the median is estimable but the tails are not.",
     },
   ],
 };

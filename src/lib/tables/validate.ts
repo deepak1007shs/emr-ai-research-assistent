@@ -117,7 +117,9 @@ export function validateTables(
     // its tables answers. The plan's own table_id was assigned before anyone
     // knew how many baseline tables the study needed, so it is not checked
     // against a number: it is checked against this.
-    const analysisOf = new Map((sap.analyses ?? []).map((a) => [a.objective_id, a]));
+    const analysisOf = new Map(
+      (sap.analyses ?? []).flatMap((a) => (a.objective_ids ?? []).map((id) => [id, a] as const)),
+    );
     const byObjective = new Map<string, (typeof tables)[number]>();
     for (const t of tables) {
       for (const objectiveId of t.fills ?? []) {
@@ -133,11 +135,13 @@ export function validateTables(
     }
 
     for (const analysis of sap.analyses ?? []) {
-      if (!byObjective.has(analysis.objective_id)) {
-        error(
-          "TBL14",
-          `No table reports ${analysis.objective_id}, so that analysis would never be reported.`,
-        );
+      for (const objectiveId of analysis.objective_ids ?? []) {
+        if (!byObjective.has(objectiveId)) {
+          error(
+            "TBL14",
+            `No table reports ${objectiveId}, so that analysis would never be reported.`,
+          );
+        }
       }
     }
 
@@ -172,10 +176,10 @@ export function validateTables(
       // The table and the analyses it reports must be about the same outcome.
       if (t.outcome_id) {
         for (const a of filled) {
-          if (a.outcome_id !== t.outcome_id) {
+          if (!(a.outcome_ids ?? []).includes(t.outcome_id)) {
             error(
               "TBL16",
-              `Table ${t.number} reports "${nameOf(t.outcome_id)}", but ${a.objective_id}, which it says it fills, measures "${nameOf(a.outcome_id)}".`,
+              `Table ${t.number} reports "${nameOf(t.outcome_id!)}", but ${(a.objective_ids ?? []).join(", ")}, which it says it fills, measures "${(a.outcome_ids ?? []).map(nameOf).join(", ")}".`,
             );
           }
         }
@@ -199,13 +203,15 @@ export function validateTables(
             );
           }
         }
-        const planned = new Set(filled.flatMap((a) => a.predictor_ids ?? []));
+        const planned = new Set(
+          filled.flatMap((a) => [...(a.exposure_ids ?? []), ...(a.adjust_for_ids ?? [])]),
+        );
         const extra = filled.length ? t.adjusted_for.filter((id) => !planned.has(id)) : [];
         if (extra.length) {
           warn(
             "TBL18",
             `Table ${t.number} adjusts for ${extra.map(nameOf).join(", ")}, which ${filled
-              .map((a) => a.objective_id)
+              .flatMap((a) => a.objective_ids ?? [])
               .join(" or ")} does not list as a predictor. Either the plan or the table is out of date.`,
           );
         }

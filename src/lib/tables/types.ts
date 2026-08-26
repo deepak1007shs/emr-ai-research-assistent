@@ -90,12 +90,17 @@ export type ShellTablesSpec = {
  * they are the authority, and this is how the plan is told what its numbers
  * really are.
  */
-export function tableNumbers(spec: ShellTablesSpec | null | undefined): Record<string, number> {
-  const numbers: Record<string, number> = {};
+export function tableNumbers(
+  spec: ShellTablesSpec | null | undefined,
+): Record<string, number[]> {
+  const numbers: Record<string, number[]> = {};
   for (const table of spec?.tables ?? []) {
     for (const objectiveId of table.fills ?? []) {
-      if (!(objectiveId in numbers)) numbers[objectiveId] = table.number;
+      // An objective often fills more than one: the unadjusted estimate, the
+      // adjusted model, and any sensitivity table beside them.
+      numbers[objectiveId] = [...(numbers[objectiveId] ?? []), table.number];
     }
   }
+  for (const key of Object.keys(numbers)) numbers[key].sort((a, b) => a - b);
   return numbers;
 }

@@ -62,15 +62,20 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
 
   /* ---- every objective has a row, every row an objective ------------ */
 
-  const analysedIds = new Set(analyses.map((a) => a.objective_id));
+  const analysedIds = new Set(analyses.flatMap((a) => a.objective_ids ?? []));
   for (const o of objectives) {
     if (!analysedIds.has(o.id)) {
       error("MAP01", `${o.id} has no row in the analysis map, so nothing says how it will be answered.`);
     }
   }
   for (const a of analyses) {
-    if (!ids.has(a.objective_id)) {
-      error("MAP02", `An analysis row names ${a.objective_id}, which is not one of the objectives.`);
+    for (const objectiveId of a.objective_ids ?? []) {
+      if (!ids.has(objectiveId)) {
+        error("MAP02", `An analysis row names ${objectiveId}, which is not one of the objectives.`);
+      }
+    }
+    if (!(a.objective_ids ?? []).length) {
+      error("MAP02", `The analysis row "${a.label}" names no objective, so nothing says what it answers.`);
     }
   }
 
@@ -121,12 +126,16 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
   }
 
   for (const a of analyses) {
-    if (!byOutcome.has(a.outcome_id)) {
-      error("REF04", `${a.objective_id} analyses ${a.outcome_id}, which is not a declared outcome.`);
+    if ((a.outcome_ids ?? []).some((id) => !byOutcome.has(id))) {
+      const missing = (a.outcome_ids ?? []).filter((id) => !byOutcome.has(id));
+      error(
+        "REF04",
+        `${(a.objective_ids ?? []).join(", ")} analyses ${missing.join(", ")}, which ${missing.length === 1 ? "is not a declared outcome" : "are not declared outcomes"}.`,
+      );
     }
-    for (const id of a.predictor_ids ?? []) {
+    for (const id of [...(a.exposure_ids ?? []), ...(a.adjust_for_ids ?? [])]) {
       if (!byVariable.has(id)) {
-        error("REF05", `${a.objective_id} adjusts for ${id}, which is not a declared variable.`);
+        error("REF05", `${(a.objective_ids ?? []).join(', ')} adjusts for ${id}, which is not a declared variable.`);
       }
     }
   }
@@ -165,9 +174,14 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
   }
   // The assumptions belong to the tests actually chosen. One without the other
   // is either an unexamined test or an assumption for a test nobody runs.
+  // Both halves: an adjusted model's assumptions are not the unadjusted
+  // estimate's, and a plan that states one and not the other is half checked.
   const chosen = new Set(
     analyses
-      .map((row) => row.test_override?.trim() || chooseTest(row)?.test)
+      .flatMap((row) => {
+        const plan = chooseTest(row);
+        return plan ? [plan.unadjusted, plan.adjusted] : [];
+      })
       .filter((t): t is string => Boolean(t)),
   );
   const checked = new Set((spec.assumption_checks ?? []).map((c) => c.test));
@@ -221,12 +235,12 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
   const excludedIds = new Set(excluded.map((v) => v.id));
 
   for (const a of analyses) {
-    for (const id of a.predictor_ids ?? []) {
+    for (const id of [...(a.exposure_ids ?? []), ...(a.adjust_for_ids ?? [])]) {
       if (excludedIds.has(id)) {
         const v = byVariable.get(id)!;
         error(
           "ADJ01",
-          `${a.objective_id} adjusts for ${v.label}, which is a ${v.role}. ${
+          `${(a.objective_ids ?? []).join(', ')} adjusts for ${v.label}, which is a ${v.role}. ${
             v.role === "mediator"
               ? "It lies on the path being measured, so adjusting for it removes the effect."
               : "It is caused by the outcome, so conditioning on it creates a spurious association."
@@ -235,10 +249,12 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
       }
     }
     // Nor may an analysis adjust for the thing it is measuring.
-    const outcome = byOutcome.get(a.outcome_id);
-    for (const id of outcome?.source_variable_ids ?? []) {
-      if ((a.predictor_ids ?? []).includes(id)) {
-        error("ADJ04", `${a.objective_id} adjusts for ${byVariable.get(id)?.label ?? id}, which is what it is measuring.`);
+    const measuredBy = new Set(
+      (a.outcome_ids ?? []).flatMap((id) => byOutcome.get(id)?.source_variable_ids ?? []),
+    );
+    for (const id of measuredBy) {
+      if (([...(a.exposure_ids ?? []), ...(a.adjust_for_ids ?? [])]).includes(id)) {
+        error("ADJ04", `${(a.objective_ids ?? []).join(', ')} adjusts for ${byVariable.get(id)?.label ?? id}, which is what it is measuring.`);
       }
     }
   }
@@ -252,34 +268,38 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
   /* ---- tests and tables -------------------------------------------- */
 
   const seenTables = new Set<string>();
-  analyses.forEach((a, i) => {
+  analyses.forEach((a) => {
     if (!chooseTest(a)) {
       error(
         "TEST01",
-        `No rule covers ${a.objective_id} (${a.data_type}, ${a.comparison}). Add a row to test-rules.md, or set an override with a reason.`,
+        `No rule covers ${(a.objective_ids ?? []).join(', ')} (${a.data_type}, ${a.comparison}). Add a row to test-rules.md, or set an override with a reason.`,
       );
     }
     if (a.test_override && !a.override_reason?.trim()) {
-      error("TEST02", `${a.objective_id} overrides the standard test but gives no reason. An override that is not explained cannot be judged.`);
+      error("TEST02", `${(a.objective_ids ?? []).join(', ')} overrides the standard test but gives no reason. An override that is not explained cannot be judged.`);
     }
-    if (!a.table_id) {
-      error("TBL01", `${a.objective_id} points at no table.`);
+    if (!(a.table_ids ?? []).length) {
+      error("TBL01", `${(a.objective_ids ?? []).join(", ")} points at no table, so its results would have nowhere to go.`);
     } else {
-      if (seenTables.has(a.table_id)) {
-        warn("TBL02", `${a.table_id} is used by more than one row. Two analyses sharing a table is usually a numbering slip.`);
-      }
-      seenTables.add(a.table_id);
-      if (a.table_id !== `T${i + 1}`) {
-        warn("TBL03", `${a.objective_id} points at ${a.table_id}, but it is row ${i + 1}. Number the tables in the order the rows appear.`);
+      for (const tableId of a.table_ids) {
+        if (seenTables.has(tableId)) {
+          warn(
+            "TBL02",
+            `${tableId} is filled by more than one analysis. That is right where an unadjusted estimate and its adjusted model share a summary table, and a numbering slip otherwise.`,
+          );
+        }
+        seenTables.add(tableId);
       }
     }
   });
 
   /* ---- events per variable ----------------------------------------- */
 
-  const adjusted = analyses.find((a) => a.comparison === "adjusted");
+  // Any row that plans to hold confounders constant, not only the one whose
+  // comparison happens to be labelled "adjusted".
+  const adjusted = analyses.find((a) => (a.adjust_for_ids ?? []).length > 0);
   if (adjusted && spec.expected_events !== undefined) {
-    const count = (adjusted.predictor_ids ?? []).length;
+    const count = (adjusted.adjust_for_ids ?? []).length;
     if (count > Math.floor(spec.expected_events / 10)) {
       warn(
         "ADJ03",

@@ -38,27 +38,36 @@ const clean = (): SapSpec => ({
   outcomes: [outcome("out_conversion", "Intraoperative conversion")],
   analyses: [
     {
-      objective_id: "P1", label: "P1 - rate", outcome_id: "out_conversion",
-      predictor_ids: [], data_type: "binary", comparison: "single_group",
-      paired: false, table_id: "T1",
+      objective_ids: ["P1"], label: "P1 - rate", outcome_ids: ["out_conversion"],
+      exposure_ids: [], adjust_for_ids: [], data_type: "binary",
+      comparison: "single_group", pairing: "none", frequency: "rare", table_ids: ["T1"],
     },
     {
-      objective_id: "S1", label: "S1 - factors", outcome_id: "out_conversion",
-      predictor_ids: ["var_age"], data_type: "binary", comparison: "adjusted",
-      paired: false, table_id: "T2",
+      objective_ids: ["S1"], label: "S1 - factors", outcome_ids: ["out_conversion"],
+      exposure_ids: [], adjust_for_ids: ["var_age"], data_type: "binary",
+      comparison: "adjusted", pairing: "none", frequency: "rare", table_ids: ["T2"],
     },
   ],
   // Internally consistent with the variables and analyses above: a plan whose
   // sections disagree with each other is what these guards exist to catch, so
   // the baseline they are measured against must not.
   priority_confounder_ids: ["var_age"],
+  // Named to match what the rule table chooses for the rows above: both halves
+  // of every plan, because that is what the guard checks.
   assumption_checks: [
     {
-      test: "Proportion with 95% CI (Clopper-Pearson exact)",
+      test: "Proportion with exact (Clopper-Pearson) 95% CI",
       assumption: "One group, and every patient counted once",
       how_checked: "Design check.",
       if_violated: "Account for the clustering.",
       example: "Each operation contributes one conversion outcome.",
+    },
+    {
+      test: "Proportions with exact 95% CI, and the crude OR",
+      assumption: "Every patient counted once in each proportion",
+      how_checked: "Design check.",
+      if_violated: "Account for the clustering.",
+      example: "One operation, one row.",
     },
     {
       test: "Multivariable binary logistic regression, adjusted OR with 95% CI",
@@ -99,13 +108,13 @@ describe("validateSap", () => {
 
   it("MAP01 - an objective with no row in the map", () => {
     const s = clean();
-    s.analyses = s.analyses.filter((a) => a.objective_id !== "S1");
+    s.analyses = s.analyses.filter((a) => !a.objective_ids.includes("S1"));
     expect(codes(s)).toContain("MAP01");
   });
 
   it("REF05 - a predictor that is not a declared variable", () => {
     const s = clean();
-    s.analyses[1].predictor_ids = ["var_does_not_exist"];
+    s.analyses[1].adjust_for_ids = ["var_does_not_exist"];
     expect(codes(s)).toContain("REF05");
   });
 
@@ -117,7 +126,7 @@ describe("validateSap", () => {
 
   it("MAP02 - a row naming an objective that does not exist", () => {
     const s = clean();
-    s.analyses[0].objective_id = "P9";
+    s.analyses[0].objective_ids = ["P9"];
     expect(codes(s)).toContain("MAP02");
   });
 
@@ -131,7 +140,7 @@ describe("validateSap", () => {
 
   it("ADJ01 - a mediator in the predictor list, caught by id not spelling", () => {
     const s = clean();
-    s.analyses[1].predictor_ids = ["var_age", "var_duration"];
+    s.analyses[1].adjust_for_ids = ["var_age", "var_duration"];
     const findings = validateSap(s).findings;
     expect(findings.map((f) => f.code)).toContain("ADJ01");
     expect(findings.find((f) => f.code === "ADJ01")?.message).toContain("removes the effect");
@@ -143,7 +152,7 @@ describe("validateSap", () => {
       id: "var_complication", label: "Postoperative complication", data_type: "binary",
       unit_coding: "Yes / No", role: "collider", exclusion_reason: "It is caused by conversion.",
     });
-    s.analyses[1].predictor_ids = ["var_age", "var_complication"];
+    s.analyses[1].adjust_for_ids = ["var_age", "var_complication"];
     expect(codes(s)).toContain("ADJ01");
   });
 
@@ -154,7 +163,7 @@ describe("validateSap", () => {
       { id: "var_bmi", label: "BMI", data_type: "continuous", unit_coding: "kg/m2", role: "confounder" },
       { id: "var_prev", label: "Previous surgery", data_type: "binary", unit_coding: "Yes / No", role: "confounder" },
     );
-    s.analyses[1].predictor_ids = ["var_age", "var_bmi", "var_prev"];
+    s.analyses[1].adjust_for_ids = ["var_age", "var_bmi", "var_prev"];
     expect(codes(s)).toContain("ADJ03");
   });
 
@@ -171,10 +180,18 @@ describe("validateSap", () => {
     expect(codes(s)).toContain("TEST02");
   });
 
-  it("TBL03 - tables not numbered in row order", () => {
+  it("TBL01 - a row whose results have nowhere to go", () => {
     const s = clean();
-    s.analyses[1].table_id = "T7";
-    expect(codes(s)).toContain("TBL03");
+    s.analyses[1].table_ids = [];
+    const findings = validateSap(s).findings;
+    expect(findings.map((f) => f.code)).toContain("TBL01");
+    expect(findings.find((f) => f.code === "TBL01")?.message).toContain("nowhere to go");
+  });
+
+  it("MAP02 - a row that answers no objective at all", () => {
+    const s = clean();
+    s.analyses[0].objective_ids = [];
+    expect(codes(s)).toContain("MAP02");
   });
 
   it("an error stops the plan; a warning does not", () => {
@@ -192,7 +209,7 @@ describe("one id names one thing", () => {
   it("REF11 - a variable and an outcome sharing an id", () => {
     const s = clean();
     s.outcomes[0].id = s.variables[0].id;
-    s.analyses[0].outcome_id = s.variables[0].id;
+    s.analyses[0].outcome_ids = [s.variables[0].id];
     expect(codes(s)).toContain("REF11");
   });
 

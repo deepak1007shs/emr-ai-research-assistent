@@ -94,24 +94,24 @@ describe("revising the analysis plan", () => {
       analysis_edits: [
         {
           op: "upsert",
-          objective_id: "P1",
+          objective_ids: ["P1"],
           label: "P1 - conversion rate",
-          outcome_id: "out_conversion",
-          predictor_ids: [],
+          outcome_ids: ["out_conversion"],
+          exposure_ids: [], adjust_for_ids: [],
           data_type: "binary",
           comparison: "single_group",
-          paired: false,
+          pairing: "none" as const,
           skewed: false,
-          table_id: "T1",
+          table_ids: ["T1"],
           test: "Whatever I feel like",
         } as never,
       ],
     });
 
-    const row = spec.analyses.find((a) => a.objective_id === "P1")!;
+    const row = spec.analyses.find((a) => a.objective_ids.includes("P1"))!;
     expect(row).not.toHaveProperty("test", "Whatever I feel like");
     // The test still comes from the rule table.
-    expect(chooseTest(row)?.test).toBe(chooseTest(sapFixture.analyses[0])?.test);
+    expect(chooseTest(row)?.unadjusted).toBe(chooseTest(sapFixture.analyses[0])?.unadjusted);
   });
 
   it("keeps an override the investigator recorded earlier", () => {
@@ -123,9 +123,9 @@ describe("revising the analysis plan", () => {
       ...empty,
       analysis_edits: [
         {
-          op: "upsert", objective_id: "P1", label: "P1 - conversion rate",
-          outcome_id: "out_conversion", predictor_ids: [], data_type: "binary",
-          comparison: "single_group", paired: false, skewed: false, table_id: "T1",
+          op: "upsert", objective_ids: ["P1"], label: "P1 - conversion rate",
+          outcome_ids: ["out_conversion"], exposure_ids: [], adjust_for_ids: [], data_type: "binary",
+          comparison: "single_group", pairing: "none" as const, skewed: false, table_ids: ["T1"],
         },
       ],
     });

@@ -1,5 +1,12 @@
 import { chooseTest, degreesOfFreedomNote } from "@/lib/sap/choose-test";
 import {
+  analysisCell,
+  dataTypeCell,
+  planKey,
+  predictorCell,
+  tableCell,
+} from "@/lib/render/analysis-cells";
+import {
   outcomeCell,
   outcomeDefinition,
   outcomeIndex,
@@ -26,7 +33,7 @@ import {
  * contains, so a supervisor can check the plan without opening Word.
  */
 
-const HEADERS = ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical test -> Table #"];
+const HEADERS = ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical analysis -> Table #"];
 
 export function SapPreview({
   spec,
@@ -38,7 +45,7 @@ export function SapPreview({
    * own table_id is provisional: it was written before anyone knew how many
    * baseline tables the study needed.
    */
-  tableNumbers?: Record<string, number>;
+  tableNumbers?: Record<string, number[]>;
 }) {
   const byVariable = variableIndex(spec);
   const byOutcome = outcomeIndex(spec);
@@ -75,36 +82,42 @@ export function SapPreview({
   // The test is derived here exactly as the renderer derives it, so the screen
   // cannot show a different test from the download.
   const reasons = new Map<string, string>();
+  const avoided = new Map<string, string>();
+
   const rows = analyses.map((row) => {
-    const chosen = chooseTest(row);
-    if (chosen) reasons.set(chosen.test, chosen.why);
-    const outcome = byOutcome.get(row.outcome_id);
-    const number = tableNumbers?.[row.objective_id];
-    const where = number ? `Table ${number}` : row.table_id;
+    const plan = chooseTest(row);
+    if (plan) {
+      reasons.set(planKey(plan), plan.why);
+      if (plan.avoid) avoided.set(planKey(plan), plan.avoid);
+    }
+    const where = tableCell(row, tableNumbers);
 
     return {
       label: row.label,
-      outcome: outcome ? outcomeCell(outcome) : `UNKNOWN OUTCOME ${row.outcome_id}`,
-      predictors:
-        (row.predictor_ids ?? []).map((id) => byVariable.get(id)?.label ?? id).join(", ") ||
-        "(single-group estimate)",
-      dataType: row.data_type,
-      test: chosen
-        ? `${chosen.test} -> ${where}`
-        : `NO RULE COVERS THIS ROW. Decide the test and record it. -> ${where}`,
-      covered: Boolean(chosen),
+      outcome: (row.outcome_ids ?? [])
+        .map((id) => {
+          const outcome = byOutcome.get(id);
+          return outcome ? outcomeCell(outcome) : `UNKNOWN OUTCOME ${id}`;
+        })
+        .join("; "),
+      predictors: predictorCell(row, byVariable),
+      dataType: dataTypeCell(row),
+      analysis: plan
+        ? `${analysisCell(plan, row)} -> ${where}`
+        : `NO RULE COVERS THIS ROW. Decide the analysis and record it. -> ${where}`,
+      covered: Boolean(plan),
     };
   });
 
-  const adjusted = analyses.find((a) => a.comparison === "adjusted");
+  const adjusted = analyses.find((a) => (a.adjust_for_ids ?? []).length > 0);
   const dfNote =
     spec.expected_events !== undefined && adjusted
-      ? degreesOfFreedomNote(spec.expected_events, (adjusted.predictor_ids ?? []).length).note
+      ? degreesOfFreedomNote(spec.expected_events, (adjusted.adjust_for_ids ?? []).length).note
       : null;
 
   // The five questions in full, under the map rather than inside its cells.
   const measured = (spec.outcomes ?? []).filter((o) =>
-    analyses.some((a) => a.outcome_id === o.id),
+    analyses.some((a) => (a.outcome_ids ?? []).includes(o.id)),
   );
 
   const excluded = variables.filter(
@@ -216,8 +229,7 @@ export function SapPreview({
 
       <DocSection title="Section 3 - Analysis Map">
         <Note>
-          One row per objective. Every question is linked to its test AND to the empty results
-          table it will fill.
+          One row per objective, or per group of objectives that share an analysis. Every question is linked to its analysis, unadjusted and adjusted, AND to the empty results tables it will fill.
         </Note>
         <DocTable headers={HEADERS}>
           {rows.map((row, i) => (
@@ -225,10 +237,10 @@ export function SapPreview({
               <Td bold>{line(row.label)}</Td>
               <Td>{line(row.outcome)}</Td>
               <Td>{line(row.predictors)}</Td>
-              <Td>{row.dataType}</Td>
+              <Td>{line(row.dataType)}</Td>
               <Td>
                 <span className={row.covered ? "" : "text-danger font-semibold"}>
-                  {line(row.test)}
+                  {line(row.analysis)}
                 </span>
               </Td>
             </tr>
@@ -249,10 +261,21 @@ export function SapPreview({
 
         {reasons.size > 0 && (
           <div className="space-y-1.5">
-            <DocHeading>Why each test</DocHeading>
+            <DocHeading>Why each analysis</DocHeading>
             {[...reasons].map(([test, why]) => (
               <p key={test} className="text-xs leading-relaxed">
                 <span className="font-semibold">{test}:</span> {plain(why)}.
+              </p>
+            ))}
+          </div>
+        )}
+
+        {avoided.size > 0 && (
+          <div className="space-y-1.5">
+            <DocHeading>What must not be done</DocHeading>
+            {[...avoided].map(([test, avoid]) => (
+              <p key={test} className="text-xs leading-relaxed">
+                <span className="font-semibold">{test}:</span> {plain(avoid)}.
               </p>
             ))}
           </div>

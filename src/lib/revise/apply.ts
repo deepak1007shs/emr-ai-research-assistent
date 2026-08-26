@@ -114,18 +114,23 @@ export function applySapRevision(spec: SapSpec, revision: SapRevision): Applied<
   const analyses = splice(
     spec.analyses ?? [],
     revision.analysis_edits,
-    (a) => a.objective_id,
-    (e) => e.objective_id,
+    // Keyed on the objectives it answers, joined, because a row may answer
+    // several and the set of them is what identifies it.
+    (a) => (a.objective_ids ?? []).join(","),
+    (e) => (e.objective_ids ?? []).join(","),
     (e, existing) => ({
-      objective_id: e.objective_id,
+      objective_ids: e.objective_ids ?? [],
       label: e.label,
-      outcome_id: e.outcome_id,
-      predictor_ids: e.predictor_ids ?? [],
+      outcome_ids: e.outcome_ids ?? [],
+      exposure_ids: e.exposure_ids ?? [],
+      adjust_for_ids: e.adjust_for_ids ?? [],
       data_type: e.data_type,
       comparison: e.comparison,
-      paired: Boolean(e.paired),
+      pairing: e.pairing ?? "none",
       skewed: e.skewed || undefined,
-      table_id: e.table_id,
+      frequency: e.frequency || undefined,
+      no_adjustment_reason: e.no_adjustment_reason?.trim() || undefined,
+      table_ids: e.table_ids ?? [],
       // A revision cannot name a test, and cannot silently drop an override the
       // investigator recorded earlier.
       test_override: existing?.test_override,

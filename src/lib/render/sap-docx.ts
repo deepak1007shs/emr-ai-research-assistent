@@ -13,6 +13,13 @@ import {
 import { HOUSE_BORDER, HOUSE_STYLES, plain } from "./house-style.ts";
 import { chooseTest, degreesOfFreedomNote } from "../sap/choose-test.ts";
 import {
+  analysisCell,
+  dataTypeCell,
+  planKey,
+  predictorCell,
+  tableCell,
+} from "./analysis-cells.ts";
+import {
   outcomeCell,
   outcomeDefinition,
   outcomeIndex,
@@ -128,7 +135,7 @@ const HEADERS = [
 export async function buildSapDocx(
   spec: SapSpec,
   /** Objective id to the table that reports it, once the shell tables exist. */
-  tableNumbers?: Record<string, number>,
+  tableNumbers?: Record<string, number[]>,
 ): Promise<Buffer> {
   const doc: Block[] = [];
 
@@ -296,31 +303,37 @@ export async function buildSapDocx(
   doc.push(heading("Section 3 - Analysis Map", HeadingLevel.HEADING_1));
   doc.push(
     italic(
-      "One row per objective. Every question is linked to its test AND to the empty results table it will fill.",
+      "One row per objective, or per group of objectives that share an analysis. Every question is linked to its analysis, unadjusted and adjusted, AND to the empty results tables it will fill.",
     ),
   );
 
   const reasons = new Map<string, string>();
-  const rows = spec.analyses.map((row) => {
-    const chosen = chooseTest(row);
-    if (chosen) reasons.set(chosen.test, chosen.why);
-    const number = tableNumbers?.[row.objective_id];
-    const where = number ? `Table ${number}` : row.table_id;
-    const test = chosen
-      ? `${chosen.test} -> ${where}`
-      : `NO RULE COVERS THIS ROW. Decide the test and record it. -> ${where}`;
+  const avoided = new Map<string, string>();
 
-    const outcome = byOutcome.get(row.outcome_id);
-    const predictors = (row.predictor_ids ?? [])
-      .map((id) => byVariable.get(id)?.label ?? id)
-      .join(", ");
+  const rows = spec.analyses.map((row) => {
+    const plan = chooseTest(row);
+    if (plan) {
+      reasons.set(planKey(plan), plan.why);
+      if (plan.avoid) avoided.set(planKey(plan), plan.avoid);
+    }
+
+    // One analysis can fill several tables: the unadjusted estimate, the
+    // adjusted model, and any sensitivity table beside them.
+    const where = tableCell(row, tableNumbers);
 
     return [
       row.label,
-      outcome ? outcomeCell(outcome) : `UNKNOWN OUTCOME ${row.outcome_id}`,
-      predictors || "(single-group estimate)",
-      row.data_type,
-      test,
+      (row.outcome_ids ?? [])
+        .map((id) => {
+          const outcome = byOutcome.get(id);
+          return outcome ? outcomeCell(outcome) : `UNKNOWN OUTCOME ${id}`;
+        })
+        .join("; "),
+      predictorCell(row, byVariable),
+      dataTypeCell(row),
+      plan
+        ? `${analysisCell(plan, row)} -> ${where}`
+        : `NO RULE COVERS THIS ROW. Decide the analysis and record it. -> ${where}`,
     ];
   });
 
@@ -344,7 +357,7 @@ export async function buildSapDocx(
   // The five questions in full. The map's cell carries the name and where it
   // comes from; a table cell holding all five is a paragraph nobody reads.
   const measured = (spec.outcomes ?? []).filter((o) =>
-    spec.analyses.some((a) => a.outcome_id === o.id),
+    spec.analyses.some((a) => (a.outcome_ids ?? []).includes(o.id)),
   );
   if (measured.length) {
     doc.push(
@@ -372,15 +385,27 @@ export async function buildSapDocx(
     doc.push(
       new Paragraph({
         spacing: { before: 200, after: 100 },
-        children: [new TextRun({ text: "Why each test.", bold: true })],
+        children: [new TextRun({ text: "Why each analysis.", bold: true })],
       }),
     );
     for (const [test, why] of reasons) doc.push(para(`${test}: ${why}.`));
   }
 
-  const adjusted = spec.analyses.find((a) => a.comparison === "adjusted");
+  // What must not be done. A plan that says only what to do lets the commonest
+  // mistake through in silence.
+  if (avoided.size) {
+    doc.push(
+      new Paragraph({
+        spacing: { before: 160, after: 100 },
+        children: [new TextRun({ text: "What must not be done.", bold: true })],
+      }),
+    );
+    for (const [test, avoid] of avoided) doc.push(para(`${test}: ${avoid}.`));
+  }
+
+  const adjusted = spec.analyses.find((a) => (a.adjust_for_ids ?? []).length > 0);
   if (spec.expected_events !== undefined && adjusted) {
-    const predictorCount = (adjusted.predictor_ids ?? []).length;
+    const predictorCount = (adjusted.adjust_for_ids ?? []).length;
     const { note } = degreesOfFreedomNote(spec.expected_events, predictorCount);
     doc.push(
       new Paragraph({

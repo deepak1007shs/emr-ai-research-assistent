@@ -96,10 +96,27 @@ describe("the SAP document", () => {
     expect(visible).not.toContain("Independent t-test");  // would be wrong for skewed data
   });
 
-  it("points each row at its table", async () => {
+  it("points each row at every table it fills", async () => {
     const { visible } = await read();
+    // One analysis often fills more than one: the unadjusted estimate and the
+    // adjusted model beside it.
     expect(visible).toContain("-> T1");
-    expect(visible).toContain("-> T3");
+    expect(visible).toContain("-> T2, T3");
+  });
+
+  it("plans the analysis rather than naming a test", async () => {
+    const { visible } = await read();
+    expect(visible).toContain("Unadjusted:");
+    expect(visible).toContain("Adjusted:");
+    // A row that plans no adjusted model says why, rather than leaving a blank.
+    expect(visible).toContain("Adjusted: not planned -");
+    expect(visible).toContain("What must not be done");
+  });
+
+  it("keeps the exposure apart from what is held constant", async () => {
+    const { visible } = await read();
+    expect(visible).toContain("Previous abdominal surgery; adjust for Age, Body mass index");
+    expect(visible).toContain("None (single-group estimation)");
   });
 
   it("declares the adjusted model exploratory when the events cannot afford it", async () => {

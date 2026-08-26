@@ -1,5 +1,12 @@
 import { chooseTest, degreesOfFreedomNote } from "../sap/choose-test.ts";
 import {
+  analysisCell,
+  dataTypeCell,
+  planKey,
+  predictorCell,
+  tableCell,
+} from "./analysis-cells.ts";
+import {
   outcomeCell,
   outcomeDefinition,
   outcomeIndex,
@@ -17,7 +24,7 @@ import { line, plain } from "./plain.ts";
  * second renderer that drifts is worse than no second renderer.
  */
 
-const HEADERS = ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical test -> Table #"];
+const HEADERS = ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical analysis -> Table #"];
 
 /** A pipe inside a cell would end the column early. */
 const cell = (value: string) => line(value).replace(/\|/g, "\\|");
@@ -36,7 +43,7 @@ const facts = (rows: [string, string][]) =>
 export function buildSapMarkdown(
   spec: SapSpec,
   /** Objective id to the table that reports it, once the shell tables exist. */
-  tableNumbers?: Record<string, number>,
+  tableNumbers?: Record<string, number[]>,
 ): string {
   const byVariable = variableIndex(spec);
   const byOutcome = outcomeIndex(spec);
@@ -145,29 +152,35 @@ export function buildSapMarkdown(
 
   push("---", "", "## Section 3 - Analysis Map", "");
   push(
-    "*One row per objective. Every question is linked to its test AND to the empty results table it will fill.*",
+    "*One row per objective, or per group of objectives that share an analysis. Every question is linked to its analysis, unadjusted and adjusted, AND to the empty results tables it will fill.*",
     "",
   );
 
   const reasons = new Map<string, string>();
+  const avoided = new Map<string, string>();
   push(
     table(
       HEADERS,
       analyses.map((row) => {
-        const chosen = chooseTest(row);
-        if (chosen) reasons.set(chosen.test, chosen.why);
-        const number = tableNumbers?.[row.objective_id];
-        const where = number ? `Table ${number}` : row.table_id;
-        const outcome = byOutcome.get(row.outcome_id);
+        const plan = chooseTest(row);
+        if (plan) {
+          reasons.set(planKey(plan), plan.why);
+          if (plan.avoid) avoided.set(planKey(plan), plan.avoid);
+        }
+        const where = tableCell(row, tableNumbers);
         return [
           row.label,
-          outcome ? outcomeCell(outcome) : `UNKNOWN OUTCOME ${row.outcome_id}`,
-          (row.predictor_ids ?? []).map((id) => byVariable.get(id)?.label ?? id).join(", ") ||
-            "(single-group estimate)",
-          row.data_type,
-          chosen
-            ? `${chosen.test} -> ${where}`
-            : `NO RULE COVERS THIS ROW. Decide the test and record it. -> ${where}`,
+          (row.outcome_ids ?? [])
+            .map((id) => {
+              const outcome = byOutcome.get(id);
+              return outcome ? outcomeCell(outcome) : `UNKNOWN OUTCOME ${id}`;
+            })
+            .join("; "),
+          predictorCell(row, byVariable),
+          dataTypeCell(row),
+          plan
+            ? `${analysisCell(plan, row)} -> ${where}`
+            : `NO RULE COVERS THIS ROW. Decide the analysis and record it. -> ${where}`,
         ];
       }),
     ),
@@ -175,7 +188,7 @@ export function buildSapMarkdown(
   );
 
   const measured = (spec.outcomes ?? []).filter((o) =>
-    analyses.some((a) => a.outcome_id === o.id),
+    analyses.some((a) => (a.outcome_ids ?? []).includes(o.id)),
   );
   if (measured.length) {
     push("**How each outcome is defined.**", "");
@@ -184,16 +197,22 @@ export function buildSapMarkdown(
   }
 
   if (reasons.size) {
-    push("**Why each test.**", "");
+    push("**Why each analysis.**", "");
     for (const [test, why] of reasons) push(`- **${line(test)}:** ${plain(why)}.`);
     push("");
   }
 
-  const adjusted = analyses.find((a) => a.comparison === "adjusted");
+  if (avoided.size) {
+    push("**What must not be done.**", "");
+    for (const [test, avoid] of avoided) push(`- **${line(test)}:** ${plain(avoid)}.`);
+    push("");
+  }
+
+  const adjusted = analyses.find((a) => (a.adjust_for_ids ?? []).length > 0);
   if (spec.expected_events !== undefined && adjusted) {
     const { note } = degreesOfFreedomNote(
       spec.expected_events,
-      (adjusted.predictor_ids ?? []).length,
+      (adjusted.adjust_for_ids ?? []).length,
     );
     push("**Degrees of freedom.**", "", plain(note), "");
   }

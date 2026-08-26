@@ -82,28 +82,34 @@ Larger defects, denser adhesions and less surgeon experience are associated with
 
 ## Section 3 - Analysis Map
 
-*One row per objective. Every question is linked to its test AND to the empty results table it will fill.*
+*One row per objective, or per group of objectives that share an analysis. Every question is linked to its analysis, unadjusted and adjusted, AND to the empty results tables it will fill.*
 
-| Objective | Outcome | Predictor(s) | Data type | Statistical test -> Table # |
+| Objective | Outcome | Predictor(s) | Data type | Statistical analysis -> Table # |
 |---|---|---|---|---|
-| P1 - conversion rate | Intraoperative conversion, at the index operation, from study proforma, item 27 | (single-group estimate) | binary | Proportion with 95% CI (Clopper-Pearson exact) -> Table 3 |
-| S1 - factors, adjusted | Intraoperative conversion, at the index operation, from study proforma, item 27 | Age, Body mass index, Previous abdominal surgery | binary | Multivariable binary logistic regression, adjusted OR with 95% CI -> Table 4 |
-| S2 - operative duration | Operative duration, at the index operation, from theatre clock | Intraoperative conversion | continuous | Mann-Whitney U; median (IQR) and Hodges-Lehmann difference -> Table 5 |
+| P1 - rate of intraoperative conversion | Intraoperative conversion, at the index operation, from study proforma, item 27 | None (single-group estimation) | binary, rare outcome | Unadjusted: Proportion with exact (Clopper-Pearson) 95% CI. Adjusted: not applicable to this question -> Table 3 |
+| S1 - factors associated with conversion | Intraoperative conversion, at the index operation, from study proforma, item 27 | Previous abdominal surgery; adjust for Age, Body mass index | binary, rare outcome | Unadjusted: Proportions with exact 95% CI, and the crude OR. Adjusted: Multivariable binary logistic regression, adjusted OR with 95% CI -> Table 4 |
+| S2 - operative duration by conversion status | Operative duration, at the index operation, from theatre clock | Intraoperative conversion | continuous, skewed | Unadjusted: Mann-Whitney U; median (IQR) per group and Hodges-Lehmann median difference with 95% CI. Adjusted: not planned - not planned at this sample size; the adjusted model is already exploratory on the primary outcome -> Table 5 |
 
 **How each outcome is defined.**
 
 - **Intraoperative conversion.** The surgeon's decision to abandon TAPP dissection. Recorded from study proforma, item 27, at the index operation. Reported in proportion (%) with 95% CI.
 - **Operative duration.** Skin incision to skin closure. Recorded from theatre clock, at the index operation. Reported in minutes.
 
-**Why each test.**
+**Why each analysis.**
 
-- **Proportion with 95% CI (Clopper-Pearson exact):** One group and one proportion. Exact rather than Wald, because the expected count is usually small.
-- **Multivariable binary logistic regression, adjusted OR with 95% CI:** A binary outcome with confounders held constant.
-- **Mann-Whitney U; median (IQR) and Hodges-Lehmann difference:** Skewed data, where a mean would mislead.
+- **Proportion with exact (Clopper-Pearson) 95% CI:** One group and one proportion, estimated rather than tested.
+- **Proportions with exact 95% CI, and the crude OR:** A binary outcome with confounders held constant.
+- **Mann-Whitney U; median (IQR) per group and Hodges-Lehmann median difference with 95% CI:** Skewed data, where a mean would mislead.
+
+**What must not be done.**
+
+- **Proportion with exact (Clopper-Pearson) 95% CI:** A Wald interval: it misbehaves when the count is small or the proportion near 0 or 1.
+- **Proportions with exact 95% CI, and the crude OR:** Choosing the confounders by looking at their p values.
+- **Mann-Whitney U; median (IQR) per group and Hodges-Lehmann median difference with 95% CI:** A mean difference, which a skewed distribution misrepresents.
 
 **Degrees of freedom.**
 
-Expected events: 10. At ten events per degree of freedom the model affords 1 predictor, but 3 are named. The adjusted model is therefore declared exploratory here, before the data arrive, rather than discovered at analysis.
+Expected events: 10. At ten events per degree of freedom the model affords 1 predictor, but 2 are named. The adjusted model is therefore declared exploratory here, before the data arrive, rather than discovered at analysis.
 
 **Not adjusted for.**
 
@@ -182,17 +188,35 @@ Single final analysis; no interim looks.
 
 *The assumptions belong to the test that was chosen, so only the assumptions the planned tests actually make are listed.*
 
+### Proportion with exact (Clopper-Pearson) 95% CI
+
+| Assumption | How it will be checked | If violated | Clinical example |
+|---|---|---|---|
+| Every patient contributes one observation | Design check: one operation, one row. | Account for the clustering. | A patient having two hernias repaired at one sitting counts once. |
+
+### Proportions with exact 95% CI, and the crude OR
+
+| Assumption | How it will be checked | If violated | Clinical example |
+|---|---|---|---|
+| Every patient contributes one observation | Design check. | Account for the clustering. | As above. |
+
 ### Multivariable binary logistic regression, adjusted OR with 95% CI
 
 | Assumption | How it will be checked | If violated | Clinical example |
 |---|---|---|---|
 | At least ten outcome events per predictor | Count conversions and divide by the number of model terms. | Reduce to the priority confounders, or use penalised (Firth) regression. | At 10 expected conversions the model affords one predictor, so the adjusted model is declared exploratory. |
 
-### Mann-Whitney U; median (IQR) and Hodges-Lehmann difference
+### Mann-Whitney U; median (IQR) per group and Hodges-Lehmann median difference with 95% CI
 
 | Assumption | How it will be checked | If violated | Clinical example |
 |---|---|---|---|
 | The two distributions have a similar shape | Compare the histograms of the converted and completed groups. | Read the result as a shift in distribution rather than a difference in medians. | Operative duration is right skewed in the converted group. |
+
+### Quantile (median) regression, or linear regression on the log scale where that is interpretable
+
+| Assumption | How it will be checked | If violated | Clinical example |
+|---|---|---|---|
+| The quantile modelled is stable at this sample size | Bootstrap the median difference and inspect the interval width. | Report the unadjusted median difference alone. | With 125 operations the median is estimable but the tails are not. |
 
 ---
 

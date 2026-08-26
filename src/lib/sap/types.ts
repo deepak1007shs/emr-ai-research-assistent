@@ -73,21 +73,53 @@ export type Outcome = {
   source_variable_ids: string[];
 };
 
+/** How the measurements relate to each other, which changes the analysis. */
+export type Pairing =
+  | "none"      // independent groups
+  | "paired"    // the same patients measured twice
+  | "repeated"; // three or more measurements per patient
+
+/**
+ * How often the event happens, for a binary outcome.
+ *
+ * It decides whether an odds ratio may stand in for a risk ratio. Reporting an
+ * OR for a common outcome as though it were a risk is one of the commonest
+ * errors in a thesis, and the plan can rule it out before the data arrive.
+ */
+export type Frequency = "common" | "rare" | "unknown";
+
 export type AnalysisRow = {
-  objective_id: string;
+  /**
+   * The objectives this row answers. Usually one; several where the same
+   * analysis answers them all, as three binary secondary outcomes compared the
+   * same way do.
+   */
+  objective_ids: string[];
   /** "P1 - conversion rate" */
   label: string;
-  /** The outcome this analyses, by id. */
-  outcome_id: string;
-  /** The predictors, by id. Empty for a single-group estimate. */
-  predictor_ids: string[];
+  /** The outcomes this analyses, by id. Several where they share an analysis. */
+  outcome_ids: string[];
+  /**
+   * What is being compared: the allocated arm, the exposure. Kept apart from
+   * the confounders, because they are different things and a flat list of
+   * "predictors" hid which was which.
+   */
+  exposure_ids: string[];
+  /** The confounders held constant in the adjusted model. */
+  adjust_for_ids: string[];
   data_type: DataType;
   comparison: Comparison;
-  paired: boolean;
-  /** True when the data are known to be skewed, which forces a rank test. */
+  pairing: Pairing;
+  /** True when the data are known to be skewed, which forces a rank method. */
   skewed?: boolean;
-  /** T1, T2... the id of the table this fills. */
-  table_id: string;
+  frequency?: Frequency;
+  /**
+   * Why an adjusted model is not planned, where it is not. A pilot with few
+   * events says so here rather than promising a model it cannot support.
+   */
+  no_adjustment_reason?: string;
+  /** The tables this fills: unadjusted, adjusted and any sensitivity table. */
+  table_ids: string[];
   /** The model may depart from the rule table, but must say why in public. */
   test_override?: string;
   override_reason?: string;

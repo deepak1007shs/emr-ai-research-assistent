@@ -167,13 +167,25 @@ export const SAP_JSON_SCHEMA = obj({
     description:
       "One row per objective, in the order of the objectives. Refer to outcomes and variables by id, never by repeating their words. Do NOT name a statistical test: the test is chosen from the data type and the comparison by the application, so that it is the same every time.",
     items: obj({
-      objective_id: { ...str, description: "The id from objectives, e.g. P1." },
-      label: { ...str, description: "'P1 - conversion rate'. The id, then a few words." },
-      outcome_id: { ...str, description: "The id of the outcome this analyses." },
-      predictor_ids: {
+      objective_ids: {
         ...strArray,
         description:
-          "The ids of the predictors, from the variable registry. Empty for a single-group estimate. Never include a mediator or a collider.",
+          "The objectives this row answers. Usually one. Several where the same analysis answers them all, as three binary secondary outcomes compared the same way do: write them as one row rather than repeating it.",
+      },
+      label: { ...str, description: "'P1 - conversion rate'. The ids, then a few words." },
+      outcome_ids: {
+        ...strArray,
+        description: "The outcomes this analyses. Several where they share one analysis.",
+      },
+      exposure_ids: {
+        ...strArray,
+        description:
+          "What is being compared: the allocated arm, or the exposure. Empty for a single-group estimate. This is NOT the confounder list.",
+      },
+      adjust_for_ids: {
+        ...strArray,
+        description:
+          "The confounders the adjusted model holds constant, from the variable registry. Empty where no adjustment is planned. Never a mediator or a collider.",
       },
       data_type: {
         type: "string",
@@ -185,13 +197,33 @@ export const SAP_JSON_SCHEMA = obj({
         description:
           "single_group estimates one proportion or mean; two_groups compares two; association regresses the outcome on predictors; adjusted does so with confounders held constant; descriptive is frequencies with no test.",
       },
-      paired: { type: "boolean", description: "True when the same patients are measured twice." },
+      pairing: {
+        type: "string",
+        enum: ["none", "paired", "repeated"],
+        description:
+          "none for independent groups; paired for the same patients measured twice; repeated for three or more measurements per patient, which needs a mixed model rather than a repeated-measures ANOVA.",
+      },
       skewed: {
         type: "boolean",
         description:
-          "True when the outcome is known to be skewed, such as length of stay or duration, which forces a rank test.",
+          "True when the outcome is known to be skewed, such as length of stay or duration, which forces a rank method.",
       },
-      table_id: { ...str, description: "T1, T2, T3... numbered in order from 1." },
+      frequency: {
+        type: "string",
+        enum: ["common", "rare", "unknown"],
+        description:
+          "For a BINARY outcome only: whether the event is common (roughly over 10%) or rare. It decides whether the plan reports a risk ratio or an odds ratio, and reporting an odds ratio for a common outcome as though it were a risk is one of the commonest errors in a thesis. Use unknown only where the protocol gives no basis to judge.",
+      },
+      no_adjustment_reason: {
+        ...str,
+        description:
+          "Why no adjusted model is planned, where none is. A pilot with few events says so here, e.g. 'not planned in a pilot; would need ten events per variable'. Empty where adjustment IS planned.",
+      },
+      table_ids: {
+        ...strArray,
+        description:
+          "The tables this analysis fills. Often more than one: the unadjusted estimate, the adjusted model, and any sensitivity table beside them. T1, T2, T3...",
+      },
       test_override: {
         ...str,
         description:
@@ -219,8 +251,23 @@ An outcome is not defined until five questions are answered: what exactly will b
 measured, how, using which instrument, at what time, and in which units. Fold all
 five into the outcome sentence.
 
-Do not name a statistical test. The application chooses it from the data type and
-the comparison, so that the same study always yields the same plan.
+Do not name a statistical test. The application plans the analysis from the data
+type, the comparison, the pairing and, for a binary outcome, how common the event
+is, so that the same study always yields the same plan. What you supply are the
+facts it needs to decide:
+
+- whether the measurements are independent, paired, or repeated across three or
+  more time points, because a repeated measure needs a mixed model and not a
+  repeated-measures ANOVA;
+- for a binary outcome, whether the event is common or rare, because a common
+  outcome must be reported as a risk ratio and a risk difference rather than an
+  odds ratio;
+- what is being compared, kept apart from what is being held constant;
+- where no adjusted model is planned, why not.
+
+One row may answer several objectives where the analysis is identical, and one
+row usually fills more than one table: the unadjusted estimate, the adjusted
+model, and any sensitivity table beside them.
 
 Declare every variable and every outcome exactly once, each with an id, and refer
 to them by that id everywhere else. The case report form and the shell tables will
@@ -333,7 +380,14 @@ objective. Number the tables T1 upward in the order the rows appear.`,
     outcomes: raw.outcomes ?? [],
     analyses: (raw.analyses ?? []).map((a) => ({
       ...a,
-      predictor_ids: a.predictor_ids ?? [],
+      objective_ids: a.objective_ids ?? [],
+      outcome_ids: a.outcome_ids ?? [],
+      exposure_ids: a.exposure_ids ?? [],
+      adjust_for_ids: a.adjust_for_ids ?? [],
+      table_ids: a.table_ids ?? [],
+      pairing: a.pairing ?? "none",
+      frequency: a.frequency || undefined,
+      no_adjustment_reason: a.no_adjustment_reason?.trim() || undefined,
       test_override: a.test_override?.trim() || undefined,
       override_reason: a.override_reason?.trim() || undefined,
     })),
@@ -344,11 +398,15 @@ objective. Number the tables T1 upward in the order the rows appear.`,
   // reason there is a second call: the assumptions belong to the test that was
   // chosen, and a model asked for both at once would be guessing at its own
   // output.
+  // Both halves of every plan, because the assumptions of an adjusted model are
+  // not the assumptions of the unadjusted estimate beside it.
   const tests = [
     ...new Set(
-      front.analyses
-        .map((row) => row.test_override?.trim() || chooseTest(row)?.test)
-        .filter((t): t is string => Boolean(t)),
+      front.analyses.flatMap((row) => {
+        const plan = chooseTest(row);
+        if (!plan) return [];
+        return [plan.unadjusted, plan.adjusted].filter((t): t is string => Boolean(t));
+      }),
     ),
   ];
 

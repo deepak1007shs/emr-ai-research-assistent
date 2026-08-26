@@ -51,9 +51,12 @@ describe("the SAP as Markdown", () => {
   it("names the same tests as the document, from the same rule table", async () => {
     const page = await docxText();
     for (const row of sapFixture.analyses) {
-      const test = chooseTest(row)!.test;
-      expect(md, `${test} in the Markdown`).toContain(test);
-      expect(page, `${test} in the document`).toContain(test);
+      const plan = chooseTest(row)!;
+      for (const part of [plan.unadjusted, plan.adjusted, plan.avoid]) {
+        if (!part) continue;
+        expect(md, `${part} in the Markdown`).toContain(part);
+        expect(page, `${part} in the document`).toContain(part);
+      }
     }
   });
 

@@ -60,14 +60,14 @@ const sap = (): SapRegistry => ({
   ],
   analyses: [
     {
-      objective_id: "P1",
+      objective_ids: ["P1"],
       label: "P1 - rate",
-      outcome_id: "out_conversion",
-      predictor_ids: [],
+      outcome_ids: ["out_conversion"],
+      exposure_ids: [], adjust_for_ids: [],
       data_type: "binary",
       comparison: "single_group",
-      paired: false,
-      table_id: "T1",
+      pairing: "none" as const,
+      table_ids: ["T1"],
     },
   ],
 });
@@ -140,7 +140,7 @@ describe("validateCrf", () => {
     const c = clean();
     c.sections[0].fields = c.sections[0].fields.filter((f) => f.variable_id !== "var_age");
     const s = sap();
-    s.analyses[0].predictor_ids = ["var_age"];
+    s.analyses[0].adjust_for_ids = ["var_age"];
     expect(codes(c, s)).toContain("ROLL03");
   });
 

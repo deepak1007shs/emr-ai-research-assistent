@@ -3,22 +3,43 @@ import path from "node:path";
 import type { AnalysisRow } from "./types.ts";
 
 /**
- * Names the statistical test for an analysis row.
+ * Plans the analysis for a row.
  *
  * The rules live in `test-rules.md`, as a table anyone can read and edit. The
- * model never chooses a test: given the same data type and comparison it would
- * not always answer the same way, and a plan whose test depends on the run is
- * not a plan. It may override a rule, but only with a reason that prints in the
- * document.
+ * model never chooses an analysis: given the same data type and comparison it
+ * would not always answer the same way, and a plan whose test depends on the
+ * run is not a plan. It may override a rule, but only with a reason that prints
+ * in the document.
+ *
+ * A row returns a small plan rather than a test name, because that is what an
+ * analysis is: an unadjusted estimate, the model that holds confounders
+ * constant, and what must not be done. Returning one string was the reason the
+ * analysis map read as a lookup table instead of a plan.
  */
 
 export type Rule = {
   data_type: string;
   comparison: string;
-  paired: string;
+  /** none, paired or repeated. */
+  pairing: string;
   skewed: string;
-  test: string;
+  /** common or rare, for a binary outcome. */
+  frequency: string;
+  unadjusted: string;
+  adjusted: string;
+  avoid: string;
   why: string;
+};
+
+export type AnalysisPlan = {
+  /** The estimate and its interval, before adjustment. */
+  unadjusted: string | null;
+  /** The model that holds confounders constant, where one applies. */
+  adjusted: string | null;
+  /** What must not be done here, and why. */
+  avoid: string | null;
+  why: string;
+  overridden: boolean;
 };
 
 const RULES_PATH = path.join(process.cwd(), "src", "lib", "sap", "test-rules.md");
@@ -40,15 +61,18 @@ export function loadRules(source?: string): Rule[] {
         .split("|")
         .map((cell) => cell.trim()),
     )
-    .filter((cells) => cells.length === 6)
+    .filter((cells) => cells.length === 9)
     // Drop the header and the --- separator.
     .filter((cells) => cells[0] !== "data_type" && !/^-+$/.test(cells[0]))
-    .map(([data_type, comparison, paired, skewed, test, why]) => ({
+    .map(([data_type, comparison, pairing, skewed, frequency, unadjusted, adjusted, avoid, why]) => ({
       data_type,
       comparison,
-      paired,
+      pairing,
       skewed,
-      test,
+      frequency,
+      unadjusted,
+      adjusted,
+      avoid,
       why,
     }));
 
@@ -65,29 +89,55 @@ const matches = (ruleValue: string, actual: string) =>
  *   silently given a plausible-looking default.
  */
 export function chooseTest(
-  row: Pick<AnalysisRow, "data_type" | "comparison" | "paired" | "skewed" | "test_override" | "override_reason">,
+  row: Pick<
+    AnalysisRow,
+    | "data_type" | "comparison" | "pairing" | "skewed" | "frequency"
+    | "test_override" | "override_reason"
+  >,
   rules: Rule[] = loadRules(),
-): { test: string; why: string; overridden: boolean } | null {
+): AnalysisPlan | null {
   if (row.test_override) {
     return {
-      test: row.test_override,
+      unadjusted: row.test_override,
+      adjusted: null,
+      avoid: null,
       why: row.override_reason ?? "Departs from the standard rule; no reason was given.",
       overridden: true,
     };
   }
 
-  const paired = row.paired ? "true" : "false";
   const skewed = row.skewed ? "true" : "false";
+  const dash = (v: string) => (v && v !== "-" ? v : null);
 
   const hit = rules.find(
     (rule) =>
       matches(rule.data_type, row.data_type) &&
       matches(rule.comparison, row.comparison) &&
-      matches(rule.paired, paired) &&
-      matches(rule.skewed, skewed),
+      matches(rule.pairing, row.pairing ?? "none") &&
+      matches(rule.skewed, skewed) &&
+      matches(rule.frequency, row.frequency ?? "unknown"),
   );
 
-  return hit ? { test: hit.test, why: hit.why, overridden: false } : null;
+  if (!hit) return null;
+
+  return {
+    unadjusted: dash(hit.unadjusted),
+    adjusted: dash(hit.adjusted),
+    avoid: dash(hit.avoid),
+    why: hit.why,
+    overridden: false,
+  };
+}
+
+/**
+ * The one-line form, for a table cell that has no room for the whole plan.
+ * Everything it drops is printed under the map.
+ */
+export function planSummary(plan: AnalysisPlan): string {
+  const parts: string[] = [];
+  if (plan.unadjusted) parts.push(`Unadjusted: ${plan.unadjusted}`);
+  if (plan.adjusted) parts.push(`Adjusted: ${plan.adjusted}`);
+  return parts.join(". ") || plan.why;
 }
 
 /**

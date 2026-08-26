@@ -150,7 +150,11 @@ export function validateCrf(crf: CrfSpec, sap?: SapRegistry): { ok: boolean; fin
     }
 
     // Every confounder any analysis adjusts for.
-    const adjustedFor = new Set((sap.analyses ?? []).flatMap((a) => a.predictor_ids ?? []));
+    // Everything a model will hold constant, and everything it compares: all of
+  // it has to be on the form for the analysis to be runnable.
+  const adjustedFor = new Set(
+    (sap.analyses ?? []).flatMap((a) => [...(a.exposure_ids ?? []), ...(a.adjust_for_ids ?? [])]),
+  );
     for (const id of adjustedFor) {
       if (!captured.has(id) && !derived.has(id)) {
         error(

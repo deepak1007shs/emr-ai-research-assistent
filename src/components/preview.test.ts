@@ -65,12 +65,17 @@ describe("the SAP preview", () => {
     // the same way both renderers read it. If either named its own test, or
     // the rule table changed under one of them, this parts company.
     for (const row of sapFixture.analyses) {
-      const chosen = chooseTest(row);
-      expect(chosen, `no rule covers ${row.objective_id}`).not.toBeNull();
-      expect(screen, `${chosen!.test} on screen`).toContain(chosen!.test);
-      expect(page, `${chosen!.test} in the document`).toContain(chosen!.test);
+      const plan = chooseTest(row);
+      expect(plan, `no rule covers ${row.objective_ids.join(", ")}`).not.toBeNull();
+      // Both halves, and what to avoid: the whole plan, not a test name.
+      for (const part of [plan!.unadjusted, plan!.adjusted, plan!.avoid]) {
+        if (!part) continue;
+        expect(screen, `${part} on screen`).toContain(part);
+        expect(page, `${part} in the document`).toContain(part);
+      }
     }
-    expect(screen).toContain("Why each test");
+    expect(screen).toContain("Why each analysis");
+    expect(screen).toContain("What must not be done");
   });
 
   it("names every objective and every table the document does", async () => {
@@ -79,7 +84,9 @@ describe("the SAP preview", () => {
       expect(screen).toContain(`${objective.id}:`);
     }
     for (const analysis of sapFixture.analyses) {
-      expect(screen).toContain(analysis.table_id);
+      for (const tableId of analysis.table_ids) {
+        expect(screen).toContain(tableId);
+      }
     }
   });
 });
@@ -189,7 +196,8 @@ describe("who owns a table number", () => {
     // The plan wrote T1 for P1 before it knew two baseline tables would come
     // first. The tables document says P1 is reported by Table 3.
     const numbers = tableNumbers(tablesFixture);
-    expect(numbers.P1).toBe(3);
+    // An objective can be reported by more than one table.
+    expect(numbers.P1).toEqual([3]);
 
     const screen = screenText(SapPreview({ spec: sapFixture, tableNumbers: numbers }));
     const page = await pageText(await buildSapDocx(sapFixture, numbers));
