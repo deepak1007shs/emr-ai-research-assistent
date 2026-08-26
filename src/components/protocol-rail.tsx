@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ProtocolActions } from "./protocol-actions";
+import { documentKey, protocolKey } from "./selection";
+import { SelectionBar } from "./selection-bar";
 import {
   DOC_ORDER,
   DOC_SHORT,
@@ -32,9 +35,29 @@ export function ProtocolRail({
   /** Closes the drawer on a narrow screen. */
   onNavigate?: () => void;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState<Set<string>>(
     new Set(activeProtocolId ? [activeProtocolId] : []),
   );
+
+  // Selection is a mode rather than always-on, because the rail is read far
+  // more often than it is tidied, and a column of checkboxes reads as clutter.
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+
+  function pick(key: string) {
+    setPicked((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function stopSelecting() {
+    setSelecting(false);
+    setPicked(new Set());
+  }
 
   function toggle(id: string) {
     setOpen((current) => {
@@ -47,8 +70,17 @@ export function ProtocolRail({
 
   return (
     <nav aria-label="Protocols" className="flex h-full flex-col">
-      <div className="px-3 py-3">
+      <div className="flex items-baseline justify-between gap-2 px-3 py-3">
         <h2 className="text-xs font-semibold tracking-wide text-muted uppercase">Protocols</h2>
+        {protocols.length > 0 && (
+          <button
+            type="button"
+            onClick={() => (selecting ? stopSelecting() : setSelecting(true))}
+            className="text-xs text-accent underline underline-offset-2"
+          >
+            {selecting ? "Done" : "Select"}
+          </button>
+        )}
       </div>
 
       <Link
@@ -74,19 +106,30 @@ export function ProtocolRail({
 
           return (
             <li key={protocol.id}>
-              <button
-                type="button"
-                onClick={() => toggle(protocol.id)}
-                aria-expanded={expanded}
-                className={`flex w-full items-center gap-1.5 px-3 py-2 text-left text-xs hover:bg-accent-soft ${
-                  isActive ? "font-semibold" : ""
-                }`}
-              >
-                <span aria-hidden className="w-3 shrink-0 text-muted">
-                  {expanded ? "▾" : "▸"}
-                </span>
-                <span className="truncate">{protocol.filename}</span>
-              </button>
+              <div className="flex items-center gap-1.5 pr-2">
+                {selecting && (
+                  <input
+                    type="checkbox"
+                    checked={picked.has(protocolKey(protocol.id))}
+                    onChange={() => pick(protocolKey(protocol.id))}
+                    aria-label={`Select ${protocol.filename}`}
+                    className="ml-3 shrink-0"
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={() => toggle(protocol.id)}
+                  aria-expanded={expanded}
+                  className={`flex min-w-0 flex-1 items-center gap-1.5 py-2 text-left text-xs hover:bg-accent-soft ${
+                    selecting ? "pl-1" : "pl-3"
+                  } ${isActive ? "font-semibold" : ""}`}
+                >
+                  <span aria-hidden className="w-3 shrink-0 text-muted">
+                    {expanded ? "▾" : "▸"}
+                  </span>
+                  <span className="truncate">{protocol.filename}</span>
+                </button>
+              </div>
 
               {expanded && (
                 <>
@@ -99,22 +142,41 @@ export function ProtocolRail({
                         state={protocol.documents[kind]}
                         current={isActive && kind === activeDoc}
                         onNavigate={onNavigate}
+                        selecting={selecting}
+                        picked={picked}
+                        onPick={pick}
                       />
                     ))}
                   </ul>
-                  <div className="mb-2">
-                    <ProtocolActions
-                      protocolId={protocol.id}
-                      filename={protocol.filename}
-                      onDone={onNavigate}
-                    />
-                  </div>
+                  {!selecting && (
+                    <div className="mb-2">
+                      <ProtocolActions
+                        protocolId={protocol.id}
+                        filename={protocol.filename}
+                        onDone={onNavigate}
+                      />
+                    </div>
+                  )}
                 </>
               )}
             </li>
           );
         })}
       </ul>
+
+      {selecting && (
+        <SelectionBar
+          picked={picked}
+          protocols={protocols}
+          onDeleted={() => {
+            stopSelecting();
+            // The rail and the page are server-rendered, so ask for them again.
+            router.push("/");
+            router.refresh();
+          }}
+          onCancel={stopSelecting}
+        />
+      )}
     </nav>
   );
 }
@@ -125,20 +187,40 @@ function RailDocument({
   state,
   current,
   onNavigate,
+  selecting,
+  picked,
+  onPick,
 }: {
   protocolId: string;
   kind: DocKind;
   state: ProtocolRow["documents"][DocKind];
   current: boolean;
   onNavigate?: () => void;
+  selecting: boolean;
+  picked: Set<string>;
+  onPick: (key: string) => void;
 }) {
+  // Only a document that exists can be selected: there is nothing to delete
+  // about one that was never built.
+  const key = state.id ? documentKey(kind, state.id) : null;
+
   return (
-    <li>
+    <li className="flex items-center gap-2 pr-2">
+      {selecting && (
+        <input
+          type="checkbox"
+          checked={key ? picked.has(key) : false}
+          onChange={() => key && onPick(key)}
+          disabled={!key}
+          aria-label={`Select the ${DOC_SHORT[kind]}`}
+          className="ml-2 shrink-0"
+        />
+      )}
       <Link
         href={`/protocols/${protocolId}/${kind}`}
         onClick={onNavigate}
         aria-current={current ? "page" : undefined}
-        className={`flex items-center gap-2 py-1.5 pr-2 pl-3 text-xs hover:bg-accent-soft ${
+        className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-3 text-xs hover:bg-accent-soft ${
           current ? "bg-accent-soft font-semibold" : ""
         }`}
       >

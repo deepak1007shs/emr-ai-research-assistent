@@ -122,3 +122,27 @@ describe("renaming and removing from the rail", () => {
     expect(text.split("Rename").length - 1).toBe(1);
   });
 });
+
+describe("selecting several things to delete", () => {
+  const withSelection = (p: ProtocolRow[]) =>
+    renderToStaticMarkup(
+      createElement(ProtocolRail, {
+        protocols: p,
+        activeProtocolId: "p1",
+        activeDoc: "sap" as const,
+      }),
+    );
+
+  it("offers a way into selection when there is anything to select", () => {
+    expect(open([protocol()])).toContain("Select");
+  });
+
+  it("offers none when the list is empty", () => {
+    expect(open([], null)).not.toContain(">Select<");
+  });
+
+  it("has no checkboxes until selection is turned on", () => {
+    // The rail is read far more often than it is tidied.
+    expect(withSelection([protocol()])).not.toContain('type="checkbox"');
+  });
+});
