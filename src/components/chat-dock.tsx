@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSelectedLayoutSegment } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { useEventStream } from "@/hooks/use-event-stream";
 import { DOC_LABEL, type DocKind } from "@/lib/workspace/rail";
@@ -26,13 +26,17 @@ type Proposal = {
   needsRebuild: boolean;
   findings: Finding[];
   newErrors: number;
-  document: DocKind;
 };
 
-export function ChatDock({ protocolId }: { protocolId: string }) {
+export function ChatDock({
+  protocolId,
+  document,
+}: {
+  protocolId: string;
+  /** Which document is open. Null while a protocol is opening. */
+  document: DocKind | null;
+}) {
   const router = useRouter();
-  const segment = useSelectedLayoutSegment();
-  const document = (segment ?? "review") as DocKind;
 
   const [instruction, setInstruction] = useState("");
   const [proposal, setProposal] = useState<Proposal | null>(null);
@@ -50,10 +54,9 @@ export function ChatDock({ protocolId }: { protocolId: string }) {
         needsRebuild: Boolean(event.needsRebuild),
         findings: (event.findings as Finding[]) ?? [],
         newErrors: Number(event.newErrors ?? 0),
-        document: document,
       });
     },
-    [document],
+    [],
   );
 
   const { status, running, cost, error, start } = useEventStream("/api/revise", onEvent, {
@@ -99,7 +102,7 @@ export function ChatDock({ protocolId }: { protocolId: string }) {
       <div className="mx-auto w-full max-w-4xl px-6 py-3">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="text-xs font-semibold tracking-wide text-muted uppercase">
-            Ask for a change to the {DOC_LABEL[document]}
+            Ask for a change to the {document ? DOC_LABEL[document] : "document"}
           </h2>
           <button
             type="button"

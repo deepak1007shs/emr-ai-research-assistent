@@ -22,12 +22,18 @@ export function ProtocolRail({
   protocols,
   activeProtocolId,
   activeDoc,
+  onNavigate,
 }: {
   protocols: ProtocolRow[];
-  activeProtocolId: string;
-  activeDoc: DocKind;
+  /** Null on the upload page, where no protocol is open. */
+  activeProtocolId: string | null;
+  activeDoc: DocKind | null;
+  /** Closes the drawer on a narrow screen. */
+  onNavigate?: () => void;
 }) {
-  const [open, setOpen] = useState<Set<string>>(new Set([activeProtocolId]));
+  const [open, setOpen] = useState<Set<string>>(
+    new Set(activeProtocolId ? [activeProtocolId] : []),
+  );
 
   function toggle(id: string) {
     setOpen((current) => {
@@ -40,15 +46,28 @@ export function ProtocolRail({
 
   return (
     <nav aria-label="Protocols" className="flex h-full flex-col">
-      <div className="flex items-baseline justify-between gap-2 px-3 py-3">
+      <div className="px-3 py-3">
         <h2 className="text-xs font-semibold tracking-wide text-muted uppercase">Protocols</h2>
-        <Link href="/" className="text-xs text-accent underline underline-offset-2">
-          Upload
-        </Link>
       </div>
 
+      <Link
+        href="/"
+        onClick={onNavigate}
+        aria-current={activeProtocolId ? undefined : "page"}
+        className={`mx-3 mb-2 rounded-lg border border-dashed border-border px-3 py-2 text-xs ${
+          activeProtocolId ? "text-accent" : "border-accent bg-accent-soft font-semibold"
+        }`}
+      >
+        + New protocol
+      </Link>
+
       <ul className="min-h-0 flex-1 overflow-y-auto pb-4">
-        {protocols.map((protocol) => {
+        {!protocols.length && (
+        <p className="px-3 py-2 text-xs text-muted">
+          Nothing uploaded yet. The first protocol you review appears here.
+        </p>
+      )}
+      {protocols.map((protocol) => {
           const expanded = open.has(protocol.id);
           const isActive = protocol.id === activeProtocolId;
 
@@ -77,6 +96,7 @@ export function ProtocolRail({
                       kind={kind}
                       state={protocol.documents[kind]}
                       current={isActive && kind === activeDoc}
+                      onNavigate={onNavigate}
                     />
                   ))}
                 </ul>
@@ -94,16 +114,19 @@ function RailDocument({
   kind,
   state,
   current,
+  onNavigate,
 }: {
   protocolId: string;
   kind: DocKind;
   state: ProtocolRow["documents"][DocKind];
   current: boolean;
+  onNavigate?: () => void;
 }) {
   return (
     <li>
       <Link
         href={`/protocols/${protocolId}/${kind}`}
+        onClick={onNavigate}
         aria-current={current ? "page" : undefined}
         className={`flex items-center gap-2 py-1.5 pr-2 pl-3 text-xs hover:bg-accent-soft ${
           current ? "bg-accent-soft font-semibold" : ""

@@ -5,6 +5,7 @@ import { ActionTable } from "@/components/action-table";
 import { ReviewDocument } from "@/components/review-document";
 import { UsagePanel } from "@/components/usage-panel";
 import { IssueAnswers } from "@/components/issue-answers";
+import { NextStep } from "@/components/next-step";
 import { parseIssueAnswers } from "@/lib/protocol/answers";
 import type { TokenUsage } from "@/lib/protocol/pricing";
 
@@ -102,6 +103,10 @@ export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/
         initialGeneral={review.answers}
         initialIssueAnswers={parseIssueAnswers(review.issue_answers)}
       />
+
+      {/* The review is the first of four documents, and answering the issues
+          is only worth doing if the next step is obvious from here. */}
+      <NextStep protocolId={id} />
 
       <ReviewDocument spec={parsed.data} />
 
