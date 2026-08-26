@@ -16,7 +16,7 @@ export default async function HomePage() {
 
   const { data: reviews } = await supabase
     .from("reviews")
-    .select("id, status, created_at, model, usage, protocols ( filename )")
+    .select("id, protocol_id, status, created_at, model, usage, protocols ( filename )")
     .order("created_at", { ascending: false })
     .limit(10);
 
@@ -59,7 +59,7 @@ export default async function HomePage() {
                 return (
                   <li key={review.id}>
                     <Link
-                      href={`/reviews/${review.id}`}
+                      href={`/protocols/${review.protocol_id}/review`}
                       className="flex items-center justify-between gap-4 px-4 py-3 text-sm hover:bg-accent-soft"
                     >
                       <span className="truncate">{filename ?? "Pasted text"}</span>

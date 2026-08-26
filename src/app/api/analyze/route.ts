@@ -17,7 +17,7 @@ export const maxDuration = 800;
 type Event =
   | { type: "status"; message: string }
   | { type: "usage"; usage: TokenUsage; model: string; cost: number }
-  | { type: "done"; reviewId: string }
+  | { type: "done"; reviewId: string; protocolId: string }
   | { type: "error"; message: string };
 
 export async function POST(request: NextRequest) {
@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
 
       let reviewId: string | null = null;
+      let protocolId: string | null = null;
 
       try {
         send({ type: "status", message: "Saving the protocol" });
@@ -110,6 +111,7 @@ export async function POST(request: NextRequest) {
 
         if (reviewError) throw new Error(reviewError.message);
         reviewId = reviewRow.id;
+        protocolId = protocolRow.id;
 
         // Throttled: a token count that repaints on every delta is noise, and
         // each event is a write to an open connection.
@@ -156,7 +158,7 @@ export async function POST(request: NextRequest) {
 
         if (updateError) throw new Error(updateError.message);
 
-        send({ type: "done", reviewId: reviewId! });
+        send({ type: "done", reviewId: reviewId!, protocolId: protocolId! });
       } catch (error) {
         const message = error instanceof Error ? error.message : "The review failed.";
         if (reviewId) {

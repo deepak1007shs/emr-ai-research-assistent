@@ -12,7 +12,7 @@ import {
 } from "docx";
 import { HOUSE_BORDER, HOUSE_STYLES, plain } from "./house-style";
 import { chooseTest, degreesOfFreedomNote } from "../sap/choose-test.ts";
-import { outcomeIndex, variableIndex, type Outcome, type SapSpec } from "../sap/types.ts";
+import { outcomeCell, outcomeIndex, variableIndex, type SapSpec } from "../sap/types.ts";
 
 /**
  * The Statistical Analysis Plan: two sections.
@@ -63,20 +63,6 @@ function cell(text: string, bold = false) {
 
 const HEADERS = ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical test -> Table #"];
 
-/**
- * Folds the five answers into one readable cell.
- *
- * Held as five fields so none can be quietly omitted, and joined here so the
- * table reads as a sentence rather than a form.
- */
-export function outcomeCell(outcome: Outcome): string {
-  const parts = [outcome.what];
-  if (outcome.how && outcome.how !== outcome.what) parts.push(outcome.how);
-  if (outcome.instrument) parts.push(`by ${outcome.instrument}`);
-  if (outcome.when) parts.push(`at ${outcome.when}`);
-  if (outcome.units) parts.push(`in ${outcome.units}`);
-  return parts.join(", ");
-}
 
 export async function buildSapDocx(spec: SapSpec): Promise<Buffer> {
   const doc: Block[] = [];

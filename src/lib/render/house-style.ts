@@ -1,4 +1,5 @@
 import { BorderStyle, type IStylesOptions } from "docx";
+import { plain } from "./plain.ts";
 
 /**
  * The house style every generated .docx obeys.
@@ -52,34 +53,6 @@ export const HOUSE_BORDER = {
  * equivalents. The em dash is the strongest tell; smart quotes and the ellipsis
  * character are the next.
  */
-const SUBSTITUTIONS: [RegExp, string][] = [
-  [/—/g, " - "], // em dash
-  [/–/g, "-"], // en dash
-  [/−/g, "-"], // minus sign
-  [/[‘’‛]/g, "'"], // smart single quotes
-  [/[“”‟]/g, '"'], // smart double quotes
-  [/…/g, "..."], // ellipsis
-  [/ /g, " "], // non-breaking space
-  [/[•●▪]/g, ""], // stray bullet glyphs
-  [/[→⇒]/g, "to"], // arrows
-  [/×/g, "x"], // multiplication sign
-];
-
-/**
- * Makes a string safe for a house-style document: no em dashes, no smart
- * punctuation, no decorative glyphs.
- *
- * Applied at the renderer boundary rather than to the stored spec, so the
- * Markdown artifacts and the canonical builder are untouched.
- */
-export function plain(value: string | null | undefined): string {
-  let text = String(value ?? "");
-  for (const [pattern, replacement] of SUBSTITUTIONS) {
-    text = text.replace(pattern, replacement);
-  }
-  return text.replace(/[ \t]{2,}/g, " ").trim();
-}
-
 /**
  * Vocabulary that marks prose as machine-written. Fed to the model so the
  * problem is avoided at source rather than patched at render time.
@@ -94,3 +67,9 @@ export const AI_VOCABULARY = [
   "intricate", "nuanced", "multifaceted", "cutting-edge", "game-changer",
   "deep dive", "at the end of the day", "when it comes to",
 ] as const;
+
+/**
+ * Re-exported so every renderer keeps importing the house style from one
+ * place. The implementation lives in plain.ts, which does not import `docx`.
+ */
+export { plain };

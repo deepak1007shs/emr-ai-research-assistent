@@ -1,52 +1,164 @@
 @import "tailwindcss";
 
+/*
+ * Light by default. Dark is a choice, not the machine's.
+ *
+ * The ten tokens are declared once here as the light palette and overridden
+ * under [data-theme="dark"]. System preference deliberately decides nothing:
+ * the documents this app produces are black on white, and a supervisor reading
+ * one wants the screen to match the page.
+ */
+
 :root {
   --background: #fbfaf8;
   --surface: #ffffff;
+  --surface-sunken: #f5f3ef;
   --foreground: #1c1a17;
   --muted: #6b6660;
   --border: #e5e1da;
   --accent: #1d4ed8;
   --accent-soft: #eef2ff;
+  /* Text that sits on --accent. Hardcoding white breaks the dark palette. */
+  --accent-foreground: #ffffff;
   --danger: #b42318;
   --danger-soft: #fef3f2;
+  --warn: #b54708;
   --warn-soft: #fffaeb;
+
+  /* The workspace header, which the rail sticks beneath. */
+  --header-h: 3.25rem;
+}
+
+:root[data-theme="dark"] {
+  --background: #16150f;
+  --surface: #1e1d17;
+  --surface-sunken: #12110c;
+  --foreground: #ece9e2;
+  --muted: #9c968c;
+  --border: #33312a;
+  --accent: #93b4ff;
+  --accent-soft: #1e2436;
+  --accent-foreground: #10131c;
+  --danger: #f97066;
+  --danger-soft: #2c1a18;
+  --warn: #f5b043;
+  --warn-soft: #2a2418;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-border: var(--border);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-foreground: var(--accent-foreground);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
+  --color-warn: var(--warn);
   --color-warn-soft: var(--warn-soft);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #16150f;
-    --surface: #1e1d17;
-    --foreground: #ece9e2;
-    --muted: #9c968c;
-    --border: #33312a;
-    --accent: #93b4ff;
-    --accent-soft: #1e2436;
-    --danger: #f97066;
-    --danger-soft: #2c1a18;
-    --warn-soft: #2a2418;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/*
+ * The idioms, which were copy-pasted across nine components before they were
+ * named here. This app has deliberately avoided a component library, so they
+ * are utilities rather than wrappers.
+ */
+
+@utility card {
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+@utility btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: --spacing(1.5);
+  border-radius: var(--radius-lg);
+  padding: --spacing(2) --spacing(3);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+@utility btn-primary {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+@utility btn-quiet {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+@utility field {
+  width: 100%;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--background);
+  padding: --spacing(2) --spacing(3);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  outline: none;
+}
+
+@utility pill {
+  display: inline-block;
+  border-radius: var(--radius-lg);
+  padding: --spacing(2) --spacing(3);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+}
+
+/*
+ * A pulsing dot, for work that is running. The keyframes are declared here
+ * rather than borrowed from animate-pulse, which Tailwind only emits while some
+ * component still uses that class.
+ */
+@keyframes sap-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@utility live-dot {
+  display: inline-block;
+  width: --spacing(2);
+  height: --spacing(2);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  animation: sap-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+button:disabled,
+a[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn:focus-visible,
+.field:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.field:focus {
+  border-color: var(--accent);
 }
 
 @media print {
@@ -56,5 +168,11 @@ body {
   body {
     background: #fff;
     color: #000;
+  }
+  /* A table or a section split across a page break is unreadable. */
+  table,
+  section,
+  article > * {
+    break-inside: avoid;
   }
 }

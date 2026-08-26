@@ -21,7 +21,7 @@ export function ActionTable({ spec }: { spec: ActionSpec }) {
       <ol className="mt-4 space-y-3">
         {rows.map(([area, issue, change], i) => (
           <li key={i} className="flex gap-3">
-            <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-white">
+            <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
               {i + 1}
             </span>
             <div className="min-w-0">

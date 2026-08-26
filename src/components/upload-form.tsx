@@ -13,7 +13,7 @@ type Usage = {
 type Event =
   | { type: "status"; message: string }
   | { type: "usage"; usage: Usage; model: string; cost: number }
-  | { type: "done"; reviewId: string }
+  | { type: "done"; reviewId: string; protocolId?: string }
   | { type: "error"; message: string };
 
 /** Kept local to the client bundle rather than importing the server-side pricing module. */
@@ -100,7 +100,11 @@ export function UploadForm() {
           return;
         }
         if (event.type === "done") {
-          router.push(`/reviews/${event.reviewId}`);
+          router.push(
+                event.protocolId
+                  ? `/protocols/${event.protocolId}/review`
+                  : `/reviews/${event.reviewId}`,
+              );
           router.refresh();
           return;
         }
@@ -169,7 +173,7 @@ export function UploadForm() {
       <button
         type="submit"
         disabled={!canSubmit}
-        className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+        className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-medium text-accent-foreground disabled:opacity-50"
       >
         {running ? "Reviewing…" : "Review this protocol"}
       </button>

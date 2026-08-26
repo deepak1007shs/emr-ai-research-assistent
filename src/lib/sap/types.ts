@@ -137,3 +137,18 @@ export function isLinkable(spec: SapSpec | null | undefined): boolean {
   if (!variables.length) return false;
   return variables.every((v) => Boolean(v?.id)) && outcomes.every((o) => Boolean(o?.id));
 }
+
+/**
+ * Folds the five answers into one readable cell.
+ *
+ * Held as five fields so none can be quietly omitted, and joined here so the
+ * table reads as a sentence rather than a form.
+ */
+export function outcomeCell(outcome: Outcome): string {
+  const parts = [outcome.what];
+  if (outcome.how && outcome.how !== outcome.what) parts.push(outcome.how);
+  if (outcome.instrument) parts.push(`by ${outcome.instrument}`);
+  if (outcome.when) parts.push(`at ${outcome.when}`);
+  if (outcome.units) parts.push(`in ${outcome.units}`);
+  return parts.join(", ");
+}

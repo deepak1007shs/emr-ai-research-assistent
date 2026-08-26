@@ -12,6 +12,7 @@ import {
 } from "docx";
 import { HOUSE_BORDER, HOUSE_STYLES, plain } from "./house-style";
 import type { CrfField, CrfSpec } from "../crf/types.ts";
+import { responseFor } from "../crf/response.ts";
 
 /**
  * The case report form, and the data-collection plan it was expanded from.
@@ -24,7 +25,6 @@ import type { CrfField, CrfSpec } from "../crf/types.ts";
 type Block = Paragraph | Table;
 
 const line = (v?: string) => plain(String(v ?? "").replace(/\s*\n\s*/g, " "));
-const BOX = "☐"; // an empty ballot box, as the house forms use
 const TICK = "✓";
 
 function h(text: string, level: (typeof HeadingLevel)[keyof typeof HeadingLevel]) {
@@ -74,24 +74,6 @@ function table(headers: string[], rows: string[][], options: { centreFrom?: numb
   });
 }
 
-const blank = (n: number) => "_".repeat(n);
-
-/** The answer space: pre-printed options, a unit, or a ruled blank. */
-export function responseFor(field: CrfField): string {
-  if (field.options?.length) {
-    return field.options.map((o) => `${BOX} ${o}`).join("   ");
-  }
-  switch (field.type) {
-    case "Date":
-      return `${blank(3)} / ${blank(3)} / ${blank(6)}`;
-    case "Text / Date":
-      return `v1.0   ${blank(3)} / ${blank(3)} / ${blank(6)}`;
-    case "Number":
-      return field.unit ? `${blank(8)} ${field.unit}` : blank(8);
-    default:
-      return blank(field.width === "short" ? 16 : 28);
-  }
-}
 
 export async function buildCrfDocx(spec: CrfSpec): Promise<Buffer> {
   // Every wording comes from the plan's registry, resolved by id. The form
@@ -223,3 +205,6 @@ export async function buildCrfDocx(spec: CrfSpec): Promise<Buffer> {
 
   return Packer.toBuffer(new Document({ styles: HOUSE_STYLES, sections: [{ children: doc }] }));
 }
+
+/** Re-exported so the renderer stays the one import a caller needs. */
+export { responseFor };
