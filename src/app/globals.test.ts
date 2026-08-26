@@ -28,12 +28,20 @@ describe("the app's own type", () => {
   });
 
   it("sets one root size, so the whole app scales from one number", () => {
-    const match = css.match(/html\s*\{\s*font-size:\s*(\d+)px/);
+    const match = css.match(/html\s*\{\s*font-size:\s*([\d.]+)px/);
     expect(match, "no root font-size").not.toBeNull();
     const size = Number(match![1]);
-    // Larger than the browser default, and not so large it reflows the rail.
-    expect(size).toBeGreaterThan(16);
-    expect(size).toBeLessThanOrEqual(20);
+    // Comfortably above the browser default, and short of the point where a
+    // 16rem rail would take a third of a laptop screen.
+    expect(size).toBeGreaterThanOrEqual(24);
+    expect(size).toBeLessThanOrEqual(28);
+  });
+
+  it("sizes everything in rem, so the root size actually moves it", () => {
+    // A px length in a layout class would not scale with the root, and the app
+    // would come apart unevenly as the size changes.
+    expect(css).not.toMatch(/--header-h:\s*\d+px/);
+    expect(css).toMatch(/--header-h:\s*[\d.]+rem/);
   });
 
   it("leaves the downloaded document at its house size", () => {

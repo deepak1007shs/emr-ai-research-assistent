@@ -72,12 +72,15 @@
 }
 
 /*
- * A little larger than the browser default, which everything else is sized
- * against in rem, so one number moves the whole app rather than a hundred
- * classes.
+ * The one number that sizes the app.
+ *
+ * Every length in here is in rem, spacing and column widths included, so
+ * raising this scales the whole thing the way browser zoom does rather than
+ * squeezing bigger text into boxes built for smaller. 25.5px is half again the
+ * 17px it was set at.
  */
 html {
-  font-size: 17px;
+  font-size: 25.5px;
 }
 
 body {
