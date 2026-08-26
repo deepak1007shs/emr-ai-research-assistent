@@ -6,6 +6,7 @@ import { ReviewDocument } from "@/components/review-document";
 import { UsagePanel } from "@/components/usage-panel";
 import { IssueAnswers } from "@/components/issue-answers";
 import { NextStep } from "@/components/next-step";
+import { DeleteReview } from "@/components/delete-review";
 import { parseIssueAnswers } from "@/lib/protocol/answers";
 import type { TokenUsage } from "@/lib/protocol/pricing";
 
@@ -18,7 +19,7 @@ export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/
   const { data: review } = await supabase
     .from("reviews")
     .select(
-      "id, status, error, markdown, spec, action_spec, answers, issue_answers, model, usage, created_at",
+      "id, status, error, markdown, spec, action_spec, answers, issue_answers, model, usage, created_at, protocols ( filename )",
     )
     .eq("protocol_id", id)
     .order("created_at", { ascending: false })
@@ -49,6 +50,13 @@ export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/
       </section>
     );
   }
+
+  const protocol = review.protocols as unknown as
+    | { filename: string }
+    | { filename: string }[]
+    | null;
+  const filename =
+    (Array.isArray(protocol) ? protocol[0]?.filename : protocol?.filename) ?? "this protocol";
 
   const parsed = reviewSpecSchema.safeParse(review.spec);
   if (review.status !== "complete" || !parsed.success) {
@@ -107,6 +115,12 @@ export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/
       {/* The review is the first of four documents, and answering the issues
           is only worth doing if the next step is obvious from here. */}
       <NextStep protocolId={id} />
+
+      <DeleteReview
+        reviewId={review.id}
+        filename={filename}
+        hasAnswers={Boolean(review.answers) || Boolean(review.issue_answers)}
+      />
 
       <ReviewDocument spec={parsed.data} />
 

@@ -5,6 +5,8 @@ import { FindingsPanel } from "@/components/findings-panel";
 import { BuildButton } from "@/components/build-button";
 import { NotBuilt } from "@/components/not-built";
 import { DocumentActions } from "@/components/document-actions";
+import { VersionList } from "@/components/version-list";
+import { loadVersions } from "@/lib/workspace/versions";
 import { StaleNotice } from "@/components/stale-notice";
 import type { CrfSpec } from "@/lib/crf/types";
 import type { SapSpec } from "@/lib/sap/types";
@@ -18,7 +20,7 @@ export default async function CrfPage({ params }: PageProps<"/protocols/[id]/crf
   const { id } = await params;
   const supabase = await createClient();
 
-  const [form, plan, review] = await Promise.all([
+  const [form, plan, review, versions] = await Promise.all([
     loadCurrent<CrfSpec>(supabase, "crf_forms", id),
     loadCurrent<SapSpec>(supabase, "sap_plans", id),
     supabase
@@ -29,6 +31,7 @@ export default async function CrfPage({ params }: PageProps<"/protocols/[id]/crf
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    loadVersions(supabase, "crf", id),
   ]);
 
   // The form collects what the plan analyses, so without one there is nothing
@@ -68,6 +71,7 @@ export default async function CrfPage({ params }: PageProps<"/protocols/[id]/crf
         />
       </DocumentActions>
       {stale && <StaleNotice document="form" />}
+      <VersionList kind="crf" versions={versions} />
       <FindingsPanel findings={form.findings} />
       <CrfPreview spec={form.spec} />
     </div>

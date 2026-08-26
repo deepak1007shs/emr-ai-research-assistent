@@ -1,6 +1,13 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The rail carries the rename and delete actions, which reach for the router.
+// This test is about what the rail says, not about where it navigates.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: () => {}, refresh: () => {} }),
+  useSelectedLayoutSegments: () => [],
+}));
 import { ProtocolRail } from "./protocol-rail.tsx";
 import type { ProtocolRow } from "@/lib/workspace/rail.ts";
 
@@ -99,5 +106,19 @@ describe("the protocol rail", () => {
     expect(text).toContain("other.docx");
     // Only the open one shows its documents, so "Shell Tables" appears once.
     expect(text.split("Shell Tables").length - 1).toBe(1);
+  });
+});
+
+describe("renaming and removing from the rail", () => {
+  it("offers both against the open protocol", () => {
+    const text = open([protocol()]);
+    expect(text).toContain("Rename");
+    expect(text).toContain("Delete");
+  });
+
+  it("does not offer them against a protocol that is collapsed", () => {
+    // The rail is a list to read, not a list to administer.
+    const text = open([protocol(), protocol({ id: "p2", filename: "other.docx" })]);
+    expect(text.split("Rename").length - 1).toBe(1);
   });
 });

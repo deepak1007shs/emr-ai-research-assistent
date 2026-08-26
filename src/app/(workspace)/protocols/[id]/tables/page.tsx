@@ -5,6 +5,8 @@ import { FindingsPanel } from "@/components/findings-panel";
 import { BuildButton } from "@/components/build-button";
 import { NotBuilt } from "@/components/not-built";
 import { DocumentActions } from "@/components/document-actions";
+import { VersionList } from "@/components/version-list";
+import { loadVersions } from "@/lib/workspace/versions";
 import { StaleNotice } from "@/components/stale-notice";
 import type { ShellTablesSpec } from "@/lib/tables/types";
 import type { SapSpec } from "@/lib/sap/types";
@@ -18,9 +20,10 @@ export default async function TablesPage({ params }: PageProps<"/protocols/[id]/
   const { id } = await params;
   const supabase = await createClient();
 
-  const [tables, plan] = await Promise.all([
+  const [tables, plan, versions] = await Promise.all([
     loadCurrent<ShellTablesSpec>(supabase, "shell_tables", id),
     loadCurrent<SapSpec>(supabase, "sap_plans", id),
+    loadVersions(supabase, "tables", id),
   ]);
 
   const blocked = plan
@@ -46,6 +49,7 @@ export default async function TablesPage({ params }: PageProps<"/protocols/[id]/
         <BuildButton kind="tables" protocolId={id} exists blockedReason={blocked} />
       </DocumentActions>
       {stale && <StaleNotice document="tables" />}
+      <VersionList kind="tables" versions={versions} />
       <FindingsPanel findings={tables.findings} />
       <TablesPreview spec={tables.spec} />
     </div>

@@ -5,6 +5,8 @@ import { FindingsPanel } from "@/components/findings-panel";
 import { BuildButton } from "@/components/build-button";
 import { NotBuilt } from "@/components/not-built";
 import { DocumentActions } from "@/components/document-actions";
+import { VersionList } from "@/components/version-list";
+import { loadVersions } from "@/lib/workspace/versions";
 import type { SapSpec } from "@/lib/sap/types";
 import type { ShellTablesSpec } from "@/lib/tables/types";
 import { tableNumbers } from "@/lib/tables/types";
@@ -18,7 +20,7 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
   const { id } = await params;
   const supabase = await createClient();
 
-  const [plan, shells, review] = await Promise.all([
+  const [plan, shells, review, versions] = await Promise.all([
     loadCurrent<SapSpec>(supabase, "sap_plans", id),
     loadCurrent<ShellTablesSpec>(supabase, "shell_tables", id),
     supabase
@@ -29,6 +31,7 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    loadVersions(supabase, "sap", id),
   ]);
 
   if (!plan) {
@@ -50,6 +53,7 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
           rebuildLabel="Rebuild with my answers"
         />
       </DocumentActions>
+      <VersionList kind="sap" versions={versions} />
       <FindingsPanel findings={plan.findings} />
       {/* Once the shell tables exist they own the numbering, so the plan
           prints the number the reader will actually find. */}

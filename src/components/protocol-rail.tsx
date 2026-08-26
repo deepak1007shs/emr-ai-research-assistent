@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { ProtocolActions } from "./protocol-actions";
 import {
   DOC_ORDER,
   DOC_SHORT,
@@ -88,18 +89,27 @@ export function ProtocolRail({
               </button>
 
               {expanded && (
-                <ul className="mb-1 ml-[1.375rem] border-l border-border">
-                  {DOC_ORDER.map((kind) => (
-                    <RailDocument
-                      key={kind}
+                <>
+                  <ul className="ml-[1.375rem] border-l border-border">
+                    {DOC_ORDER.map((kind) => (
+                      <RailDocument
+                        key={kind}
+                        protocolId={protocol.id}
+                        kind={kind}
+                        state={protocol.documents[kind]}
+                        current={isActive && kind === activeDoc}
+                        onNavigate={onNavigate}
+                      />
+                    ))}
+                  </ul>
+                  <div className="mb-2">
+                    <ProtocolActions
                       protocolId={protocol.id}
-                      kind={kind}
-                      state={protocol.documents[kind]}
-                      current={isActive && kind === activeDoc}
-                      onNavigate={onNavigate}
+                      filename={protocol.filename}
+                      onDone={onNavigate}
                     />
-                  ))}
-                </ul>
+                  </div>
+                </>
               )}
             </li>
           );
