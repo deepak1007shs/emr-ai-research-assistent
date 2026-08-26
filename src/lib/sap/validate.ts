@@ -144,8 +144,6 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
   // A section left blank reads as a section nobody thought about, which is
   // exactly what a supervisor is checking for.
   const required: [string, string, string][] = [
-    ["MAP01", spec.glance?.primary_outcome, "Section 0 does not name a primary outcome."],
-    ["MAP02", spec.glance?.sample_size_basis, "Section 0 gives no basis for the sample size."],
     ["MAP03", spec.picot?.assembled_question, "The clinical question has not been assembled into one sentence."],
     ["MAP04", spec.estimand?.endpoint, "The primary estimand does not name its endpoint."],
     ["MAP05", spec.estimand?.intercurrent_strategy, "The primary estimand does not say how intercurrent events are handled."],
@@ -165,13 +163,6 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
   if (!spec.steps?.length) {
     error("MAP12", "Section 5 has no steps, so the plan says what to run but not in what order.");
   }
-  if (!spec.flags?.length) {
-    warn(
-      "MAP13",
-      "Nothing is flagged as still open. A protocol with no open decisions is unusual; check that the list is empty because it was considered.",
-    );
-  }
-
   // The assumptions belong to the tests actually chosen. One without the other
   // is either an unexamined test or an assumption for a test nobody runs.
   const chosen = new Set(

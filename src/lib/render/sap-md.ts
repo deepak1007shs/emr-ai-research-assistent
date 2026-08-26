@@ -53,32 +53,6 @@ export function buildSapMarkdown(
     push(`*${plain([spec.design, spec.setting].filter(Boolean).join(". "))}*`, "");
   }
 
-  /* ---- Section 0 --------------------------------------------------- */
-
-  if (spec.glance) {
-    push("---", "", "## Section 0 - Study at a Glance", "");
-    push(
-      "*A thirty-second summary. If a reader sees only this box, they should be able to say what the study is.*",
-      "",
-    );
-    push(
-      facts([
-        ["Title", spec.title],
-        ["Design", spec.design],
-        ["Population", spec.glance.population],
-        ["What is measured", spec.glance.what_is_measured],
-        ["Primary outcome", spec.glance.primary_outcome],
-        ["Main comparison", spec.glance.main_comparison],
-        ["Sample size", spec.glance.sample_size_basis],
-        ["Reporting guideline", spec.guideline],
-      ]),
-      "",
-    );
-    if (spec.sample_size_note) {
-      push(`**Sample-size note.** ${plain(spec.sample_size_note)}`, "");
-    }
-  }
-
   /* ---- the clinical question --------------------------------------- */
 
   const fw = spec.picot?.framework === "PICOT" ? "PICOT" : "PECOT";
@@ -253,6 +227,9 @@ export function buildSapMarkdown(
     }
     push("");
   }
+  if (spec.sample_size_note) {
+    push(`**Sample size.** ${plain(spec.sample_size_note)}`, "");
+  }
 
   if (spec.populations?.length) {
     push("### Analysis populations (who is analysed)", "");
@@ -320,31 +297,6 @@ export function buildSapMarkdown(
   push("---", "", "## Section 6 - Shell (Dummy) Tables", "");
   push(
     "Every empty results table the thesis will contain, in the order it will appear, is laid out in the Shell Tables document that accompanies this plan. Cells stay blank until the data arrive, and each table names the test that produced it.",
-    "",
-  );
-
-  if (spec.flags?.length) {
-    push("---", "", "## Section 7 - Needs Checking", "");
-    push(
-      "*Decisions still open. Settle each with your guide before the plan is signed.*",
-      "",
-    );
-    push(table(["Open decision", "Why it matters"], spec.flags.map((f) => [f.flag, f.why])), "");
-  }
-
-  push("---", "", "## Document control and sign-off", "");
-  push(
-    "Finalise, date and sign this plan before database lock and unblinding. Every analysis above is pre-specified; any change after the sign-off date is a dated amendment recording the version, the reason and who approved it.",
-    "",
-  );
-  push(
-    facts([
-      ["SAP version", "____"],
-      ["Date finalised", "____"],
-      ["Prepared by", "____"],
-      ["Approved by (guide / supervisor)", "____"],
-      ["Amendment log", "version - date - change - reason - approved by"],
-    ]),
     "",
   );
 

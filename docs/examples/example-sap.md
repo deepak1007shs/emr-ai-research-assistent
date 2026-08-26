@@ -12,25 +12,6 @@
 
 ---
 
-## Section 0 - Study at a Glance
-
-*A thirty-second summary. If a reader sees only this box, they should be able to say what the study is.*
-
-| | |
-|---|---|
-| **Title** | Factors Associated with Intraoperative Conversion during TAPP Repair of Ventral Hernia |
-| **Design** | prospective observational cohort |
-| **Population** | Adults undergoing elective TAPP repair of a ventral hernia at a single tertiary centre. |
-| **What is measured** | Patient, hernia and operative characteristics, and whether the planned TAPP approach was abandoned intraoperatively. |
-| **Primary outcome** | Intraoperative conversion to an alternative technique. |
-| **Main comparison** | Converted versus completed as TAPP. |
-| **Sample size** | n = 125, from a single-proportion precision formula on an assumed conversion rate of 8% with 5% absolute precision. |
-| **Reporting guideline** | STROBE |
-
-**Sample-size note.** Powered for precision rather than for a comparison: an assumed conversion rate of 8% with 5% absolute precision at 95% confidence gives 113, inflated to 125 for 10% incomplete records. TODO: confirm the assumed rate against the unit's own audit.
-
----
-
 ## PECOT
 
 *The clinical question decomposed. This is what every objective, variable and test below must trace back to.*
@@ -147,6 +128,8 @@ Neither enters any model.
 - **Multiplicity.** The primary outcome is confirmatory. Secondary outcomes are supportive and reported with unadjusted intervals; exploratory analyses use Benjamini-Hochberg.
 - **Reproducibility.** A fixed random seed is set and reported for any stochastic procedure.
 
+**Sample size.** Powered for precision rather than for a comparison: an assumed conversion rate of 8% with 5% absolute precision at 95% confidence gives 113, inflated to 125 for 10% incomplete records. TODO: confirm the assumed rate against the unit's own audit.
+
 ### Analysis populations (who is analysed)
 
 | Population | Definition |
@@ -216,31 +199,6 @@ Single final analysis; no interim looks.
 ## Section 6 - Shell (Dummy) Tables
 
 Every empty results table the thesis will contain, in the order it will appear, is laid out in the Shell Tables document that accompanies this plan. Cells stay blank until the data arrive, and each table names the test that produced it.
-
----
-
-## Section 7 - Needs Checking
-
-*Decisions still open. Settle each with your guide before the plan is signed.*
-
-| Open decision | Why it matters |
-|---|---|
-| The assumed conversion rate behind the sample size is not sourced. | A precision calculation is only as good as the rate it assumes, and the unit's own audit would settle it. |
-| Adhesion severity is graded but the grading system is not named. | Two surgeons will grade differently unless the scale is stated, and it is a predictor in the primary model. |
-
----
-
-## Document control and sign-off
-
-Finalise, date and sign this plan before database lock and unblinding. Every analysis above is pre-specified; any change after the sign-off date is a dated amendment recording the version, the reason and who approved it.
-
-| | |
-|---|---|
-| **SAP version** | ____ |
-| **Date finalised** | ____ |
-| **Prepared by** | ____ |
-| **Approved by (guide / supervisor)** | ____ |
-| **Amendment log** | version - date - change - reason - approved by |
 
 ---
 

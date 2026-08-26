@@ -12,16 +12,6 @@ export const sapFixture: SapSpec = {
   design: "prospective observational cohort",
   setting: "Department of General Surgery, AIIMS Jodhpur",
   guideline: "STROBE",
-  glance: {
-    population:
-      "Adults undergoing elective TAPP repair of a ventral hernia at a single tertiary centre.",
-    what_is_measured:
-      "Patient, hernia and operative characteristics, and whether the planned TAPP approach was abandoned intraoperatively.",
-    primary_outcome: "Intraoperative conversion to an alternative technique.",
-    main_comparison: "Converted versus completed as TAPP.",
-    sample_size_basis:
-      "n = 125, from a single-proportion precision formula on an assumed conversion rate of 8% with 5% absolute precision.",
-  },
   picot: {
     framework: "PECOT",
     population: "Adults undergoing elective TAPP repair of a ventral hernia.",
@@ -167,16 +157,6 @@ export const sapFixture: SapSpec = {
       how_checked: "Compare the histograms of the converted and completed groups.",
       if_violated: "Read the result as a shift in distribution rather than a difference in medians.",
       example: "Operative duration is right skewed in the converted group.",
-    },
-  ],
-  flags: [
-    {
-      flag: "The assumed conversion rate behind the sample size is not sourced.",
-      why: "A precision calculation is only as good as the rate it assumes, and the unit's own audit would settle it.",
-    },
-    {
-      flag: "Adhesion severity is graded but the grading system is not named.",
-      why: "Two surgeons will grade differently unless the scale is stated, and it is a predictor in the primary model.",
     },
   ],
 };

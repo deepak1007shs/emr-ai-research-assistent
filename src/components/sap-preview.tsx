@@ -117,30 +117,6 @@ export function SapPreview({
         {plain(`${spec.design}. ${spec.setting ?? ""}`)}
       </p>
 
-      {spec.glance && (
-        <DocSection title="Section 0 - Study at a Glance">
-          <Note>
-            A thirty-second summary. If a reader sees only this box, they should be able to say
-            what the study is.
-          </Note>
-          <FactTable
-            rows={[
-              ["Title", plain(spec.title)],
-              ["Design", plain(spec.design)],
-              ["Population", plain(spec.glance.population)],
-              ["What is measured", plain(spec.glance.what_is_measured)],
-              ["Primary outcome", plain(spec.glance.primary_outcome)],
-              ["Main comparison", plain(spec.glance.main_comparison)],
-              ["Sample size", plain(spec.glance.sample_size_basis)],
-              ["Reporting guideline", plain(spec.guideline)],
-            ]}
-          />
-          {spec.sample_size_note && (
-            <Labelled label="Sample-size note.">{plain(spec.sample_size_note)}</Labelled>
-          )}
-        </DocSection>
-      )}
-
       {spec.picot && (
         <DocSection title={fw}>
           <Note>
@@ -314,6 +290,9 @@ export function SapPreview({
           <Labelled label="Missing data.">{plain(spec.rules.missing_data)}</Labelled>
           <Labelled label="Multiplicity.">{plain(spec.rules.multiplicity)}</Labelled>
           <Labelled label="Reproducibility.">{plain(spec.rules.reproducibility)}</Labelled>
+          {spec.sample_size_note && (
+            <Labelled label="Sample size.">{plain(spec.sample_size_note)}</Labelled>
+          )}
 
           {spec.populations?.length > 0 && (
             <>
@@ -434,41 +413,6 @@ export function SapPreview({
           out in the Shell Tables document that accompanies this plan. Cells stay blank until the
           data arrive, and each table names the test that produced it.
         </p>
-      </DocSection>
-
-      {spec.flags?.length > 0 && (
-        <DocSection title="Section 7 - Needs Checking">
-          <Note>
-            Decisions still open. Keeping this list is what turns the plan into a working tool
-            rather than a finished-looking wall of text. Settle each with your guide before the
-            plan is signed.
-          </Note>
-          <DocTable headers={["Open decision", "Why it matters"]}>
-            {spec.flags.map((f, i) => (
-              <tr key={i}>
-                <Td bold>{plain(f.flag)}</Td>
-                <Td>{plain(f.why)}</Td>
-              </tr>
-            ))}
-          </DocTable>
-        </DocSection>
-      )}
-
-      <DocSection title="Document control and sign-off">
-        <p className="text-xs leading-relaxed">
-          Finalise, date and sign this plan before database lock and unblinding. Every analysis
-          above is pre-specified; any change after the sign-off date is a dated amendment
-          recording the version, the reason and who approved it.
-        </p>
-        <FactTable
-          rows={[
-            ["SAP version", "____"],
-            ["Date finalised", "____"],
-            ["Prepared by", "____"],
-            ["Approved by (guide / supervisor)", "____"],
-            ["Amendment log", "version - date - change - reason - approved by"],
-          ]}
-        />
       </DocSection>
 
       <Note>

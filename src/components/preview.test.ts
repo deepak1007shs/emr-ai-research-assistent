@@ -227,7 +227,6 @@ describe("the analysis map stays readable", () => {
 
 describe("the plan on screen is the plan you download", () => {
   const SECTIONS = [
-    "Section 0 - Study at a Glance",
     "Section 1 - Objectives as Answerable Questions",
     "Primary estimand",
     "Section 2 - Variable Table",
@@ -237,8 +236,6 @@ describe("the plan on screen is the plan you download", () => {
     "Section 5 - Step-by-Step Analysis Flow",
     "Section 5A - Assumption Checking",
     "Section 6 - Shell (Dummy) Tables",
-    "Section 7 - Needs Checking",
-    "Document control and sign-off",
   ];
 
   it("carries every section of the route map, in the same order as the document", async () => {
@@ -253,15 +250,6 @@ describe("the plan on screen is the plan you download", () => {
         expect(found, `${section} is out of order`).toBeGreaterThan(at);
         at = found;
       }
-    }
-  });
-
-  it("shows every open decision, which is what a supervisor reads first", async () => {
-    const screen = screenText(SapPreview({ spec: sapFixture }));
-    const page = await pageText(await buildSapDocx(sapFixture));
-    for (const flag of sapFixture.flags) {
-      expect(screen, "on screen").toContain(flag.flag);
-      expect(page, "in the document").toContain(flag.flag);
     }
   });
 
@@ -287,8 +275,8 @@ describe("a plan stored before the route map existed", () => {
     // has no glance, no estimand and no rules.
     const old = structuredClone(sapFixture) as Record<string, unknown>;
     for (const gone of [
-      "glance", "picot", "estimand", "rules", "populations",
-      "steps", "assumption_checks", "flags", "priority_confounder_ids",
+      "picot", "estimand", "rules", "populations",
+      "steps", "assumption_checks", "priority_confounder_ids",
     ]) {
       delete old[gone];
     }

@@ -116,14 +116,13 @@ describe("the schemas ask for what the types expect", () => {
     // requires but neither stage asks for would arrive undefined every time.
     for (const field of [
       "title", "design", "setting", "guideline",
-      "glance.primary_outcome", "glance.sample_size_basis",
       "picot.assembled_question", "estimand.endpoint", "estimand.intercurrent_strategy",
       "aim", "hypothesis", "sample_size_note", "priority_confounder_ids",
       "objectives", "variables", "outcomes", "analyses",
       "rules.missing_data", "rules.multiplicity", "rules.reproducibility",
       "populations", "baseline_comparison", "intercurrent_events",
       "testing_hierarchy", "subgroups", "interim", "steps",
-      "assumption_checks", "flags",
+      "assumption_checks",
     ]) {
       expect(asked, `no stage asks for ${field}`).toContain(field);
     }

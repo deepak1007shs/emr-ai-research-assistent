@@ -95,20 +95,6 @@ export type AnalysisRow = {
   test?: string;
 };
 
-/**
- * Section 0. What the study is, in one box.
- *
- * If a reader sees only this, they should be able to say what the study is.
- */
-export type Glance = {
-  population: string;
-  what_is_measured: string;
-  primary_outcome: string;
-  main_comparison: string;
-  /** The target n AND the basis for it, not just the number. */
-  sample_size_basis: string;
-};
-
 /** The clinical question decomposed. Everything below must trace back to it. */
 export type Picot = {
   framework: "PICOT" | "PECOT";
@@ -174,9 +160,6 @@ export type AssumptionCheck = {
   example: string;
 };
 
-/** Section 7. A decision still open, to settle with the guide. */
-export type OpenFlag = { flag: string; why: string };
-
 export type SapSpec = {
   title: string;
   design: string;
@@ -184,7 +167,6 @@ export type SapSpec = {
   setting: string;
   guideline: string;
 
-  glance: Glance;
   picot: Picot;
 
   aim: string;
@@ -217,7 +199,6 @@ export type SapSpec = {
   interim: string;
   steps: AnalysisStep[];
   assumption_checks: AssumptionCheck[];
-  flags: OpenFlag[];
 };
 
 /* ---- the registry lookups every document uses --------------------- */

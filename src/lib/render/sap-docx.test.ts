@@ -22,7 +22,6 @@ describe("the SAP document", () => {
     const { visible } = await read();
     const order = [
       "STATISTICAL ANALYSIS PLAN",
-      "Section 0 - Study at a Glance",
       "Section 1 - Objectives as Answerable Questions",
       "Primary estimand",
       "Section 2 - Variable Table",
@@ -32,8 +31,6 @@ describe("the SAP document", () => {
       "Section 5 - Step-by-Step Analysis Flow",
       "Section 5A - Assumption Checking",
       "Section 6 - Shell (Dummy) Tables",
-      "Section 7 - Needs Checking",
-      "Document control and sign-off",
     ];
     let at = -1;
     for (const section of order) {
@@ -62,10 +59,17 @@ describe("the SAP document", () => {
     }
   });
 
-  it("keeps the sample-size basis, not just the number", async () => {
+  it("keeps the sample-size basis with the rules, not just the number", async () => {
     const { visible } = await read();
-    expect(visible).toContain("Sample-size note");
+    expect(visible).toContain("Sample size.");
     expect(visible).toContain("TODO");
+  });
+
+  it("carries none of the three sections that were dropped", async () => {
+    const { visible } = await read();
+    for (const gone of ["Study at a Glance", "Needs Checking", "Document control"]) {
+      expect(visible, `${gone} should be gone`).not.toContain(gone);
+    }
   });
 
   it("numbers the objectives P and S, as questions", async () => {

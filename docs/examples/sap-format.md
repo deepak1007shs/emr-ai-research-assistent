@@ -4,17 +4,20 @@ The plan follows the route-map format, section for section:
 
 | Section | What it holds |
 |---|---|
-| 0 | **Study at a Glance** — title, design, population, what is measured, primary outcome, main comparison, sample size, guideline. Plus a sample-size note giving the basis, not just the number. |
 | — | **PICOT / PECOT** — the clinical question decomposed, then assembled into one sentence. PECOT where the investigator observes rather than assigns. |
 | 1 | **Objectives as Answerable Questions** — aim, hypothesis, the primary estimand in all five ICH E9(R1) attributes, then primary, secondary and exploratory objectives. |
 | 2 | **Variable Table** — one row per variable, grouped by role, with the priority confounders named. |
 | 3 | **Analysis Map** — one row per objective: outcome, predictors, data type, test and the table it fills. Then how each outcome is defined, why each test was chosen, the degrees-of-freedom note, and what is deliberately not adjusted for. |
-| 4 | **General Statistical Rules** — software, normality, summaries, significance, effect estimates, missing data, multiplicity, reproducibility. Then the analysis populations, baseline comparison, intercurrent events, testing hierarchy, subgroups and interim analyses. |
+| 4 | **General Statistical Rules** — software, normality, summaries, significance, effect estimates, missing data, multiplicity, reproducibility, and the sample-size basis rather than just the number. Then the analysis populations, baseline comparison, intercurrent events, testing hierarchy, subgroups and interim analyses. |
 | 5 | **Step-by-Step Analysis Flow** — describe, unadjusted, adjusted, sensitivity. |
 | 5A | **Assumption Checking** — grouped by test, each with how it is checked, what to do when it fails, and an example in the study's own clinical terms. |
 | 6 | **Shell (Dummy) Tables** — a pointer to the Shell Tables document, which holds them. |
-| 7 | **Needs Checking** — the decisions still open, to settle with the guide. |
-| — | **Document control and sign-off** — version, dates, signatures, amendment log. |
+
+Three sections of the route-map template are deliberately not produced: the
+Study at a Glance box, the Needs Checking list, and the sign-off block. The
+sample-size basis, which the glance box carried, is kept and printed with the
+statistical rules, because a target n without its assumptions is not a
+calculation.
 
 Two renderings of the same reference study sit in this folder, so the format can
 be read rather than described:

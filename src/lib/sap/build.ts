@@ -45,16 +45,6 @@ export const SAP_JSON_SCHEMA = obj({
   design: { ...str, description: "The exact design, e.g. prospective observational cohort." },
   setting: { ...str, description: "Department and institution, as one line." },
   guideline: { ...str, description: "CONSORT, STROBE, STARD, TRIPOD, PRISMA." },
-  glance: obj(
-    {
-      population: { ...str, description: "Who is studied, with the key inclusion and exclusion." },
-      what_is_measured: { ...str, description: "The exposure or intervention, and the main measurements." },
-      primary_outcome: { ...str, description: "The single most important endpoint." },
-      main_comparison: { ...str, description: "Before versus after, group A versus B, predictor versus outcome." },
-      sample_size_basis: { ...str, description: "The target n AND the basis for it." },
-    },
-    "A thirty-second summary. If a reader sees only this box, they should be able to say what the study is.",
-  ),
   picot: obj(
     {
       framework: {

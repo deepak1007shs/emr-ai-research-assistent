@@ -28,7 +28,6 @@ describe("the SAP as Markdown", () => {
   it("carries every section, in the document's order", () => {
     const order = [
       "# STATISTICAL ANALYSIS PLAN",
-      "## Section 0 - Study at a Glance",
       "## PECOT",
       "## Section 1 - Objectives as Answerable Questions",
       "### Primary estimand (ICH E9(R1))",
@@ -39,8 +38,6 @@ describe("the SAP as Markdown", () => {
       "## Section 5 - Step-by-Step Analysis Flow",
       "## Section 5A - Assumption Checking",
       "## Section 6 - Shell (Dummy) Tables",
-      "## Section 7 - Needs Checking",
-      "## Document control and sign-off",
     ];
     let at = -1;
     for (const heading of order) {
@@ -60,12 +57,7 @@ describe("the SAP as Markdown", () => {
     }
   });
 
-  it("carries every open decision and every variable", async () => {
-    const page = await docxText();
-    for (const flag of sapFixture.flags) {
-      expect(md).toContain(flag.flag);
-      expect(page).toContain(flag.flag);
-    }
+  it("carries every variable the plan declares", () => {
     for (const variable of sapFixture.variables) {
       expect(md).toContain(variable.label);
     }

@@ -161,32 +161,6 @@ export async function buildSapDocx(
     }),
   );
 
-  // ---- Section 0. Guarded, because a plan read back from a row is whatever
-  // was stored, not whatever the current type says.
-  if (spec.glance) {
-    doc.push(heading("Section 0 - Study at a Glance", HeadingLevel.HEADING_1));
-    doc.push(
-      italic(
-        "A thirty-second summary. If a reader sees only this box, they should be able to say what the study is.",
-      ),
-    );
-    doc.push(
-      twoColumn([
-        ["Title", spec.title],
-        ["Design", spec.design],
-        ["Population", spec.glance.population],
-        ["What is measured", spec.glance.what_is_measured],
-        ["Primary outcome", spec.glance.primary_outcome],
-        ["Main comparison", spec.glance.main_comparison],
-        ["Sample size", spec.glance.sample_size_basis],
-        ["Reporting guideline", spec.guideline],
-      ]),
-    );
-    if (spec.sample_size_note) {
-      doc.push(labelled("Sample-size note.", spec.sample_size_note));
-    }
-  }
-
   // ---- the clinical question decomposed
   const fw = spec.picot?.framework === "PICOT" ? "PICOT" : "PECOT";
   if (spec.picot) {
@@ -455,6 +429,9 @@ export async function buildSapDocx(
     doc.push(labelled("Multiplicity.", spec.rules.multiplicity));
     doc.push(labelled("Reproducibility.", spec.rules.reproducibility));
   }
+  if (spec.sample_size_note) {
+    doc.push(labelled("Sample size.", spec.sample_size_note));
+  }
 
   if (spec.populations?.length) {
     doc.push(
@@ -582,41 +559,6 @@ export async function buildSapDocx(
     para(
       "Every empty results table the thesis will contain, in the order it will appear, is laid out in the Shell Tables document that accompanies this plan. Cells stay blank until the data arrive, and each table names the test that produced it.",
     ),
-  );
-
-  /* ---- Section 7 --------------------------------------------------- */
-
-  if (spec.flags?.length) {
-    doc.push(heading("Section 7 - Needs Checking", HeadingLevel.HEADING_1));
-    doc.push(
-      italic(
-        "Decisions still open. Keeping this list is what turns the plan into a working tool rather than a finished-looking wall of text. Settle each with your guide before the plan is signed.",
-      ),
-    );
-    doc.push(
-      gridTable(
-        ["Open decision", "Why it matters"],
-        spec.flags.map((f) => [f.flag, f.why]),
-      ),
-    );
-  }
-
-  /* ---- sign-off ---------------------------------------------------- */
-
-  doc.push(heading("Document control and sign-off", HeadingLevel.HEADING_1));
-  doc.push(
-    para(
-      "Finalise, date and sign this plan before database lock and unblinding. Every analysis above is pre-specified; any change after the sign-off date is a dated amendment recording the version, the reason and who approved it.",
-    ),
-  );
-  doc.push(
-    twoColumn([
-      ["SAP version", "____"],
-      ["Date finalised", "____"],
-      ["Prepared by", "____"],
-      ["Approved by (guide / supervisor)", "____"],
-      ["Amendment log", "version - date - change - reason - approved by"],
-    ]),
   );
 
   doc.push(

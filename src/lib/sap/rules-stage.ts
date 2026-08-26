@@ -102,12 +102,6 @@ export const SAP_RULES_JSON_SCHEMA = obj({
       example: { ...str, description: "A short example in this study's own clinical terms." },
     }),
   },
-  flags: {
-    type: "array",
-    description:
-      "Decisions still open, to settle with the guide before the plan is signed. Typically three to eight. Each is specific to this protocol: a term left undefined by a standard, a sample size not tied to the primary analysis, an outcome scale with no cut-off, a follow-up method unstated.",
-    items: obj({ flag: str, why: { ...str, description: "Why it matters, in one sentence." } }),
-  },
 });
 
 const ROLE = `You are a senior trial statistician finishing a Statistical Analysis Plan.
@@ -115,8 +109,8 @@ const ROLE = `You are a senior trial statistician finishing a Statistical Analys
 The front half is written: the study, its question, its objectives, its variables
 and the analysis map. You are writing what is left, which is what turns a list of
 tests into a plan somebody can follow: the rules fixed in advance, who is analysed,
-how multiplicity is handled, the ladder of steps, the assumptions behind each
-chosen test, and the decisions still open.
+how multiplicity is handled, the ladder of steps, and the assumptions behind each
+chosen test.
 
 The tests have already been chosen, by rule, from the data type and the comparison.
 You are given the list. Write the assumptions of THOSE tests and no others: an
@@ -141,7 +135,6 @@ export type RulesResult = {
     | "interim"
     | "steps"
     | "assumption_checks"
-    | "flags"
   >;
   model: string;
   usage: TokenUsage;
@@ -168,7 +161,6 @@ export async function buildSapRules(
         design: front.design,
         setting: front.setting,
         guideline: front.guideline,
-        glance: front.glance,
         picot: front.picot,
         aim: front.aim,
         hypothesis: front.hypothesis,
