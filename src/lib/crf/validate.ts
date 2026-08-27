@@ -12,6 +12,48 @@ import type { Finding } from "../sap/validate.ts";
  */
 
 /**
+ * What a field has to be, for the plan's analysis to run on it.
+ *
+ * The plan says what each variable is; the form decides how it is written down.
+ * These have to agree, or the analysis is planned on data the form never
+ * gathers in a usable shape.
+ */
+const FIELD_FOR: Record<string, { types: string[]; wanted: string; why: string }> = {
+  binary: {
+    types: ["Single-select", "Single-select + text"],
+    wanted: "a single-select with both answers pre-printed",
+    why: "Two data collectors writing free text will not write the same word twice.",
+  },
+  nominal: {
+    types: ["Single-select", "Multi-select", "Single-select + text"],
+    wanted: "a select with every category pre-printed",
+    why: "A category that cannot be listed is not a category: if the values cannot be enumerated, the variable is not nominal and the plan should say what it really is.",
+  },
+  ordinal: {
+    types: ["Single-select", "Single-select + text"],
+    wanted: "a single-select with the ordered levels pre-printed",
+    why: "An ordered scale has named levels, and they belong on the form rather than in a data collector's memory.",
+  },
+  continuous: {
+    // A date counts: a duration is a continuous quantity, and the form collects
+    // the dates it is computed from rather than the duration itself.
+    types: ["Number", "Date", "Text / Date"],
+    wanted: "a number with its unit, or the dates it is computed from",
+    why: "A measurement written as free text cannot be summarised.",
+  },
+  count: {
+    types: ["Number", "Date"],
+    wanted: "a number",
+    why: "A count written as text cannot be added up.",
+  },
+  time_to_event: {
+    types: ["Number", "Date", "Text / Date"],
+    wanted: "a date, or a number of days",
+    why: "Time to an event is computed from dates, so the dates are what the form collects.",
+  },
+};
+
+/**
  * An id that claims to come from the analysis plan.
  *
  * The plan's ids are prefixed; a form is free to key its own raw fields any
@@ -63,6 +105,21 @@ export function validateCrf(crf: CrfSpec, sap?: SapRegistry): { ok: boolean; fin
       if (field.type === "Number" && !field.unit) {
         error("CRF05", `"${name}" is a number with no unit. A number without a unit cannot be analysed.`);
       }
+      // The field must be able to hold what the plan says the variable is. A
+      // categorical variable collected as free text cannot be counted, and a
+      // count collected as text cannot be added up: the analysis named in the
+      // plan simply will not run on what the form gathers.
+      const declared = field.variable_id ? byVariable.get(field.variable_id) : undefined;
+      if (declared) {
+        const wanted = FIELD_FOR[declared.data_type];
+        if (wanted && !wanted.types.includes(field.type)) {
+          error(
+            "CRF08",
+            `"${nameOf(field.variable_id!)}" is ${declared.data_type} in the analysis plan, so the form needs ${wanted.wanted}, not a ${field.type} field. ${wanted.why}`,
+          );
+        }
+      }
+
       // A field's id is either the plan's, or the form's own key for a raw
       // value the plan derives from. The prefix is what tells them apart, so a
       // near-miss on a real id is caught and a legitimate local key is not.

@@ -226,3 +226,63 @@ describe("a form's own keys", () => {
     expect(findings.find((f) => f.code === "REF07")?.message).toContain("without the var_ prefix");
   });
 });
+
+describe("the field must hold what the plan says the variable is", () => {
+  it("CRF08 - a categorical variable collected as free text", () => {
+    // The case this was written for: a plan declared parity nominal, and the
+    // form gave it a text box because TPAL counts cannot be enumerated as
+    // options. Neither is right, and the form said nothing.
+    const c = clean();
+    const s = sap();
+    s.variables.push({
+      id: "var_parity",
+      label: "Parity",
+      data_type: "nominal",
+      unit_coding: "TPAL format",
+      role: "descriptor",
+    });
+    c.sections[0].fields.push({ variable_id: "var_parity", label: "Parity", type: "Text" });
+
+    const findings = validateCrf(c, s).findings;
+    expect(findings.map((f) => f.code)).toContain("CRF08");
+    const message = findings.find((f) => f.code === "CRF08")!.message;
+    expect(message).toContain("nominal in the analysis plan");
+    expect(message).toContain("not a Text field");
+    // And it says why the plan itself may be the thing that is wrong.
+    expect(message).toContain("not nominal");
+  });
+
+  it("CRF08 - a count collected as free text cannot be added up", () => {
+    const c = clean();
+    const s = sap();
+    s.variables.push({
+      id: "var_gravida", label: "Gravida", data_type: "count",
+      unit_coding: "pregnancies", role: "descriptor",
+    });
+    c.sections[0].fields.push({ variable_id: "var_gravida", label: "Gravida", type: "Text" });
+
+    const findings = validateCrf(c, s).findings;
+    expect(findings.find((f) => f.code === "CRF08")?.message).toContain("added up");
+  });
+
+  it("accepts a select for a binary variable, and a number for a count", () => {
+    const c = clean();
+    const s = sap();
+    s.variables.push({
+      id: "var_gravida", label: "Gravida", data_type: "count",
+      unit_coding: "pregnancies", role: "descriptor",
+    });
+    c.sections[0].fields.push({
+      variable_id: "var_gravida", label: "Gravida", type: "Number", unit: "pregnancies",
+    });
+    // var_sex is binary in the plan and a Single-select on the form already.
+    expect(codes(c, s)).not.toContain("CRF08");
+  });
+
+  it("says nothing about a field the plan does not declare", () => {
+    // A raw ingredient the plan derives from is the form's own business.
+    const c = clean();
+    c.sections[0].fields.push({ variable_id: "waist_cm", label: "Waist", type: "Text" });
+    expect(codes(c, sap())).not.toContain("CRF08");
+  });
+});

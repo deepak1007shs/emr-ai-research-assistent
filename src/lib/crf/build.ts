@@ -168,6 +168,21 @@ Refer to every variable by the id the analysis plan gave it, and do not retype i
 wording. The plan, this form and the shell tables all point at the same ids, so a
 variable named once is named the same in all three documents.
 
+The field type follows the data type the plan gives the variable, and the
+application checks that it does:
+
+- binary or ordinal, a single-select with every level pre-printed;
+- nominal, a select with every category pre-printed;
+- continuous or count, a number with its unit, or the dates a duration is
+  computed from;
+- time to event, the dates.
+
+Text is for a name, an identifier or a free remark, and for nothing the plan
+analyses. If a variable the plan calls categorical has values you cannot print
+as options, do not fall back to a text box: the plan has typed it wrongly, and a
+composite such as parity in TPAL form is several numeric fields rather than one
+of anything.
+
 Pre-print every option with a box. Show the unit on every number. Give every date
 a mask. A field a data collector has to interpret is a field two collectors will
 fill differently.`;

@@ -186,6 +186,17 @@ An outcome is not defined until five questions are answered: what exactly will b
 measured, how, using which instrument, at what time, and in which units. Fold all
 five into the outcome sentence.
 
+A measure that is several numbers is several variables, not one. Parity written
+as TPAL is four counts, term and preterm and abortions and living children, and
+it is declared as four variables with data type count. An Apgar recorded at one,
+five and ten minutes is three. A score with items is its items. Bundling them
+into one variable makes it impossible to type: it is not nominal, because its
+values cannot be listed, and the form has nowhere to put it but a text box.
+
+A variable is only nominal or ordinal if its categories can be written out. If
+you cannot list them, it is not categorical, and saying so now is what stops the
+case report form collecting it as free text.
+
 Do not name a statistical test anywhere. The application plans every analysis by
 rule, so that the same study always yields the same plan.
 
