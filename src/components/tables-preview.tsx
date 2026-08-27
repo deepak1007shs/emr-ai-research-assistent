@@ -24,14 +24,6 @@ const BLOCK_HEADING: Record<TableBlock, string> = {
 
 const BLOCK_ORDER: TableBlock[] = ["descriptive", "primary", "secondary", "exploratory"];
 
-/** The tier badge, which says at a glance what a table is for. */
-const TIER: Record<TableBlock, { label: string; className: string }> = {
-  descriptive: { label: "Descriptive", className: "bg-line-2 text-ink-2" },
-  primary: { label: "Primary", className: "bg-brand-50 text-brand-ink" },
-  secondary: { label: "Secondary", className: "bg-brand-50 text-brand-ink" },
-  exploratory: { label: "Exploratory", className: "bg-line-2 text-ink-2" },
-};
-
 export function TablesPreview({
   spec,
   /** Table numbers a finding flagged, so the reader shows what the rail says. */
@@ -55,7 +47,7 @@ export function TablesPreview({
 
         return (
           <section key={block} className="mb-10">
-            <h2 className="eyebrow mb-4">{BLOCK_HEADING[block]}</h2>
+            <h2 className="mb-4 text-base font-bold text-ink">{BLOCK_HEADING[block]}</h2>
             {block === "exploratory" && (
               <Note>
                 Exploratory analyses are hypothesis-generating. They are not powered and must not
@@ -87,26 +79,20 @@ function ShellTableBlock({
   flagged: boolean;
 }) {
   const width = (table.columns ?? []).length;
-  const tier = TIER[table.block];
 
   return (
     <div id={`table-${table.number}`} className="mb-10 scroll-mt-5">
-      <div className="mb-1 flex flex-wrap items-baseline gap-2">
-        <span
-          className={`rounded-sm px-1.5 py-0.5 text-2xs font-bold tracking-wider uppercase ${tier.className}`}
-        >
-          {tier.label}
-        </span>
-        {flagged && (
-          <span className="inline-flex items-center gap-1 text-2xs font-semibold text-warn">
-            <AlertTriangleIcon size={12} />
-            Flagged in review
-          </span>
-        )}
-      </div>
+      {/* Review chrome, not part of the document: it marks a table the rail
+          has something to say about, and does not print. */}
+      {flagged && (
+        <p className="no-print mb-1 inline-flex items-center gap-1 text-2xs font-semibold text-warn">
+          <AlertTriangleIcon size={12} />
+          Flagged in review
+        </p>
+      )}
 
-      <h3 className="text-base font-bold tracking-tight text-ink">
-        Table {table.number}. {line(table.title)}
+      <h3 className="text-base font-bold text-ink">
+        Table {table.number}: {line(table.title)}
       </h3>
 
       <div className="mt-3">
@@ -129,10 +115,9 @@ function ShellTableBlock({
               <tr key={i}>
                 <Td indent={row.indent}>{line(label)}</Td>
                 {/* Empty on purpose. This is a shell, not a result. */}
+                {/* Empty on purpose. This is a shell, not a result. */}
                 {Array.from({ length: width - 1 }, (_, c) => (
-                  <Td key={c} centre placeholder>
-                    __
-                  </Td>
+                  <Td key={c} centre />
                 ))}
               </tr>
             );
@@ -140,12 +125,7 @@ function ShellTableBlock({
         </DocTable>
       </div>
 
-      {table.test_applied && (
-        <p className="mt-2 text-xs text-ink-3">
-          <span className="font-semibold text-ink-2">Test applied:</span>{" "}
-          {plain(table.test_applied)}
-        </p>
-      )}
+      {table.test_applied && <Note>Test applied: {plain(table.test_applied)}</Note>}
       {table.footnote && <Note>{plain(table.footnote)}</Note>}
     </div>
   );

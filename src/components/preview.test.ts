@@ -147,7 +147,7 @@ describe("the shell tables preview", () => {
 
   it("keeps the cells empty: a shell is not a result", () => {
     const screen = screenText(TablesPreview({ spec: tablesFixture }));
-    expect(screen).toContain("Table 1.");
+    expect(screen).toContain("Table 1:");
     // Every column header the document prints.
     for (const column of tablesFixture.tables[0].columns) {
       expect(screen).toContain(column);
@@ -158,7 +158,7 @@ describe("the shell tables preview", () => {
     const screen = screenText(TablesPreview({ spec: tablesFixture }));
     const page = await pageText(await buildTablesDocx(tablesFixture));
     for (const table of tablesFixture.tables) {
-      expect(screen, `table ${table.number} on screen`).toContain(`Table ${table.number}.`);
+      expect(screen, `table ${table.number} on screen`).toContain(`Table ${table.number}:`);
       expect(page, `table ${table.number} in the document`).toContain(`Table ${table.number}:`);
     }
   });
@@ -295,5 +295,46 @@ describe("a plan stored before the route map existed", () => {
     // What it does still have is still printed.
     const screen = screenText(SapPreview({ spec: old as never }));
     expect(screen).toContain("Section 3 - Analysis Map");
+  });
+});
+
+describe("a table on screen is the table in the document", () => {
+  it("captions, heads and fills every table the same way", async () => {
+    const screen = screenText(TablesPreview({ spec: tablesFixture }));
+    const page = await pageText(await buildTablesDocx(tablesFixture));
+
+    for (const table of tablesFixture.tables) {
+      const caption = `Table ${table.number}: ${table.title}`;
+      expect(screen, `caption on screen`).toContain(caption);
+      expect(page, `caption in the document`).toContain(caption);
+
+      for (const column of table.columns) {
+        expect(screen, `${column} on screen`).toContain(column);
+        expect(page, `${column} in the document`).toContain(column);
+      }
+
+      if (table.test_applied) {
+        expect(screen).toContain(`Test applied: ${table.test_applied}`);
+        expect(page).toContain(`Test applied: ${table.test_applied}`);
+      }
+    }
+  });
+
+  it("leaves the cells empty on screen, as the document leaves them", () => {
+    const markup = renderToStaticMarkup(TablesPreview({ spec: tablesFixture }));
+    // A shell table is a grid of empty boxes. A placeholder character in the
+    // cells would read as data that is not there.
+    expect(markup).not.toContain("__");
+    // The boxes are drawn, not implied: every cell carries the document's rule.
+    expect(markup).toContain("border border-ink");
+  });
+
+  it("carries none of the review chrome into what prints", () => {
+    const markup = renderToStaticMarkup(
+      TablesPreview({ spec: tablesFixture, flagged: new Set([1]) }),
+    );
+    // The flag is a note from the rail, not part of the document.
+    expect(markup).toContain("Flagged in review");
+    expect(markup).toContain("no-print");
   });
 });

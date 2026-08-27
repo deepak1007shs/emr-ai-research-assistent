@@ -32,11 +32,11 @@ export function DocumentShell({
   );
 }
 
-/** A part of a document, with the space between parts the design gives. */
+/** A part of a document, headed as the .docx heads it. */
 export function DocSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="mb-10">
-      <h2 className="mb-3 text-base font-bold tracking-tight text-ink">{title}</h2>
+      <h2 className="mb-3 text-base font-bold text-ink">{title}</h2>
       {children}
     </section>
   );
@@ -46,24 +46,29 @@ export function DocHeading({ children }: { children: ReactNode }) {
   return <h3 className="eyebrow mt-4 mb-1.5">{children}</h3>;
 }
 
+/** The italic notes the .docx prints under a table or a section. */
 export function Note({ children }: { children: ReactNode }) {
-  return <p className="mt-2 text-xs leading-relaxed text-ink-3">{children}</p>;
+  return <p className="mt-2 text-sm leading-relaxed text-ink-3 italic">{children}</p>;
 }
 
 /**
- * A table set as print sets one: a rule above the head, a rule below it, and a
- * hairline under every row. No vertical rules, no fill.
+ * A table drawn the way the .docx draws one.
+ *
+ * Every cell carries all four borders in a hairline, the header row is bold and
+ * centred from the second column, and the cell padding matches the Word
+ * renderer's margins. What is read here is what is downloaded, so the two are
+ * not allowed to look like different documents.
  */
 export function DocTable({ headers, children }: { headers: string[]; children: ReactNode }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-sm">
+      <table className="w-full border-collapse text-sm text-ink">
         <thead>
           <tr>
             {headers.map((head, i) => (
               <th
                 key={i}
-                className="border-t-[1.5px] border-b border-t-ink border-b-ink px-2.5 py-2 text-xs font-bold whitespace-nowrap text-ink"
+                className="border border-ink px-2.5 py-1.5 align-top text-sm font-bold"
                 style={{ textAlign: i === 0 ? "left" : "center" }}
               >
                 {head}
@@ -83,30 +88,28 @@ export function Td({
   span,
   indent,
   centre,
-  /** An empty cell in a shell table: present, and visibly unfilled. */
-  placeholder,
 }: {
   children?: ReactNode;
   bold?: boolean;
   span?: number;
   indent?: boolean;
   centre?: boolean;
-  placeholder?: boolean;
 }) {
   return (
     <td
       colSpan={span}
       className={[
-        "border-b border-line-2 px-2.5 py-1.75 align-top",
-        bold ? "font-semibold" : "",
+        "border border-ink px-2.5 py-1.5 align-top",
+        bold ? "font-bold" : "",
         indent ? "pl-6" : "",
         centre ? "text-center" : "",
-        placeholder ? "text-ink-4" : "text-ink",
       ]
         .filter(Boolean)
         .join(" ")}
     >
-      {children}
+      {/* A cell with nothing in it still has to hold its height. An empty shell
+          table is a grid of empty boxes, which is what it should look like. */}
+      {children ?? "\u00a0"}
     </td>
   );
 }
