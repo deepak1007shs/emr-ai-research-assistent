@@ -348,6 +348,24 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
     }
   }
 
+  /* ---- what is computed, and from what ------------------------------ */
+
+  for (const v of variables) {
+    for (const id of v.derived_from ?? []) {
+      if (!byVariable.has(id)) {
+        error(
+          "VAR01",
+          `"${v.label}" is computed from ${id}, which is not a declared variable. The form collects what a value is computed from, so an ingredient that does not exist cannot be collected.`,
+        );
+      }
+    }
+    // A variable computed from itself would send the form's field list round in
+    // a circle, and the circle would be silent.
+    if ((v.derived_from ?? []).includes(v.id)) {
+      error("VAR02", `"${v.label}" is computed from itself.`);
+    }
+  }
+
   /* ---- how common the event is ------------------------------------- */
 
   // The estimate a binary outcome gets turns on this one field: stated common,

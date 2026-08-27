@@ -72,6 +72,24 @@ export type Variable = {
   data_type: DataType;
   unit_coding: string;
   role: Role;
+  /**
+   * When it is measured, in the study's own words: "baseline", "day 30",
+   * "at discharge". Empty for something recorded once at entry.
+   *
+   * The form is sectioned by this. Without it nothing can say a study has a
+   * follow-up visit, and a form built from a plan that never mentions one stops
+   * at the last thing the protocol described in detail.
+   */
+  timepoints?: string[];
+  /**
+   * The variables this is computed from, where it is not measured directly.
+   *
+   * A subscale score, a change from baseline, a ratio, an index. The form
+   * collects these inputs and never the result, because a number the data
+   * collector arrives already holding was computed somewhere the study cannot
+   * check. Each id here must itself be a declared variable.
+   */
+  derived_from?: string[];
   /** Why a mediator or collider is excluded, printed under the map. */
   exclusion_reason?: string;
 };

@@ -138,6 +138,16 @@ export const SAP_JSON_SCHEMA = obj({
         type: "string",
         enum: ["outcome", "predictor", "confounder", "effect_modifier", "mediator", "collider", "descriptor"],
       },
+      timepoints: {
+        ...strArray,
+        description:
+          "When it is measured, in the study's own words: ['baseline'], ['baseline','day 30'], ['at discharge']. Empty for something recorded once at entry. The case report form is sectioned by this, so a variable measured after the intervention must say so or no follow-up section will exist to collect it.",
+      },
+      derived_from: {
+        ...strArray,
+        description:
+          "The ids of the variables this is computed from, where it is not measured directly: a questionnaire subscale from its items, a change from its baseline and follow-up values, a ratio or an index from its parts. Each id must itself be a declared variable. Empty for anything measured directly. A score is never collected as a number; its items are collected and the score is computed, because a total the data collector arrives already holding was worked out somewhere nobody can check.",
+      },
       exclusion_reason: {
         ...str,
         description: "Required for a mediator or collider: why adjusting for it would be wrong. Empty otherwise.",

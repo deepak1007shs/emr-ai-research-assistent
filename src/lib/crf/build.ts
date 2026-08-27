@@ -7,7 +7,9 @@ import type { TokenUsage } from "../protocol/pricing.ts";
 import type { ExtractedProtocol } from "../protocol/extract.ts";
 import type { SapSpec } from "../sap/types.ts";
 import type { Finding } from "../sap/validate.ts";
-import type { CrfSpec } from "./types.ts";
+import type { CrfField, CrfSection, CrfSpec } from "./types.ts";
+import type { RequiredField } from "./required.ts";
+import { requiredDerived, requiredFields, requiredVisits } from "./required.ts";
 import { validateCrf } from "./validate.ts";
 
 /**
@@ -142,6 +144,29 @@ export const CRF_JSON_SCHEMA = obj({
   },
 });
 
+/**
+ * The second pass: only the fields the first one left out.
+ *
+ * Small on purpose. Asked for one thing it cannot lose the thread of, a model
+ * that stopped halfway through a long form finishes the rest.
+ */
+export const CRF_COMPLETION_SCHEMA = obj({
+  sections: {
+    type: "array",
+    description:
+      "One section per group of missing fields, in the order they are collected. Reuse the title of an existing section where the field belongs in one, and it will be merged into it; otherwise give the new section its own title.",
+    items: obj({
+      title: { ...str, description: "The section heading." },
+      visit: {
+        ...str,
+        description: "The visit this section is filled at, matching one of the visits named. Empty where it is filled once at entry.",
+      },
+      fields: { type: "array", items: FIELD },
+      note: { ...str, description: "Printed under the table. Empty when not needed." },
+    }),
+  },
+});
+
 const ROLE = `You are a senior clinical research methodologist building a case report form.
 
 Work in the order the discipline requires. First decide what data the study needs,
@@ -228,11 +253,20 @@ ${JSON.stringify({
   const decisions = decisionsBlock(options.answers, "form");
   if (decisions) content.push({ type: "text", text: decisions });
 
+  // The checklist, worked out from the plan rather than asked for. It goes last,
+  // nearest the writing, because what a model is told at the end of a long
+  // input is what it is still holding when it starts.
+  content.push({ type: "text", text: checklistBlock(sap) });
+
   content.push({
     type: "text",
     text: `Build the data-collection plan and the case report form. Name the visits
 first, then the grid of elements against them, then the roll-call, then the
-sections and their fields.`,
+sections and their fields.
+
+Work down the checklist above and do not stop before its last line. A form that
+covers the first half of a study is not a shorter form, it is a study that
+cannot be analysed.`,
   });
 
   options.onProgress?.("Planning the data collection");
@@ -328,6 +362,14 @@ sections and their fields.`,
     }),
   };
 
+  // What the checklist asked for and the form did not deliver. Asked once more,
+  // for those alone. A form that covers the pre-operative half of a trial is
+  // the failure this exists to close, and it is not closed by asking nicely.
+  const extra = await completeForm(client, spec, sap, tidyField, options);
+  if (extra.sections.length) {
+    spec.sections = mergeSections(spec.sections, extra.sections);
+  }
+
   const { findings } = validateCrf(spec, sap);
 
   return {
@@ -335,10 +377,207 @@ sections and their fields.`,
     findings,
     model: message.model,
     usage: {
-      input_tokens: message.usage.input_tokens,
-      output_tokens: message.usage.output_tokens,
-      cache_creation_input_tokens: message.usage.cache_creation_input_tokens ?? 0,
-      cache_read_input_tokens: message.usage.cache_read_input_tokens ?? 0,
+      input_tokens: message.usage.input_tokens + extra.usage.input_tokens,
+      output_tokens: message.usage.output_tokens + extra.usage.output_tokens,
+      cache_creation_input_tokens:
+        (message.usage.cache_creation_input_tokens ?? 0) + extra.usage.cache_creation_input_tokens,
+      cache_read_input_tokens:
+        (message.usage.cache_read_input_tokens ?? 0) + extra.usage.cache_read_input_tokens,
     },
   };
+}
+
+/**
+ * The fields the plan requires, written out for the model to work down.
+ *
+ * A list it can tick off, rather than a rule it has to keep in mind while
+ * writing a long document. The rule was there before and was followed for the
+ * first half of a form: this is the same rule in a form that can be checked
+ * line by line, and it is checked line by line afterwards.
+ */
+function checklistBlock(sap: SapSpec): string {
+  const fields = requiredFields(sap);
+  const derived = requiredDerived(sap);
+  const visits = requiredVisits(sap);
+
+  const lines = fields.map(
+    (f, i) =>
+      `${i + 1}. ${f.variable_id} - "${f.label}" - ${f.data_type}, coded ${f.unit_coding || "as the protocol states"}${
+        f.timepoints.length ? `, measured at ${f.timepoints.join(" and ")}` : ""
+      }. Needed because ${f.because}.`,
+  );
+
+  return `Every field this form must carry, worked out from the plan. There are
+${fields.length}. Each one needs a field whose variable_id is the id given here,
+and the field type must match the data type:
+
+${lines.join("\n")}
+
+${
+    derived.length
+      ? `These are calculated, never collected. Put each in the calculated values, naming the fields it comes from, and do NOT give any of them a field of its own:
+
+${derived.map((d) => `- ${d.variable_id} ("${d.label}") from ${d.from_variable_ids.join(", ")}`).join("\n")}`
+      : "Nothing in this plan is calculated from other fields."
+  }
+
+${
+    visits.length
+      ? `The plan measures things at these times, so the form needs a section for each: ${visits.join("; ")}.`
+      : "Everything is collected once, at entry."
+  }
+
+You may add fields the plan does not name only where they are identifiers, or
+where they are the raw values a calculated value above is computed from. Nothing
+else: a field that answers no question is a box somebody has to fill for
+nothing.`;
+}
+
+/** Every variable the plan requires that no field and no calculated value covers. */
+export function missingFields(spec: CrfSpec, sap: SapSpec): RequiredField[] {
+  const captured = new Set<string>();
+  for (const f of spec.identifiers ?? []) if (f.variable_id) captured.add(f.variable_id);
+  for (const s of spec.sections ?? []) {
+    for (const f of s.fields ?? []) if (f.variable_id) captured.add(f.variable_id);
+  }
+  for (const d of spec.derived ?? []) if (d.variable_id) captured.add(d.variable_id);
+  return requiredFields(sap).filter((f) => !captured.has(f.variable_id));
+}
+
+/**
+ * Asks for the fields the form left out, and for nothing else.
+ *
+ * The whole protocol is not sent again: the plan already said what these
+ * variables are, and the question is only where on the form they go. One short
+ * call, at medium effort, because the thinking was done in the first one.
+ */
+async function completeForm(
+  client: Anthropic,
+  spec: CrfSpec,
+  sap: SapSpec,
+  tidyField: (f: CrfField) => CrfField,
+  options: { onProgress?: (note: string) => void; onUsage?: (usage: TokenUsage) => void },
+): Promise<{ sections: CrfSection[]; usage: TokenUsage }> {
+  const none = {
+    sections: [] as CrfSection[],
+    usage: {
+      input_tokens: 0,
+      output_tokens: 0,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+    },
+  };
+
+  const missing = missingFields(spec, sap);
+  if (!missing.length) return none;
+
+  options.onProgress?.(
+    `Adding the ${missing.length} field${missing.length === 1 ? "" : "s"} the form left out`,
+  );
+
+  const asked = missing
+    .map(
+      (f) =>
+        `- ${f.variable_id} - "${f.label}" - ${f.data_type}, coded ${f.unit_coding || "as the protocol states"}${
+          f.timepoints.length ? `, measured at ${f.timepoints.join(" and ")}` : ""
+        }. Needed because ${f.because}.`,
+    )
+    .join("\n");
+
+  const existing = (spec.sections ?? []).map((s) => s.title).join("; ");
+
+  let message;
+  try {
+    message = await client.messages.create({
+      model: MODEL,
+      max_tokens: 32000,
+      thinking: { type: "adaptive" },
+      // Medium, not high: what to collect was decided in the first call, and
+      // all that is left is where on the form it goes.
+      output_config: {
+        effort: "medium",
+        format: { type: "json_schema", schema: CRF_COMPLETION_SCHEMA },
+      },
+      system: [{ type: "text", text: ROLE }],
+      messages: [
+        {
+          role: "user",
+          content: `A case report form for "${sap.title}" has been built and is missing fields the
+analysis plan requires. Its sections so far are: ${existing || "none"}.
+Its visits are: ${(spec.visits ?? []).join("; ") || "not yet named"}.
+
+Add these, and only these:
+
+${asked}
+
+Give each one a field whose variable_id is the id above and whose type matches
+the data type, with every option pre-printed for a select and the unit shown on
+a number. Group them into sections: reuse an existing section title where the
+field belongs in one, and give anything collected at a follow-up visit its own
+section named for that visit.`,
+        },
+      ],
+    });
+  } catch {
+    // The first form still stands, and the validators will report what it is
+    // missing. A failed second call must not lose the first.
+    return none;
+  }
+
+  const usage: TokenUsage = {
+    input_tokens: message.usage.input_tokens,
+    output_tokens: message.usage.output_tokens,
+    cache_creation_input_tokens: message.usage.cache_creation_input_tokens ?? 0,
+    cache_read_input_tokens: message.usage.cache_read_input_tokens ?? 0,
+  };
+  options.onUsage?.(usage);
+
+  const text = message.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+
+  let parsed: { sections?: CrfSection[] };
+  try {
+    parsed = JSON.parse(text) as { sections?: CrfSection[] };
+  } catch {
+    return { ...none, usage };
+  }
+
+  const sections = (parsed.sections ?? []).map((s) => ({
+    letter: "",
+    title: s.title,
+    visit: s.visit?.trim() || undefined,
+    note: s.note?.trim() || undefined,
+    fields: (s.fields ?? []).map(tidyField),
+  }));
+
+  return { sections, usage };
+}
+
+/**
+ * Folds the second pass into the first.
+ *
+ * A section whose title already exists gains the fields; anything else is
+ * appended. Letters are re-run at the end so the form still reads A, B, C.
+ */
+export function mergeSections(existing: CrfSection[], extra: CrfSection[]): CrfSection[] {
+  const merged = existing.map((s) => ({ ...s, fields: [...s.fields] }));
+  const key = (title: string) => title.trim().toLowerCase();
+  const byTitle = new Map(merged.map((s) => [key(s.title), s]));
+
+  for (const section of extra) {
+    if (!section.fields.length) continue;
+    const already = byTitle.get(key(section.title));
+    if (already) {
+      const have = new Set(already.fields.map((f) => f.variable_id).filter(Boolean));
+      already.fields.push(...section.fields.filter((f) => !f.variable_id || !have.has(f.variable_id)));
+    } else {
+      merged.push(section);
+      byTitle.set(key(section.title), merged[merged.length - 1]);
+    }
+  }
+
+  const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  return merged.map((s, i) => ({ ...s, letter: LETTERS[i] ?? String(i + 1) }));
 }

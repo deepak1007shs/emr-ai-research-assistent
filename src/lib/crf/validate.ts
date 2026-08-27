@@ -1,6 +1,7 @@
 import type { CrfSpec } from "./types.ts";
 import type { SapRegistry } from "../sap/types.ts";
 import { variableIndex } from "../sap/types.ts";
+import { requiredFields, requiredVisits } from "./required.ts";
 import type { Finding } from "../sap/validate.ts";
 
 /**
@@ -227,6 +228,63 @@ export function validateCrf(crf: CrfSpec, sap?: SapRegistry): { ok: boolean; fin
         warn(
           "ROLL04",
           `"${variable.label}" is collected and is a ${variable.role}. That is fine, but it must stay out of every model.`,
+        );
+      }
+    }
+
+    /* ---- not less, not extra ---------------------------------------- */
+
+    // Worked out from the plan rather than read off the roll call, because the
+    // roll call is written by the same hand as the form and has promised a
+    // field that was never written.
+    const required = requiredFields(sap);
+    for (const field of required) {
+      if (!captured.has(field.variable_id) && !derived.has(field.variable_id)) {
+        error(
+          "CRF09",
+          `The form does not collect "${field.label}", which ${field.because}. A variable nobody records cannot be analysed.`,
+        );
+      }
+    }
+
+    // A score, an index or a change is worked out from things the form collects.
+    // Asking a data collector for the result moves the arithmetic somewhere the
+    // study cannot check, and loses the instrument's own rule for a part answer.
+    const byVariable = variableIndex(sap);
+    for (const id of captured) {
+      const variable = byVariable.get(id);
+      if (variable?.derived_from?.length) {
+        error(
+          "CRF10",
+          `The form has a field for "${variable.label}", which the plan computes from ${variable.derived_from
+            .map((from) => byVariable.get(from)?.label ?? from)
+            .join(", ")}. Collect those and calculate this one; a total the collector arrives already holding was worked out somewhere nobody can check.`,
+        );
+      }
+    }
+
+    // Not extra. An identifier or a raw ingredient carries a key of its own and
+    // is not checked here; this is only for a plan variable the plan never uses.
+    const needed = new Set(required.map((f) => f.variable_id));
+    for (const id of captured) {
+      if (!byVariable.has(id) || needed.has(id) || byVariable.get(id)?.derived_from?.length) continue;
+      warn(
+        "CRF11",
+        `The form collects "${byVariable.get(id)!.label}", which no analysis uses and no table reports. Either an analysis is missing or the field is.`,
+      );
+    }
+
+    // A visit the plan measures at, with nowhere on the form to record it.
+    const visited = new Set(
+      (crf.sections ?? [])
+        .map((section) => section.visit?.trim().toLowerCase())
+        .filter((v): v is string => Boolean(v)),
+    );
+    for (const visit of requiredVisits(sap)) {
+      if (!visited.has(visit.toLowerCase())) {
+        warn(
+          "CRF12",
+          `The plan measures something at "${visit}" but no section of the form is filled at that visit, so there is nowhere to write it down.`,
         );
       }
     }

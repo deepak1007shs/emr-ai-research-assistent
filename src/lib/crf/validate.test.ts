@@ -9,13 +9,23 @@ const codes = (crf: CrfSpec, sap?: SapRegistry) => validateCrf(crf, sap).finding
 
 const sap = (): SapRegistry => ({
   title: "A study",
-  objectives: [{ id: "P1", tier: "primary", question: "What proportion convert?" }],
+  objectives: [
+    { id: "P1", tier: "primary", question: "What proportion convert?" },
+    { id: "S1", tier: "secondary", question: "Is adhesion severity associated with conversion?" },
+  ],
   variables: [
     { id: "var_age", label: "Age", data_type: "continuous", unit_coding: "Years", role: "confounder" },
     { id: "var_sex", label: "Sex", data_type: "binary", unit_coding: "Male / Female", role: "descriptor" },
     { id: "var_height", label: "Height", data_type: "continuous", unit_coding: "cm", role: "descriptor" },
     { id: "var_weight", label: "Weight", data_type: "continuous", unit_coding: "kg", role: "descriptor" },
-    { id: "var_bmi", label: "Body mass index", data_type: "continuous", unit_coding: "kg/m2", role: "confounder" },
+    {
+      id: "var_bmi",
+      label: "Body mass index",
+      data_type: "continuous",
+      unit_coding: "kg/m2",
+      role: "confounder",
+      derived_from: ["var_height", "var_weight"],
+    },
     {
       id: "var_adhesion",
       label: "Adhesion severity",
@@ -37,6 +47,7 @@ const sap = (): SapRegistry => ({
       data_type: "count",
       unit_coding: "Whole days",
       role: "outcome",
+      derived_from: ["var_surgery_date", "var_discharge_date"],
     },
     {
       id: "var_conversion",
@@ -68,6 +79,19 @@ const sap = (): SapRegistry => ({
       comparison: "single_group",
       pairing: "none" as const,
       table_ids: ["T1"],
+    },
+    {
+      objective_ids: ["S1"],
+      label: "S1 - adhesion severity",
+      outcome_ids: ["out_conversion"],
+      // Coherent on purpose: everything the plan declares with an analytic role
+      // is used by an analysis. A confounder nothing adjusts for is a defect,
+      // and CRF11 is the guard that says so.
+      exposure_ids: ["var_adhesion"], adjust_for_ids: ["var_age", "var_bmi"],
+      data_type: "binary",
+      comparison: "adjusted",
+      pairing: "none" as const,
+      table_ids: ["T2"],
     },
   ],
 });
@@ -176,6 +200,57 @@ describe("validateCrf", () => {
     const s = sap();
     s.outcomes[0].source_variable_ids = ["var_los"];
     expect(codes(clean(), s)).not.toContain("ROLL02");
+  });
+});
+
+describe("not less, not extra", () => {
+  it("CRF09 - the form leaves out something an analysis needs", () => {
+    const c = clean();
+    const p = sap();
+    // Every field for the exposure is removed.
+    for (const section of c.sections) {
+      section.fields = section.fields.filter((f) => f.variable_id !== "var_adhesion");
+    }
+    const found = validateCrf(c, p).findings.find((f) => f.code === "CRF09");
+    expect(found?.message).toContain("Adhesion severity");
+    expect(found?.message).toContain("cannot be analysed");
+  });
+
+  it("CRF09 - and says why the form owed it", () => {
+    const c = clean();
+    for (const section of c.sections) {
+      section.fields = section.fields.filter((f) => f.variable_id !== "var_age");
+    }
+    const found = validateCrf(c, sap()).findings.find((f) => f.code === "CRF09");
+    expect(found?.message).toMatch(/holds it constant|describes it/);
+  });
+
+  it("CRF10 - a computed value collected as a field", () => {
+    const c = clean();
+    // Body mass index is computed from height and weight; asking for the result
+    // moves the arithmetic somewhere nobody can check.
+    c.sections[0].fields.push({ variable_id: "var_bmi", label: "Body mass index", type: "Number" });
+    const found = validateCrf(c, sap()).findings.find((f) => f.code === "CRF10");
+    expect(found?.message).toContain("Height");
+    expect(found?.message).toContain("Weight");
+  });
+
+  it("CRF12 - the plan measures at a visit the form has no section for", () => {
+    const c = clean();
+    const p = sap();
+    p.variables = p.variables.map((v) =>
+      v.id === "var_conversion" ? { ...v, timepoints: ["six weeks after surgery"] } : v,
+    );
+    const found = validateCrf(c, p).findings.find((f) => f.code === "CRF12");
+    expect(found?.message).toContain("six weeks after surgery");
+    expect(found?.severity).toBe("WARN");
+  });
+
+  it("the clean fixture asks for nothing extra and leaves nothing out", () => {
+    const found = validateCrf(clean(), sap()).findings.filter((f) =>
+      ["CRF09", "CRF10", "CRF11"].includes(f.code),
+    );
+    expect(found, JSON.stringify(found, null, 2)).toEqual([]);
   });
 });
 
