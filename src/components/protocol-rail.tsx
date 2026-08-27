@@ -102,17 +102,15 @@ export function ProtocolRail({
       </div>
 
       <div className="shrink-0 px-2.5 pb-2.5">
+        {/* The one action that starts everything, so it carries the weight:
+            solid, not outlined. */}
         <Link
           href="/"
           onClick={onNavigate}
           aria-current={activeProtocolId ? undefined : "page"}
-          className={`flex h-8 w-full items-center gap-1.75 rounded-lg border px-2.5 text-sm font-semibold transition-colors ${
-            activeProtocolId
-              ? "border-line bg-surface text-ink-2 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-ink"
-              : "border-brand-200 bg-brand-50 text-brand-ink"
-          }`}
+          className="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-brand bg-brand px-3 text-sm font-semibold text-[var(--accent-foreground)] shadow-[0_1px_2px_rgb(15_23_42_/_0.10)] transition-colors hover:border-brand-ink hover:bg-brand-ink"
         >
-          <PlusIcon size={14} className="text-brand" />
+          <PlusIcon size={15} />
           New protocol
         </Link>
       </div>

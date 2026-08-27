@@ -94,3 +94,24 @@ describe("the panels either side of the document", () => {
     }
   });
 });
+
+describe("white and blue", () => {
+  it("keeps every surface white and the canvas a faint blue-grey", () => {
+    expect(css).toMatch(/--surface:\s*#ffffff/);
+    expect(css).toMatch(/--bg:\s*#f6f8fc/);
+  });
+
+  it("carries one blue, with its own light and dark tints", () => {
+    for (const token of ["--brand", "--brand-ink", "--brand-50", "--brand-100", "--brand-200"]) {
+      expect(css, token).toMatch(new RegExp(`${token}:\\s*#[0-9a-f]{6}`, "i"));
+    }
+    expect(css).toMatch(/--brand:\s*#3059c9/);
+  });
+
+  it("names the text that sits on the blue rather than assuming white", () => {
+    // White on a light blue is what the dark palette would give if this were
+    // hardcoded, which is how the button text disappeared once before.
+    expect(css).toMatch(/--accent-foreground:/);
+    expect(css.match(/--accent-foreground:/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+  });
+});
