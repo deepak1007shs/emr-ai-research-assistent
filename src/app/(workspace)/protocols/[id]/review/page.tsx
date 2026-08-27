@@ -8,6 +8,8 @@ import { IssueAnswers } from "@/components/issue-answers";
 import { NextStep } from "@/components/next-step";
 import { DeleteReview } from "@/components/delete-review";
 import { parseIssueAnswers } from "@/lib/protocol/answers";
+import { Breadcrumb } from "@/components/breadcrumb";
+import { DocumentToolbar } from "@/components/document-toolbar";
 import type { TokenUsage } from "@/lib/protocol/pricing";
 
 export const metadata = { title: "Protocol Review — SAP Builder" };
@@ -28,26 +30,30 @@ export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/
 
   if (!review) {
     return (
-      <section className="card p-6">
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
+      <section className="card mx-auto max-w-[var(--sheet-w)] p-6">
         <h1 className="text-base font-semibold">No review yet</h1>
         <p className="mt-1.5 text-sm text-muted">
           This protocol was uploaded but never reviewed, or its review is still running.
         </p>
-        <Link href="/" className="mt-4 inline-block text-sm text-accent underline underline-offset-2">
+        <Link href="/" className="mt-4 inline-block text-sm text-brand hover:text-brand-ink">
           Upload it again
         </Link>
       </section>
+      </div>
     );
   }
 
   if (review.status === "failed") {
     return (
-      <section className="card p-6">
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
+      <section className="card mx-auto max-w-[var(--sheet-w)] p-6">
         <h1 className="text-base font-semibold">This review failed</h1>
         <p className="pill mt-3 bg-danger-soft text-danger">
           {review.error ?? "No reason was recorded."}
         </p>
       </section>
+      </div>
     );
   }
 
@@ -61,10 +67,12 @@ export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/
   const parsed = reviewSpecSchema.safeParse(review.spec);
   if (review.status !== "complete" || !parsed.success) {
     return (
-      <section className="card p-6">
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
+      <section className="card mx-auto max-w-[var(--sheet-w)] p-6">
         <h1 className="text-base font-semibold">This review is still running</h1>
-        <p className="mt-1.5 text-sm text-muted">Reload the page in a minute.</p>
+        <p className="mt-1.5 text-sm text-ink-3">Reload the page in a minute.</p>
       </section>
+      </div>
     );
   }
 
@@ -74,29 +82,26 @@ export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/
   const actions = actionParsed.success ? actionParsed.data : null;
 
   return (
-    <div className="space-y-6">
-      <div className="no-print flex flex-wrap gap-2">
-        {actions && (
-          <a
-            href={`/api/reviews/${review.id}/export?doc=actions&format=docx`}
-            className="btn btn-primary"
-          >
-            Download action list (.docx)
-          </a>
-        )}
-        <a
-          href={`/api/reviews/${review.id}/export?doc=review&format=docx`}
-          className="btn btn-quiet"
-        >
-          Download full review (.docx)
-        </a>
-        <a
-          href={`/api/reviews/${review.id}/export?doc=review&format=md`}
-          className="btn btn-quiet"
-        >
-          .md
-        </a>
-      </div>
+    <>
+      <Breadcrumb protocol={filename} page="Protocol review" />
+
+      <DocumentToolbar
+        title="Protocol review"
+        status="built"
+        meta={[
+          `${parsed.data.key_issues.length} issues`,
+          `reviewed ${new Date(review.created_at).toLocaleDateString()}`,
+        ]}
+        downloadHref={`/api/reviews/${review.id}/export?doc=review&format=docx`}
+        downloadLabel="Download the review"
+        alsoHref={
+          actions ? `/api/reviews/${review.id}/export?doc=actions&format=docx` : undefined
+        }
+        alsoLabel="Action list"
+      />
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+        <div className="mx-auto w-full max-w-[var(--sheet-w)] space-y-6">
 
       {review.usage && (
         <UsagePanel usage={review.usage as TokenUsage} model={review.model} />
@@ -132,6 +137,8 @@ export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/
           </pre>
         </details>
       )}
-    </div>
+            </div>
+      </div>
+    </>
   );
 }

@@ -79,7 +79,8 @@ describe("the protocol rail", () => {
   it("says which documents are not built", () => {
     const p = protocol();
     p.documents.crf = { ...doc({ id: null }), kind: "crf" };
-    expect(open([p])).toContain("not built");
+    // An em dash against a step is the design's way of saying it has not run.
+    expect(open([p])).toContain("—");
   });
 
   it("marks a document built from a superseded plan", () => {
@@ -91,13 +92,20 @@ describe("the protocol rail", () => {
   it("marks a document built before the decisions changed", () => {
     const p = protocol();
     p.documents.tables = { ...doc({ behindAnswers: true }), kind: "tables" };
-    expect(open([p])).toContain("older answers");
+    expect(open([p])).toContain("older");
   });
 
   it("counts the problems on a document that has them", () => {
     const p = protocol();
     p.documents.sap = doc({ errors: 2 });
-    expect(open([p])).toContain("2 to fix");
+    // The count alone, in the step's meta column, as the design has it.
+    const text = open([p]);
+    expect(text).toContain("2");
+    expect(text).not.toContain("2 to fix");
+  });
+
+  it("says a document with nothing wrong is ok", () => {
+    expect(open([protocol()])).toContain("ok");
   });
 
   it("collapses the protocols that are not open", () => {

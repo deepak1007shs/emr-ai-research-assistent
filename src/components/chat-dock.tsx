@@ -19,6 +19,13 @@ import type { Finding } from "@/lib/sap/validate";
 
 const fmtUsd = (n: number) => (n < 0.01 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}`);
 
+/** Openings, because a blank box is hard to start from. */
+const SUGGESTIONS = [
+  "Merge duplicate tables",
+  "Add a sensitivity analysis",
+  "Adjust for ASA grade",
+];
+
 type Proposal = {
   revisionId: string;
   summary: string;
@@ -33,8 +40,8 @@ export function ChatDock({
   document,
 }: {
   protocolId: string;
-  /** Which document is open. Null while a protocol is opening. */
-  document: DocKind | null;
+  /** Which document is open. */
+  document: DocKind;
 }) {
   const router = useRouter();
 
@@ -98,27 +105,41 @@ export function ChatDock({
   if (!revisable) return null;
 
   return (
-    <section className="no-print sticky bottom-0 border-t border-border bg-surface">
-      <div className="mx-auto w-full max-w-4xl px-6 py-3">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-xs font-semibold tracking-wide text-muted uppercase">
-            Ask for a change to the {document ? DOC_LABEL[document] : "document"}
-          </h2>
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="text-xs text-accent underline underline-offset-2"
-          >
-            {open ? "Hide" : "Show"}
-          </button>
-        </div>
+    <section className="shrink-0 border-t border-line bg-surface-2 px-3.5 pt-3 pb-3.5">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="eyebrow">Ask for a change</span>
+        <span className="flex-1" />
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="text-xs text-ink-3 hover:text-ink-2"
+        >
+          {open ? "Hide" : "Show"}
+        </button>
+      </div>
 
-        {open && (
-          <>
-            {proposal ? (
-              <ProposalCard proposal={proposal} settling={settling} onSettle={settle} />
-            ) : (
-              <div className="mt-2 flex items-end gap-2">
+      {open && (
+        <>
+          {proposal ? (
+            <ProposalCard proposal={proposal} settling={settling} onSettle={settle} />
+          ) : (
+            <>
+              {/* A blank box is hard to start from; these fill it. */}
+              <div className="mb-2 flex flex-wrap gap-1.25">
+                {SUGGESTIONS.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => setInstruction(suggestion)}
+                    disabled={running}
+                    className="h-6 rounded-sm border border-line bg-surface px-2 text-2xs text-ink-2 transition-colors hover:border-brand-200 hover:bg-brand-50 hover:text-brand-ink"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+
+              <div className="rounded-xl border border-line bg-surface px-2.5 pt-2.25 pb-2 shadow-[0_1px_2px_rgb(15_23_42_/_0.04)]">
                 <textarea
                   value={instruction}
                   onChange={(e) => setInstruction(e.target.value)}
@@ -130,35 +151,46 @@ export function ChatDock({
                       ask();
                     }
                   }}
-                  rows={2}
+                  rows={3}
                   disabled={running}
-                  placeholder="For example: add ASA grade as a confounder, and adjust the conversion model for it."
-                  className="field resize-y leading-relaxed"
+                  placeholder="e.g. add ASA grade as a confounder, and adjust the conversion model for it."
+                  className="w-full resize-none border-0 bg-transparent p-0 text-sm leading-relaxed text-ink outline-none"
                 />
-                <button
-                  type="button"
-                  onClick={ask}
-                  disabled={running || !instruction.trim()}
-                  className="btn btn-primary"
-                >
-                  {running ? "Working..." : "Propose"}
-                </button>
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="text-2xs text-ink-4">
+                    Applies to the whole {DOC_LABEL[document].toLowerCase()}
+                  </span>
+                  <span className="flex-1" />
+                  <button
+                    type="button"
+                    onClick={ask}
+                    disabled={running || !instruction.trim()}
+                    className={`h-7 rounded-md border px-3 text-xs font-semibold transition-colors ${
+                      instruction.trim() && !running
+                        ? "border-brand bg-brand text-[var(--accent-foreground)] hover:border-brand-ink hover:bg-brand-ink"
+                        : "border-line bg-bg text-ink-4"
+                    }`}
+                  >
+                    {running ? "Working..." : "Propose"}
+                  </button>
+                </div>
               </div>
-            )}
+            </>
+          )}
 
-            {running && (
-              <p className="mt-2 flex items-center gap-2 text-xs text-muted">
-                <span className="live-dot" />
-                {status}
-                {cost !== null && <span className="font-mono">{fmtUsd(cost)} so far.</span>}
-              </p>
-            )}
-
-            {note && <p className="mt-2 text-xs text-muted">{note}</p>}
-            {error && <p className="pill mt-2 bg-danger-soft text-danger">{error}</p>}
-          </>
-        )}
-      </div>
+          {running && (
+            <p className="mt-2 flex items-center gap-2 text-2xs text-ink-3">
+              <span className="live-dot" />
+              {status}
+              {cost !== null && <span className="tnum">{fmtUsd(cost)} so far.</span>}
+            </p>
+          )}
+          {note && <p className="mt-2 text-2xs text-ink-3">{note}</p>}
+          {error && (
+            <p className="mt-2 rounded-lg bg-warn-50 px-2.5 py-2 text-2xs text-warn">{error}</p>
+          )}
+        </>
+      )}
     </section>
   );
 }
@@ -174,8 +206,10 @@ function ProposalCard({
 }) {
   if (proposal.needsRebuild) {
     return (
-      <div className="mt-2 space-y-2">
-        <p className="pill bg-warn-soft text-foreground">{proposal.summary}</p>
+      <div className="space-y-2">
+        <p className="rounded-lg bg-amber-50 px-2.5 py-2 text-xs leading-relaxed text-ink">
+          {proposal.summary}
+        </p>
         <button
           type="button"
           onClick={() => onSettle(true)}
@@ -190,9 +224,9 @@ function ProposalCard({
 
   if (!proposal.changed.length) {
     return (
-      <div className="mt-2 space-y-2">
-        <p className="text-xs leading-relaxed">{proposal.summary}</p>
-        <p className="text-xs text-muted">Nothing was changed, so there is nothing to accept.</p>
+      <div className="space-y-2">
+        <p className="text-xs leading-relaxed text-ink">{proposal.summary}</p>
+        <p className="text-2xs text-ink-3">Nothing changed, so there is nothing to accept.</p>
         <button
           type="button"
           onClick={() => onSettle(true)}
@@ -206,15 +240,16 @@ function ProposalCard({
   }
 
   return (
-    <div className="mt-2 space-y-2">
-      <p className="text-xs leading-relaxed">{proposal.summary}</p>
+    <div className="space-y-2 rounded-xl border border-line bg-surface px-2.5 py-2.5">
+      <p className="text-xs leading-relaxed text-ink">{proposal.summary}</p>
 
-      <p className="text-xs text-muted">
-        <span className="font-semibold">Would change:</span> {proposal.changed.join(", ")}
+      <p className="text-2xs text-ink-3">
+        <span className="font-semibold text-ink-2">Would change:</span>{" "}
+        {proposal.changed.join(", ")}
       </p>
 
       {proposal.newErrors > 0 && (
-        <div className="pill bg-danger-soft text-danger">
+        <div className="rounded-lg bg-warn-50 px-2.5 py-2 text-2xs text-warn">
           <p className="font-semibold">
             This would introduce {proposal.newErrors} new problem
             {proposal.newErrors === 1 ? "" : "s"}.
@@ -222,7 +257,7 @@ function ProposalCard({
           <ul className="mt-1 space-y-0.5">
             {proposal.findings
               .filter((f) => f.severity === "ERROR")
-              .slice(0, 4)
+              .slice(0, 3)
               .map((f, i) => (
                 <li key={i}>
                   {f.code}: {f.message}

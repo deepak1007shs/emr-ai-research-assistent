@@ -21,6 +21,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       className={`${geistMono.variable} h-full antialiased`}
+      // The script below stamps data-theme before React hydrates, which is the
+      // whole point of it: the alternative is a flash of the wrong theme. React
+      // sees an attribute the server did not render and would warn every load.
+      suppressHydrationWarning
     >
       <head>
         {/*

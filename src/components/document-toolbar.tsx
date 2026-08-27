@@ -1,0 +1,89 @@
+import type { ReactNode } from "react";
+import { DownloadIcon } from "./icons";
+
+/**
+ * The bar above the document: what it is, how it stands, and what you can do
+ * with it.
+ *
+ * It does not print. What prints is the document underneath, which is the point
+ * of reading it here first.
+ */
+
+export type Status = "built" | "outdated" | "not built";
+
+const STATUS: Record<Status, { label: string; className: string }> = {
+  built: { label: "Built", className: "bg-ok-50 text-ok" },
+  outdated: { label: "Outdated", className: "bg-amber-50 text-amber" },
+  "not built": { label: "Not built", className: "bg-line-2 text-ink-3" },
+};
+
+export function DocumentToolbar({
+  title,
+  status,
+  /** The short facts under the title: counts, version, when it was built. */
+  meta,
+  downloadHref,
+  downloadLabel = "Download .docx",
+  /** A second format of the same document, where one exists. */
+  alsoHref,
+  alsoLabel,
+  children,
+}: {
+  title: string;
+  status: Status;
+  meta?: ReactNode[];
+  downloadHref?: string;
+  downloadLabel?: string;
+  alsoHref?: string;
+  alsoLabel?: string;
+  /** The rebuild control, which knows how to stream. */
+  children?: ReactNode;
+}) {
+  const pill = STATUS[status];
+
+  return (
+    <div className="no-print flex shrink-0 flex-wrap items-center gap-3.5 border-b border-line bg-surface px-5 py-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2.25">
+          <h1 className="text-lg font-semibold tracking-tight text-ink">{title}</h1>
+          <span
+            className={`inline-flex h-5 items-center rounded-full px-2 text-2xs font-semibold ${pill.className}`}
+          >
+            {pill.label}
+          </span>
+        </div>
+        {meta && meta.length > 0 && (
+          <div className="mt-0.75 flex flex-wrap items-center gap-1.75 text-xs text-ink-3">
+            {meta.map((item, i) => (
+              <span key={i} className="flex items-center gap-1.75">
+                {i > 0 && (
+                  <span aria-hidden className="text-line-3">
+                    ·
+                  </span>
+                )}
+                {item}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1" />
+
+      <div className="flex flex-wrap items-center gap-2">
+        {children}
+        {alsoHref && (
+          <a href={alsoHref} className="btn btn-quiet">
+            {alsoLabel}
+          </a>
+        )}
+        {downloadHref && (
+          <a href={downloadHref} className="btn btn-primary">
+            <DownloadIcon />
+            {downloadLabel}
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -66,7 +66,7 @@ export function ProtocolActions({
   }
 
   return (
-    <div className="space-y-2 px-3 py-2">
+    <div className="space-y-2 px-2 pt-0.5 pb-1.5">
       {renaming ? (
         <div className="space-y-2">
           <input
@@ -105,7 +105,7 @@ export function ProtocolActions({
           <button
             type="button"
             onClick={() => setRenaming(true)}
-            className="text-xs text-accent underline underline-offset-2"
+            className="text-2xs text-ink-3 hover:text-ink-2"
           >
             Rename
           </button>

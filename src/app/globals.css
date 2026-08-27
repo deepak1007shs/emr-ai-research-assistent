@@ -1,99 +1,188 @@
 @import "tailwindcss";
 
 /*
- * Light by default. Dark is a choice, not the machine's.
+ * The palette, from the Shell Tables design (DesignSystem_019e12).
  *
- * The ten tokens are declared once here as the light palette and overridden
- * under [data-theme="dark"]. System preference deliberately decides nothing:
- * the documents this app produces are black on white, and a supervisor reading
- * one wants the screen to match the page.
+ * Two things depart from that design deliberately, both on instruction:
+ *
+ * The type is Times New Roman throughout, not Inter with Source Serif 4 for
+ * the document. The .docx this app produces is Times New Roman by house rule,
+ * and the screen is meant to look like the page it will become. With one family
+ * doing both jobs, the document and the chrome are told apart by size, weight
+ * and colour rather than by typeface.
+ *
+ * And the whole thing is sized from one number rather than the design's fixed
+ * pixels. Every length here is in rem against a 16px base, which is what the
+ * design assumes, so --ui-scale moves the app the way browser zoom would.
  */
 
 :root {
-  --background: #fbfaf8;
+  /*
+   * 1 is the design at its stated sizes, and that is the default because the
+   * three regions only just fit: 244 + 372 + 760 plus the reader's padding is
+   * 1424px, against a 1440px laptop. Raise this and the document column is what
+   * gives way, so raise it only on a wider screen.
+   */
+  --ui-scale: 1;
+
+  --bg: #f4f5f7;
   --surface: #ffffff;
-  --surface-sunken: #f5f3ef;
-  --foreground: #1c1a17;
-  --muted: #6b6660;
-  --border: #e5e1da;
-  --accent: #1d4ed8;
-  --accent-soft: #eef2ff;
-  /* Text that sits on --accent. Hardcoding white breaks the dark palette. */
+  --surface-2: #fcfcfd;
+  --surface-sunken: #f4f5f7;
+
+  --line: #e6e8ec;
+  --line-2: #eef0f3;
+  --line-3: #d7dbe2;
+
+  --ink: #11161d;
+  --ink-2: #3a4250;
+  --ink-3: #6b7383;
+  --ink-4: #9aa1ad;
+
+  --brand: #2c5aa0;
+  --brand-ink: #1f4076;
+  --brand-50: #eef3fb;
+  --brand-100: #dee8f5;
+  --brand-200: #c3d5ec;
+
+  --warn: #c93030;
+  --warn-50: #fdecec;
+  --amber: #b6791f;
+  --amber-50: #fbf1dc;
+  --ok: #1e7f4a;
+  --ok-50: #e6f4ec;
+
+  /* Named so the older components keep working while they are moved over. */
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --border: var(--line);
+  --muted: var(--ink-3);
+  --accent: var(--brand);
   --accent-foreground: #ffffff;
-  --danger: #b42318;
-  --danger-soft: #fef3f2;
-  --warn: #b54708;
-  --warn-soft: #fffaeb;
+  --accent-soft: var(--brand-50);
+  --danger: var(--warn);
+  --danger-soft: var(--warn-50);
 
-  /* The workspace header, which the rail sticks beneath. */
-  --header-h: 3.25rem;
+  --header-h: 3.25rem;   /* 52px */
+  --rail-w: 15.25rem;    /* 244px, the protocol sidebar */
+  --review-w: 23.25rem;  /* 372px, the review rail */
+  --sheet-w: 47.5rem;    /* 760px, the paper */
 
-  /*
-   * The rail. In rem, so it grows with the type, and named here so its width
-   * is one number rather than a class buried in the frame. The drawer on a
-   * narrow screen keeps the ratio it always had to this.
-   */
-  --rail-w: 12.8rem;
-
-  /*
-   * The documents are Times New Roman by house rule, so the screen is too.
-   * What is read here and what is downloaded should look like one document,
-   * not two.
-   */
   --font-document: "Times New Roman", Times, "Liberation Serif", serif;
 }
 
+/*
+ * Dark is a choice, not the machine's. The design gives light values only, so
+ * these are its palette turned over: the same relationships, not the same hexes.
+ */
 :root[data-theme="dark"] {
-  --background: #16150f;
-  --surface: #1e1d17;
-  --surface-sunken: #12110c;
-  --foreground: #ece9e2;
-  --muted: #9c968c;
-  --border: #33312a;
-  --accent: #93b4ff;
-  --accent-soft: #1e2436;
-  --accent-foreground: #10131c;
-  --danger: #f97066;
-  --danger-soft: #2c1a18;
-  --warn: #f5b043;
-  --warn-soft: #2a2418;
+  --bg: #13161b;
+  --surface: #1a1e25;
+  --surface-2: #171b21;
+  --surface-sunken: #13161b;
+
+  --line: #2a3038;
+  --line-2: #232931;
+  --line-3: #3a4250;
+
+  --ink: #e8eaee;
+  --ink-2: #c2c8d2;
+  --ink-3: #8e96a4;
+  --ink-4: #6b7383;
+
+  --brand: #7ba6e0;
+  --brand-ink: #a8c6ec;
+  --brand-50: #1c2733;
+  --brand-100: #24344a;
+  --brand-200: #35506f;
+
+  --warn: #f08b8b;
+  --warn-50: #2d1a1c;
+  --amber: #e0b567;
+  --amber-50: #2c2418;
+  --ok: #6cc294;
+  --ok-50: #16291f;
+
+  --accent-foreground: #10141a;
 }
 
 @theme inline {
-  --color-background: var(--background);
+  --color-bg: var(--bg);
+  --color-background: var(--bg);
   --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-surface-sunken: var(--surface-sunken);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --color-border: var(--border);
-  --color-accent: var(--accent);
-  --color-accent-soft: var(--accent-soft);
+
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-line-3: var(--line-3);
+  --color-border: var(--line);
+
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+  --color-foreground: var(--ink);
+  --color-muted: var(--ink-3);
+
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-accent: var(--brand);
+  --color-accent-soft: var(--brand-50);
   --color-accent-foreground: var(--accent-foreground);
-  --color-danger: var(--danger);
-  --color-danger-soft: var(--danger-soft);
+
   --color-warn: var(--warn);
-  --color-warn-soft: var(--warn-soft);
+  --color-warn-50: var(--warn-50);
+  --color-amber: var(--amber);
+  --color-amber-50: var(--amber-50);
+  --color-ok: var(--ok);
+  --color-ok-50: var(--ok-50);
+  --color-danger: var(--warn);
+  --color-danger-soft: var(--warn-50);
+  --color-warn-soft: var(--amber-50);
+
+  /* The design's type scale, in rem against its own 16px base. */
+  --text-2xs: 0.625rem;
+  --text-2xs--line-height: 1.4;
+  --text-xs: 0.71875rem;
+  --text-xs--line-height: 1.45;
+  --text-sm: 0.78125rem;
+  --text-sm--line-height: 1.5;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.5;
+  --text-lg: 0.96875rem;
+  --text-lg--line-height: 1.35;
+  --text-xl: 1.3125rem;
+  --text-xl--line-height: 1.3;
+
+  --radius-sheet: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.4375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.625rem;
+
   --font-sans: var(--font-document);
   --font-serif: var(--font-document);
   --font-mono: var(--font-geist-mono);
 }
 
 /*
- * The one number that sizes the app.
- *
- * Every length in here is in rem, spacing and column widths included, so
- * raising this scales the whole thing the way browser zoom does rather than
- * squeezing bigger text into boxes built for smaller. 25.5px is half again the
- * 17px it was set at.
+ * The one number that sizes the app. Every length is in rem, spacing and column
+ * widths included, so this scales the whole thing the way browser zoom does
+ * rather than squeezing bigger text into boxes built for smaller.
  */
 html {
-  font-size: 25.5px;
+  font-size: calc(16px * var(--ui-scale));
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--ink);
   font-family: var(--font-document);
+  -webkit-font-smoothing: antialiased;
 }
 
 /* Serif numerals in a table read better lining than old-style. */
@@ -101,15 +190,33 @@ table {
   font-variant-numeric: lining-nums tabular-nums;
 }
 
+/* Counts and codes line up in a column only if the figures are tabular. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-3);
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 /*
- * The idioms, which were copy-pasted across nine components before they were
- * named here. This app has deliberately avoided a component library, so they
- * are utilities rather than wrappers.
+ * The idioms, named once. This app has deliberately avoided a component
+ * library, so they are utilities rather than wrappers.
  */
 
 @utility card {
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
   background: var(--surface);
 }
 
@@ -117,51 +224,81 @@ table {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: --spacing(1.5);
+  gap: --spacing(1.75);
+  height: --spacing(8);
+  padding-inline: --spacing(3);
   border-radius: var(--radius-lg);
-  padding: --spacing(2) --spacing(3);
-  font-size: var(--text-xs);
-  line-height: var(--text-xs--line-height);
-  font-weight: 500;
+  font-size: var(--text-sm);
+  font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
+  transition: background-color 0.13s, border-color 0.13s, color 0.13s;
 }
 
 @utility btn-primary {
-  background: var(--accent);
+  border: 1px solid var(--brand);
+  background: var(--brand);
   color: var(--accent-foreground);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.1);
+}
+.btn-primary:hover {
+  background: var(--brand-ink);
+  border-color: var(--brand-ink);
 }
 
 @utility btn-quiet {
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   background: var(--surface);
-  color: var(--foreground);
+  color: var(--ink-2);
+}
+.btn-quiet:hover {
+  background: var(--bg);
 }
 
 @utility field {
   width: 100%;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  background: var(--background);
-  padding: --spacing(2) --spacing(3);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: --spacing(2) --spacing(2.5);
   font-size: var(--text-sm);
-  line-height: var(--text-sm--line-height);
+  line-height: 1.5;
+  color: var(--ink);
   outline: none;
+}
+.field:focus {
+  border-color: var(--brand-200);
 }
 
 @utility pill {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: --spacing(1.25);
   border-radius: var(--radius-lg);
-  padding: --spacing(2) --spacing(3);
+  padding: --spacing(1.5) --spacing(2.5);
   font-size: var(--text-xs);
-  line-height: var(--text-xs--line-height);
 }
 
-/*
- * A pulsing dot, for work that is running. The keyframes are declared here
- * rather than borrowed from animate-pulse, which Tailwind only emits while some
- * component still uses that class.
- */
+/* An all-caps label: the design tracks these wide and sets them faint. */
+@utility eyebrow {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+/* The paper the document is read on. */
+@utility sheet {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sheet);
+  box-shadow:
+    0 6px 24px -10px rgb(15 23 42 / 0.14),
+    0 1px 2px rgb(15 23 42 / 0.04);
+}
+
+/* A pulsing dot, for work that is running. */
 @keyframes sap-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
@@ -172,25 +309,21 @@ table {
   width: --spacing(2);
   height: --spacing(2);
   border-radius: var(--radius-full);
-  background: var(--accent);
+  background: var(--brand);
   animation: sap-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 button:disabled,
 a[aria-disabled="true"] {
-  opacity: 0.5;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
 .btn:focus-visible,
 .field:focus-visible,
 a:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--brand-200);
   outline-offset: 2px;
-}
-
-.field:focus {
-  border-color: var(--accent);
 }
 
 @media print {
@@ -201,7 +334,6 @@ a:focus-visible {
     background: #fff;
     color: #000;
   }
-  /* A table or a section split across a page break is unreadable. */
   table,
   section,
   article > * {

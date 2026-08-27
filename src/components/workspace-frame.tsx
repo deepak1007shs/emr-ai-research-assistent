@@ -3,18 +3,19 @@
 import { useState, type ReactNode } from "react";
 import { useSelectedLayoutSegments } from "next/navigation";
 import { ProtocolRail } from "./protocol-rail";
-import { ChatDock } from "./chat-dock";
 import { DOC_ORDER, type DocKind, type ProtocolRow } from "@/lib/workspace/rail";
 
 /**
- * The three regions, and which protocol and document are open.
+ * The body of the shell: the protocol sidebar and whatever the page puts beside
+ * it.
  *
- * Only the URL knows that, and a server component cannot read it, so the frame
- * is a client component around server-rendered children. The rail's data still
- * comes from the server; this only decides what is highlighted.
+ * Only the URL knows which protocol and document are open, and a server
+ * component cannot read it, so the frame is a client component around
+ * server-rendered children. The rail's data still comes from the server; this
+ * only decides what is highlighted.
  *
- * On a narrow screen the rail becomes a drawer rather than disappearing, so a
- * laptop in a clinic can still get at the other protocols.
+ * On a narrow screen the sidebar becomes a drawer rather than disappearing, so
+ * a laptop in a clinic can still get at the other protocols.
  */
 export function WorkspaceFrame({
   protocols,
@@ -32,53 +33,44 @@ export function WorkspaceFrame({
   const activeDoc: DocKind | null =
     segment && (DOC_ORDER as string[]).includes(segment) ? (segment as DocKind) : null;
 
+  const rail = (onNavigate?: () => void) => (
+    <ProtocolRail
+      protocols={protocols}
+      activeProtocolId={protocolId}
+      activeDoc={activeDoc}
+      onNavigate={onNavigate}
+    />
+  );
+
   return (
-    <div className="flex flex-1">
-      {/* The rail sticks under the header and scrolls on its own, so a long
-          document does not carry the list of protocols away with it. */}
-      <aside className="no-print sticky top-[var(--header-h)] hidden h-[calc(100vh-var(--header-h))] w-[var(--rail-w)] shrink-0 overflow-hidden border-r border-border bg-surface-sunken md:block">
-        <ProtocolRail
-          protocols={protocols}
-          activeProtocolId={protocolId}
-          activeDoc={activeDoc}
-        />
+    <div className="flex min-h-0 flex-1">
+      <aside className="no-print hidden w-[var(--rail-w)] shrink-0 border-r border-line bg-surface md:flex md:flex-col">
+        {rail()}
       </aside>
 
       {railOpen && (
         <div className="no-print fixed inset-0 z-30 flex md:hidden">
-          <div className="h-full w-[calc(var(--rail-w)*1.125)] max-w-[85vw] overflow-hidden border-r border-border bg-surface-sunken">
-            <ProtocolRail
-              protocols={protocols}
-              activeProtocolId={protocolId}
-              activeDoc={activeDoc}
-              onNavigate={() => setRailOpen(false)}
-            />
+          <div className="flex h-full w-[calc(var(--rail-w)*1.15)] max-w-[85vw] flex-col border-r border-line bg-surface">
+            {rail(() => setRailOpen(false))}
           </div>
           <button
             type="button"
             aria-label="Close the protocol list"
             onClick={() => setRailOpen(false)}
-            className="flex-1 bg-foreground/20"
+            className="flex-1 bg-ink/20"
           />
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <button
           type="button"
           onClick={() => setRailOpen(true)}
-          className="no-print border-b border-border px-4 py-2 text-left text-xs text-accent md:hidden"
+          className="no-print shrink-0 border-b border-line bg-surface px-4 py-2 text-left text-xs text-brand md:hidden"
         >
           Protocols
         </button>
-
-        <main className="min-w-0 flex-1">
-          <div className="mx-auto w-full max-w-4xl px-6 py-8">{children}</div>
-        </main>
-
-        {/* In the frame, so a proposal and a running request survive moving
-            between the documents of one protocol. */}
-        {protocolId && <ChatDock protocolId={protocolId} document={activeDoc} />}
+        {children}
       </div>
     </div>
   );

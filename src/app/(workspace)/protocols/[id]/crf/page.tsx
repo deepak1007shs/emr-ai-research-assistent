@@ -1,13 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { loadCurrent } from "@/lib/workspace/document";
+import { loadVersions } from "@/lib/workspace/versions";
 import { CrfPreview } from "@/components/crf-preview";
-import { FindingsPanel } from "@/components/findings-panel";
+import { ReviewRail } from "@/components/review-rail";
+import { ChatDock } from "@/components/chat-dock";
+import { DocumentToolbar } from "@/components/document-toolbar";
 import { BuildButton } from "@/components/build-button";
 import { NotBuilt } from "@/components/not-built";
-import { DocumentActions } from "@/components/document-actions";
 import { VersionList } from "@/components/version-list";
-import { loadVersions } from "@/lib/workspace/versions";
-import { StaleNotice } from "@/components/stale-notice";
+import { Breadcrumb } from "@/components/breadcrumb";
 import type { CrfSpec } from "@/lib/crf/types";
 import type { SapSpec } from "@/lib/sap/types";
 
@@ -20,7 +21,7 @@ export default async function CrfPage({ params }: PageProps<"/protocols/[id]/crf
   const { id } = await params;
   const supabase = await createClient();
 
-  const [form, plan, review, versions] = await Promise.all([
+  const [form, plan, review, versions, protocol] = await Promise.all([
     loadCurrent<CrfSpec>(supabase, "crf_forms", id),
     loadCurrent<SapSpec>(supabase, "sap_plans", id),
     supabase
@@ -32,35 +33,50 @@ export default async function CrfPage({ params }: PageProps<"/protocols/[id]/crf
       .limit(1)
       .maybeSingle(),
     loadVersions(supabase, "crf", id),
+    supabase.from("protocols").select("filename").eq("id", id).maybeSingle(),
   ]);
 
-  // The form collects what the plan analyses, so without one there is nothing
-  // to build it against. The route enforces this too.
+  const filename = (protocol.data as { filename?: string } | null)?.filename ?? "Protocol";
   const blocked = plan
     ? null
     : "Build the Statistical Analysis Plan first. The form collects what the plan analyses.";
 
   if (!form) {
     return (
-      <NotBuilt kind="Case Report Form" description={DESCRIPTION}>
-        <BuildButton
-          kind="crf"
-          protocolId={id}
-          reviewId={review.data?.id}
-          exists={false}
-          blockedReason={blocked}
-        />
-      </NotBuilt>
+      <>
+        <Breadcrumb protocol={filename} page="Case report form" />
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
+          <NotBuilt kind="Case Report Form" description={DESCRIPTION}>
+            <BuildButton
+              kind="crf"
+              protocolId={id}
+              reviewId={review.data?.id}
+              exists={false}
+              blockedReason={blocked}
+            />
+          </NotBuilt>
+        </div>
+      </>
     );
   }
 
   const stale = Boolean(plan && form.sapId !== plan.id);
 
   return (
-    <div className="space-y-6">
-      <DocumentActions
-        href={`/api/crf/${form.id}/export`}
-        label="Download the form (.docx)"
+    <>
+      <Breadcrumb protocol={filename} page="Case report form" />
+
+      <DocumentToolbar
+        title="Case report form"
+        status={stale ? "outdated" : "built"}
+        meta={[
+          `${form.spec.sections?.length ?? 0} sections`,
+          `${versions.length} version${versions.length === 1 ? "" : "s"} · built ${new Date(
+            form.createdAt,
+          ).toLocaleDateString()}`,
+          stale ? "built from an earlier analysis plan" : null,
+        ].filter((m): m is string => Boolean(m))}
+        downloadHref={`/api/crf/${form.id}/export`}
       >
         <BuildButton
           kind="crf"
@@ -68,12 +84,22 @@ export default async function CrfPage({ params }: PageProps<"/protocols/[id]/crf
           reviewId={review.data?.id}
           exists
           blockedReason={blocked}
+          rebuildLabel="Rebuild"
         />
-      </DocumentActions>
-      {stale && <StaleNotice document="form" />}
-      <VersionList kind="crf" versions={versions} />
-      <FindingsPanel findings={form.findings} />
-      <CrfPreview spec={form.spec} />
-    </div>
+      </DocumentToolbar>
+
+      <div className="flex min-h-0 flex-1">
+        <section className="min-w-0 flex-1 overflow-y-auto py-6 pb-10">
+          <CrfPreview spec={form.spec} />
+          <div className="mx-auto mt-6 w-full max-w-[var(--sheet-w)] px-6">
+            <VersionList kind="crf" versions={versions} />
+          </div>
+        </section>
+
+        <ReviewRail findings={form.findings}>
+          <ChatDock protocolId={id} document="crf" />
+        </ReviewRail>
+      </div>
+    </>
   );
 }

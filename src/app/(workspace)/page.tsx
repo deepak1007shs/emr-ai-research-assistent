@@ -23,7 +23,8 @@ export default async function UploadPage() {
     .limit(50);
 
   return (
-    <div className="space-y-8">
+    <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
+      <div className="mx-auto w-full max-w-[var(--sheet-w)] space-y-8">
       <header>
         <h1 className="text-xl font-semibold tracking-tight">
           Protocol Understanding &amp; Review
@@ -68,7 +69,8 @@ export default async function UploadPage() {
             />
           </div>
         )}
-      </section>
+        </section>
+      </div>
     </div>
   );
 }

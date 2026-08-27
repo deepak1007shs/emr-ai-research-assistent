@@ -147,7 +147,7 @@ describe("the shell tables preview", () => {
 
   it("keeps the cells empty: a shell is not a result", () => {
     const screen = screenText(TablesPreview({ spec: tablesFixture }));
-    expect(screen).toContain("Table 1:");
+    expect(screen).toContain("Table 1.");
     // Every column header the document prints.
     for (const column of tablesFixture.tables[0].columns) {
       expect(screen).toContain(column);
@@ -158,7 +158,7 @@ describe("the shell tables preview", () => {
     const screen = screenText(TablesPreview({ spec: tablesFixture }));
     const page = await pageText(await buildTablesDocx(tablesFixture));
     for (const table of tablesFixture.tables) {
-      expect(screen, `table ${table.number} on screen`).toContain(`Table ${table.number}:`);
+      expect(screen, `table ${table.number} on screen`).toContain(`Table ${table.number}.`);
       expect(page, `table ${table.number} in the document`).toContain(`Table ${table.number}:`);
     }
   });

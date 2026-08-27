@@ -47,7 +47,7 @@ export function ConfirmDelete({
       <button
         type="button"
         onClick={() => setAsking(true)}
-        className="text-xs text-danger underline underline-offset-2"
+        className="text-2xs text-ink-3 hover:text-warn"
       >
         {children ?? label}
       </button>
