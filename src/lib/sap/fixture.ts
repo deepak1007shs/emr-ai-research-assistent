@@ -10,6 +10,7 @@ export const sapFixture: SapSpec = {
   title:
     "Factors Associated with Intraoperative Conversion during TAPP Repair of Ventral Hernia",
   design: "prospective observational cohort",
+  design_family: "cohort",
   setting: "Department of General Surgery, AIIMS Jodhpur",
   guideline: "STROBE",
   picot: {

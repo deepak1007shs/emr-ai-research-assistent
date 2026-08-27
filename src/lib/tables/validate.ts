@@ -1,6 +1,7 @@
 import type { ShellTable, ShellTablesSpec } from "./types.ts";
 import { adjustedIds } from "./types.ts";
-import { hasContrast, planOf } from "./blocks.ts";
+import { hasContrast, planOf, unbuildableRoles } from "./blocks.ts";
+import { designRule } from "./design-tables.ts";
 import type { SapRegistry } from "../sap/types.ts";
 import { outcomeIndex, variableIndex } from "../sap/types.ts";
 import type { Finding } from "../sap/validate.ts";
@@ -372,22 +373,30 @@ export function validateTables(
       if (!analysis) continue;
       const roles = rolesFor(objective.id);
 
+      // What the design owes, so a cohort is not judged against a trial's
+      // document and a diagnostic study is not judged against either.
+      const owed = new Set(designRule(sap.design_family).roles);
       const wanted: [string, boolean, string][] = [
         [
           "summary",
-          roles.has("summary") || roles.has("repeated") || roles.has("distribution"),
+          !owed.has("summary") ||
+            roles.has("summary") ||
+            roles.has("repeated") ||
+            roles.has("distribution"),
           "how many patients in each group had the outcome, with the denominators the effect is computed from",
         ],
         [
           "effect_unadjusted",
-          roles.has("effect_unadjusted") ||
+          !owed.has("effect_unadjusted") ||
+            roles.has("effect_unadjusted") ||
             !hasContrast(analysis) ||
             !planOf(analysis).measures.length,
           "the crude effect, with its confidence interval",
         ],
         [
           "effect_adjusted",
-          roles.has("effect_adjusted") ||
+          !owed.has("effect_adjusted") ||
+            roles.has("effect_adjusted") ||
             !(analysis.adjust_for_ids ?? []).length ||
             Boolean(analysis.no_adjustment_reason),
           "the effect with the confounders the plan named held constant",
@@ -402,6 +411,50 @@ export function validateTables(
           );
         }
       }
+    }
+
+    /* ---- what the design owes the document -------------------------- */
+
+    const rule = designRule(sap.design_family);
+
+    // A randomised design's baseline table carries no significance test. The
+    // groups differ by chance alone, so a p value there tests the
+    // randomisation and not the study.
+    if (!rule.baselineP) {
+      for (const t of tables) {
+        if (t.role === "descriptive" && t.columns.some((c) => P_VALUE.test(c))) {
+          error(
+            "TBL24",
+            `Table ${t.number} tests the baseline balance of a ${rule.design.replace(/_/g, " ")}. Allocation was random, so a p value here tests the randomisation rather than the study. Report the arms side by side and let the reader see the balance.`,
+          );
+        }
+      }
+    }
+
+    // A table the design requires that no builder in this version can draw.
+    // Said out loud, because a document silently missing the table its design
+    // is judged on is worse than one that admits the gap.
+    const missing = unbuildableRoles(sap).filter(
+      (role) => !tables.some((t) => t.role === role),
+    );
+    if (missing.length) {
+      warn(
+        "TBL25",
+        `A ${rule.design.replace(/_/g, " ")} is expected to report ${missing
+          .map((role) => role.replace(/_/g, " "))
+          .join(", ")}, which this version does not yet lay out. ${rule.check}`,
+      );
+    }
+
+    // A design that is read for effect modification and a plan that prespecifies
+    // none. Subgroups cannot be invented here: choosing them after the design is
+    // known but before the data arrive is the investigator's job, and choosing
+    // them afterwards is the thing subgroup analysis is distrusted for.
+    if (rule.roles.includes("subgroup") && !(sap.subgroups ?? []).length) {
+      warn(
+        "TBL23",
+        `A ${rule.design.replace(/_/g, " ")} is read for effect modification, but the plan prespecifies no subgroups, so there is nothing to tabulate. Name them in the plan, or say that none are planned.`,
+      );
     }
 
     if ((sap.subgroups ?? []).length && !tables.some((t) => t.role === "subgroup")) {

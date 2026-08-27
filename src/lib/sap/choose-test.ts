@@ -25,6 +25,8 @@ export type Rule = {
   skewed: string;
   /** common or rare, for a binary outcome. */
   frequency: string;
+  /** The design family, where the design decides which estimate is valid. */
+  design: string;
   unadjusted: string;
   adjusted: string;
   avoid: string;
@@ -71,12 +73,12 @@ export function loadRules(source?: string): Rule[] {
         .split("|")
         .map((cell) => cell.trim()),
     )
-    .filter((cells) => cells.length === 10)
+    .filter((cells) => cells.length === 11)
     // Drop the header and the --- separator.
     .filter((cells) => cells[0] !== "data_type" && !/^-+$/.test(cells[0]))
     .map(
       ([
-        data_type, comparison, pairing, skewed, frequency,
+        data_type, comparison, pairing, skewed, frequency, design,
         unadjusted, adjusted, avoid, why, measures,
       ]) => ({
         data_type,
@@ -84,6 +86,7 @@ export function loadRules(source?: string): Rule[] {
         pairing,
         skewed,
         frequency,
+        design,
         unadjusted,
         adjusted,
         avoid,
@@ -108,7 +111,7 @@ export function chooseTest(
   row: Pick<
     AnalysisRow,
     | "data_type" | "comparison" | "pairing" | "skewed" | "frequency"
-    | "test_override" | "override_reason"
+    | "design_family" | "test_override" | "override_reason"
   >,
   rules: Rule[] = loadRules(),
 ): AnalysisPlan | null {
@@ -135,7 +138,8 @@ export function chooseTest(
       matches(rule.comparison, row.comparison) &&
       matches(rule.pairing, row.pairing ?? "none") &&
       matches(rule.skewed, skewed) &&
-      matches(rule.frequency, row.frequency ?? "unknown"),
+      matches(rule.frequency, row.frequency ?? "unknown") &&
+      matches(rule.design, row.design_family ?? "unknown"),
   );
 
   if (!hit) return null;

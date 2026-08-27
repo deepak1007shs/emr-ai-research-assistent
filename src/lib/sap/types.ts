@@ -22,6 +22,31 @@ export type Comparison =
   | "agreement"
   | "descriptive";      // frequencies, no test
 
+/**
+ * The design, as one of a fixed set.
+ *
+ * The plan already writes the design as prose, which reads well and cannot be
+ * matched on. This is the same fact in a form the rules can use: it decides
+ * which estimate is valid (only an odds ratio is estimable from case-control
+ * sampling) and which tables the document owes (`../tables/design-tables.md`).
+ */
+export type DesignFamily =
+  | "pre_post"
+  | "randomised_trial"
+  | "non_inferiority_trial"
+  | "crossover_trial"
+  | "cluster_trial"
+  | "factorial_trial"
+  | "cohort"
+  | "case_control"
+  | "cross_sectional"
+  | "descriptive_epidemiology"
+  | "diagnostic_accuracy"
+  | "agreement"
+  | "questionnaire_validation"
+  | "meta_analysis"
+  | "survival";
+
 export type Role =
   | "outcome" | "predictor" | "confounder" | "effect_modifier"
   | "mediator" | "collider" | "descriptor";
@@ -137,6 +162,11 @@ export type AnalysisRow = {
   avoid?: string;
   /** The estimates the effect table prints, one to a row. */
   measures?: string[];
+  /**
+   * The study's design family, copied onto the row when the plan is built so
+   * that the rule table can match on it without every caller having to pass it.
+   */
+  design_family?: DesignFamily;
 };
 
 /** The clinical question decomposed. Everything below must trace back to it. */
@@ -207,6 +237,8 @@ export type AssumptionCheck = {
 export type SapSpec = {
   title: string;
   design: string;
+  /** The same design as one of a fixed set, for the rules to match on. */
+  design_family: DesignFamily;
   /** Department and institution, as one line. */
   setting: string;
   guideline: string;
@@ -340,6 +372,7 @@ export type SapRegistry = Pick<
       SapSpec,
       | "sample_size"
       | "expected_events"
+      | "design_family"
       | "populations"
       | "subgroups"
       | "steps"

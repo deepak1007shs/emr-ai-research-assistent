@@ -10,6 +10,7 @@ import type { CrfSpec } from "../crf/types.ts";
 import type { Finding } from "../sap/validate.ts";
 import type { ShellTable, ShellTablesSpec } from "./types.ts";
 import { buildAnalyticTables, mergeTables } from "./blocks.ts";
+import { designRule } from "./design-tables.ts";
 import { validateTables } from "./validate.ts";
 
 /**
@@ -245,6 +246,21 @@ ${JSON.stringify({
 
   const decisions = decisionsBlock(options.answers, "tables");
   if (decisions) content.push({ type: "text", text: decisions });
+
+  // What the design owes, and what it forbids. A randomised trial's baseline
+  // table carries no p value: the groups differ by chance alone, so a test
+  // there tests the randomisation rather than the study.
+  const rule = designRule(sap.design_family);
+  content.push({
+    type: "text",
+    text: `The study's design is ${sap.design_family ?? "not classified"}. ${rule.check}
+
+${
+      rule.baselineP
+        ? "The baseline table may carry a P value column."
+        : "The baseline table must carry NO P value column and no significance test. Allocation was random, so a p value there tests the randomisation rather than the study, and an examiner will say so. Report the groups side by side and let the reader see the balance."
+    }`,
+  });
 
   content.push({
     type: "text",

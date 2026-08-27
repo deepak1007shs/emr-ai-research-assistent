@@ -18,6 +18,28 @@ export type Finding = {
 const WORDS_THAT_ARE_NOT_MEASURABLE = /\b(study|evaluate|assess|understand|know|look at)\b/i;
 const WORDS_THAT_CLAIM_CAUSE = /\b(leading to|causes?|caused by|due to|effect of|impact of)\b/i;
 
+/**
+ * The design words that give a design away, most specific first.
+ *
+ * Used only to notice that the prose and the classification disagree. The
+ * classification is what the rules read, so a plan whose words say case-control
+ * and whose field says cohort will be analysed as a cohort, and somebody should
+ * be told before that happens.
+ */
+const DESIGN_WORDS: [RegExp, string][] = [
+  [/non-?inferiority/, "non_inferiority_trial"],
+  [/cross-?over/, "crossover_trial"],
+  [/cluster[- ]randomi[sz]ed/, "cluster_trial"],
+  [/factorial/, "factorial_trial"],
+  [/case-?control/, "case_control"],
+  [/cross-?sectional/, "cross_sectional"],
+  [/diagnostic accuracy|sensitivity and specificity/, "diagnostic_accuracy"],
+  [/systematic review|meta-?analysis/, "meta_analysis"],
+  [/before[- ]and[- ]after|pre-?post|single[- ]arm/, "pre_post"],
+  [/randomi[sz]ed/, "randomised_trial"],
+  [/cohort/, "cohort"],
+];
+
 export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] } {
   const out: Finding[] = [];
   const error = (code: string, message: string) =>
@@ -295,15 +317,101 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
 
   /* ---- events per variable ----------------------------------------- */
 
-  // Any row that plans to hold confounders constant, not only the one whose
-  // comparison happens to be labelled "adjusted".
-  const adjusted = analyses.find((a) => (a.adjust_for_ids ?? []).length > 0);
-  if (adjusted && spec.expected_events !== undefined) {
-    const count = (adjusted.adjust_for_ids ?? []).length;
-    if (count > Math.floor(spec.expected_events / 10)) {
+  // Every row that holds confounders constant, not only the first of them: a
+  // secondary model can overfit while the primary one does not, and stopping
+  // at the first meant a secondary model was never counted.
+  for (const a of analyses) {
+    const terms = [...(a.exposure_ids ?? []), ...(a.adjust_for_ids ?? [])];
+    if (!(a.adjust_for_ids ?? []).length) continue;
+
+    // Ten events per predictor is the rule for a model fitted to events. A
+    // continuous outcome has no events, and its budget is the sample itself.
+    const counted = a.data_type === "binary" || a.data_type === "time_to_event";
+    const budget = counted ? spec.expected_events : spec.sample_size;
+    const what = counted ? "expected events" : "participants";
+
+    if (budget === undefined) {
+      if (counted) {
+        error(
+          "ADJ05",
+          `${(a.objective_ids ?? []).join(", ")} plans an adjusted model but the plan gives no expected event count, so nothing can check whether the study affords one. State the expected number of events.`,
+        );
+      }
+      continue;
+    }
+
+    if (terms.length > Math.floor(budget / 10)) {
       warn(
         "ADJ03",
-        `The adjusted model names ${count} predictors on ${spec.expected_events} expected events. Below ten events per predictor a model overfits, so the plan declares it exploratory.`,
+        `${(a.objective_ids ?? []).join(", ")} names ${terms.length} predictors on ${budget} ${what}. Below ten ${what} per predictor a model overfits, so the plan declares it exploratory.`,
+      );
+    }
+  }
+
+  /* ---- how common the event is ------------------------------------- */
+
+  // The estimate a binary outcome gets turns on this one field: stated common,
+  // the plan chooses a risk ratio; left open, it falls to the rule table's
+  // catch-all. The sample size calculation already assumed a rate, so the
+  // arithmetic can usually settle it.
+  const rate =
+    spec.sample_size && spec.expected_events !== undefined
+      ? spec.expected_events / spec.sample_size
+      : null;
+
+  for (const a of analyses) {
+    if (a.data_type !== "binary") continue;
+    if (a.comparison === "descriptive") continue;
+    const stated = a.frequency && a.frequency !== "unknown" ? a.frequency : null;
+
+    if (rate === null) {
+      if (!stated) {
+        error(
+          "FRQ02",
+          `${(a.objective_ids ?? []).join(", ")} does not say whether the event is common or rare, and the plan gives no expected event count to work it out from. Without it the plan cannot choose between a risk ratio and an odds ratio.`,
+        );
+      }
+      continue;
+    }
+
+    const implied = rate >= 0.1 ? "common" : "rare";
+    if (stated && stated !== implied) {
+      warn(
+        "FRQ01",
+        `${(a.objective_ids ?? []).join(", ")} calls the event ${stated}, but ${spec.expected_events} events in ${spec.sample_size} is ${Math.round(rate * 100)}%, which is ${implied}. Either the row or the sample size calculation is wrong.`,
+      );
+    }
+  }
+
+  /* ---- the design is classified, and classified the same way -------- */
+
+  if (!spec.design_family) {
+    error(
+      "STU01",
+      "The design is written out but not classified, so the plan cannot tell which estimate is valid or which tables the study owes.",
+    );
+  } else {
+    const prose = (spec.design ?? "").toLowerCase();
+    const said = DESIGN_WORDS.find(([pattern]) => pattern.test(prose));
+    if (said && said[1] !== spec.design_family) {
+      warn(
+        "STU02",
+        `The design reads "${spec.design}", which is a ${said[1].replace(/_/g, " ")}, but it is classified as ${spec.design_family.replace(/_/g, " ")}. The classification is what the rules read, so the two must agree.`,
+      );
+    }
+  }
+
+  /* ---- every outcome is reported ----------------------------------- */
+
+  // An outcome nobody analyses is collected on the form, printed in the
+  // registry, and never reported. Objectives are already checked this way; the
+  // outcomes were not.
+  const analysedOutcomes = new Set(analyses.flatMap((a) => a.outcome_ids ?? []));
+  for (const o of spec.outcomes ?? []) {
+    if (!analysedOutcomes.has(o.id)) {
+      error(
+        "OUT03",
+        `${o.id} ("${o.what}") is declared as an outcome but no analysis reports it, so it would be collected and never used.`,
       );
     }
   }

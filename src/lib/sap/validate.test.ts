@@ -20,8 +20,12 @@ const clean = (): SapSpec => ({
   ...structuredClone(sapFixture),
   title: "A study",
   aim: "To estimate the conversion rate and identify associated factors.",
-  sample_size: 125,
-  expected_events: 100,
+  // Coherent on purpose: 32 conversions in 400 operations is 8%, which is the
+  // "rare" the analysis rows declare, and affords three predictors at ten
+  // events each. A plan whose arithmetic disagrees with its own rows is what
+  // FRQ01 and ADJ03 exist to catch, so the clean plan must not do it.
+  sample_size: 400,
+  expected_events: 32,
   objectives: [
     { id: "P1", tier: "primary", question: "What proportion of operations are converted?" },
     { id: "S1", tier: "secondary", question: "Which factors are associated with conversion?" },
@@ -165,6 +169,78 @@ describe("validateSap", () => {
     );
     s.analyses[1].adjust_for_ids = ["var_age", "var_bmi", "var_prev"];
     expect(codes(s)).toContain("ADJ03");
+  });
+
+  it("ADJ03 - counts every adjusted model, not only the first", () => {
+    const s = clean();
+    s.variables.push(
+      { id: "var_bmi", label: "BMI", data_type: "continuous", unit_coding: "kg/m2", role: "confounder" },
+      { id: "var_prev", label: "Previous surgery", data_type: "binary", unit_coding: "Yes / No", role: "confounder" },
+    );
+    // The first adjusted row stays within its budget; a later one does not.
+    s.analyses.push({
+      ...structuredClone(s.analyses[1]),
+      objective_ids: ["S1"],
+      label: "S1 - a second model",
+      adjust_for_ids: ["var_age", "var_bmi", "var_prev"],
+      table_ids: ["T3"],
+    });
+    s.expected_events = 10;
+    const found = validateSap(s).findings.filter((f) => f.code === "ADJ03");
+    expect(found.length, JSON.stringify(found)).toBeGreaterThan(0);
+    expect(found.some((f) => f.message.includes("S1 - a second model") || f.message.includes("S1"))).toBe(true);
+  });
+
+  it("ADJ05 - an adjusted model with no expected event count to check it against", () => {
+    const s = clean();
+    delete s.expected_events;
+    expect(codes(s)).toContain("ADJ05");
+  });
+
+  it("FRQ01 - the row and the sample size calculation disagree", () => {
+    const s = clean();
+    s.expected_events = 200; // 200 in 400 is half, which is not rare
+    const found = validateSap(s).findings.find((f) => f.code === "FRQ01");
+    expect(found?.message).toContain("50%");
+    expect(found?.severity).toBe("WARN");
+  });
+
+  it("FRQ02 - nothing says how common the event is, and nothing can work it out", () => {
+    const s = clean();
+    delete s.expected_events;
+    delete s.sample_size;
+    for (const a of s.analyses) a.frequency = "unknown";
+    expect(codes(s)).toContain("FRQ02");
+  });
+
+  it("OUT03 - an outcome no analysis reports", () => {
+    const s = clean();
+    s.outcomes.push({
+      id: "out_stay",
+      what: "Postoperative length of stay",
+      how: "from the case record",
+      instrument: "proforma",
+      when: "discharge",
+      units: "Whole days",
+      domain: "clinical",
+      source_variable_ids: [],
+    });
+    const found = validateSap(s).findings.find((f) => f.code === "OUT03");
+    expect(found?.message).toContain("collected and never used");
+  });
+
+  it("STU01 - the design is written out but never classified", () => {
+    const s = clean();
+    delete (s as { design_family?: unknown }).design_family;
+    expect(codes(s)).toContain("STU01");
+  });
+
+  it("STU02 - the prose and the classification disagree", () => {
+    const s = clean();
+    s.design = "a matched case-control study of conversion";
+    s.design_family = "cohort";
+    const found = validateSap(s).findings.find((f) => f.code === "STU02");
+    expect(found?.message).toContain("case control");
   });
 
   it("TEST01 - no rule covers the row", () => {

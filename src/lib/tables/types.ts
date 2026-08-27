@@ -12,34 +12,113 @@ export type TableBlock = "descriptive" | "primary" | "secondary" | "exploratory"
 /**
  * What a table is for.
  *
- * One outcome is not one table. A primary outcome is reported by a block of
- * them, each with a different job and therefore a different shape: the
- * incidence table's rows are the groups, the effect table's rows are estimates,
- * the adjusted table's rows are predictors and its columns are models, the
- * subgroup table's rows are subgroups, and the sensitivity table's rows are
- * ways of analysing the same data. Modelling all five as "an outcome compared
- * between groups" is what produced a single one-row table where a thesis needs
- * five.
+ * One outcome is not one table, and one design is not another design's document.
+ * A primary outcome is reported by a block, each table with a different job and
+ * therefore a different shape: the summary table's rows are the groups, the
+ * effect table's rows are estimates, the adjusted table's rows are predictors,
+ * the subgroup table's rows are subgroups, the sensitivity table's rows are ways
+ * of analysing the same data. Which of them a study needs is decided by its
+ * design, in `design-tables.md`.
+ *
+ * The vocabulary is the reference document's, so a role named here that nothing
+ * yet builds is a gap this app can name rather than one it hides.
  */
 export type TableRole =
+  /* ---- the tables every comparative study reports ---- */
   /** Who was in the study. The baseline table. */
   | "descriptive"
   /** The outcome by group, with the denominators the effect is computed from. */
   | "summary"
   /** The effect before adjustment. Rows are estimates. */
   | "effect_unadjusted"
-  /** The effect with confounders held constant. Columns are models. */
+  /** The effect with confounders held constant. */
   | "effect_adjusted"
+  /** Which pair differs, and by how much. Rows are pairwise comparisons. */
+  | "post_hoc"
   /** The effect within subgroups, read from an interaction term. */
   | "subgroup"
   /** The same question analysed other defensible ways. */
   | "sensitivity"
-  /** Sensitivity, specificity, predictive values. */
-  | "accuracy"
   /** One outcome's categories and how many fall in each. */
   | "distribution"
   /** A measure repeated across time points. */
-  | "repeated";
+  | "repeated"
+  /** How many entered, how many were analysed, and where the rest went. */
+  | "flow"
+  /** Shapiro-Wilk and skewness, which decide the parametric choice. */
+  | "normality"
+  /** Variance inflation and tolerance for the predictors of a model. */
+  | "collinearity"
+  /** How much is missing, where, and what was done about it. */
+  | "missing_data"
+
+  /* ---- trial variants ---- */
+  /** Harms by arm. */
+  | "adverse_events"
+  /** The difference against the prespecified margin, with a conclusion row. */
+  | "non_inferiority"
+  /** Period and sequence effects, and the test for carryover. */
+  | "carryover"
+  /** The intracluster correlation and the design effect. */
+  | "icc"
+  /** Both main effects and the interaction term of a factorial design. */
+  | "interaction"
+
+  /* ---- cohort and case-control ---- */
+  /** Events over person-time, and the incidence rate ratio. */
+  | "incidence"
+  /** The effect across ordered categories of exposure, with a trend test. */
+  | "dose_response"
+  /** Those lost to follow-up against those retained. */
+  | "attrition"
+  /** The concordant and discordant pairs of a matched design. */
+  | "matched"
+
+  /* ---- prevalence designs ---- */
+  /** How common the condition is, with its interval. */
+  | "prevalence"
+  /** The rate standardised to a named standard population. */
+  | "standardised"
+  /** The rate over calendar time, with a test for trend. */
+  | "trend"
+
+  /* ---- diagnostic accuracy ---- */
+  /** The index test cross-classified against the reference standard. */
+  | "two_by_two"
+  /** Sensitivity, specificity, predictive values and likelihood ratios. */
+  | "accuracy"
+  /** Area under the curve, and the cut-off it selects. */
+  | "roc"
+  /** Performance at cut-offs other than the chosen one. */
+  | "cutoffs"
+
+  /* ---- agreement and reliability ---- */
+  /** Two observers cross-classified. */
+  | "cross_classification"
+  /** Kappa, the intraclass correlation, Bland-Altman bias and limits. */
+  | "agreement"
+  /** Item-total correlations and alpha with each item deleted. */
+  | "internal_consistency"
+
+  /* ---- survival ---- */
+  /** Follow-up, events and censoring. */
+  | "survival_summary"
+  /** Survival at fixed times, with the numbers still at risk. */
+  | "life_table"
+  /** Whether the hazards are proportional. */
+  | "ph_test"
+
+  /* ---- systematic review ---- */
+  /** Study selection, as PRISMA counts it. */
+  | "prisma"
+  /** What each included study was. */
+  | "study_characteristics"
+  /** Risk of bias per study, per domain. */
+  | "risk_of_bias"
+  /** The pooled estimate, with Q, I-squared and tau-squared. */
+  | "pooled"
+  /** Whether the pooled estimate survives subgrouping, and whether it is biased. */
+  | "publication_bias";
 
 /** What a row stands for. Absent means a variable or one of its categories. */
 export type TableRowKind =

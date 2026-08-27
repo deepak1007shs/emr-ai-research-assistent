@@ -150,6 +150,85 @@ describe("when nothing covers a row", () => {
   });
 });
 
+describe("the design decides which estimate is valid", () => {
+  const binary = (over: Partial<AnalysisRow>) =>
+    chooseTest(row({ data_type: "binary", comparison: "two_groups", ...over }))!;
+
+  it("a case-control study reports an odds ratio, whatever the event rate", () => {
+    const plan = binary({ design_family: "case_control", frequency: "common" });
+    expect(plan.measures).toEqual(["Odds ratio"]);
+    expect(plan.avoid).toContain("case-control sampling fixes the ratio of cases to controls");
+  });
+
+  it("a cross-sectional study reports prevalence, not risk", () => {
+    const plan = binary({ design_family: "cross_sectional" });
+    expect(plan.measures[0]).toBe("Prevalence ratio");
+    expect(plan.unadjusted).toContain("Prevalence");
+    expect(plan.avoid).toContain("implies the exposure came first");
+  });
+
+  it("a trial reports a risk ratio even where the rate was never stated", () => {
+    const plan = binary({ design_family: "randomised_trial", frequency: "unknown" });
+    expect(plan.measures).toContain("Risk ratio");
+    expect(plan.measures).not.toContain("Odds ratio");
+  });
+
+  it("a cohort reports the number needed to harm rather than to treat", () => {
+    expect(binary({ design_family: "cohort" }).measures).toContain("Number needed to harm");
+  });
+
+  it("a design nothing is known about still gets a plan", () => {
+    const plan = binary({});
+    expect(plan.measures.length).toBeGreaterThan(0);
+  });
+});
+
+describe("the rule table does not contradict itself", () => {
+  // Every family of estimate a row can name, so that the model a row chooses
+  // can be compared with the estimates it says the table will print. The
+  // written-out name is matched whatever its case; the abbreviation is matched
+  // case sensitively, because "or" is also an English word and "regression, or
+  // linear regression" is not an odds ratio.
+  const FAMILIES: [string, RegExp[]][] = [
+    ["odds ratio", [/\bodds ratios?\b/i, /\bORs?\b/]],
+    ["risk ratio", [/\brisk ratios?\b/i, /\bRRs?\b/]],
+    ["prevalence ratio", [/\bprevalence ratios?\b/i, /\bPRs?\b/]],
+    ["hazard ratio", [/\bhazard ratios?\b/i, /\bHRs?\b/]],
+    ["rate ratio", [/\brate ratios?\b/i, /\bIRRs?\b/]],
+    ["risk difference", [/\brisk differences?\b/i]],
+    ["mean difference", [/\bmean differences?\b/i]],
+    ["median difference", [/\bmedian differences?\b/i]],
+  ];
+  const familiesIn = (text: string) =>
+    FAMILIES.filter(([, res]) => res.some((re) => re.test(text))).map(([name]) => name);
+  const familyOf = (text: string) => familiesIn(text)[0];
+
+  it("the estimate a row's adjusted model gives is one the row says it prints", () => {
+    // The adjusted table heads its column with the first measure and names the
+    // model underneath. A row whose model estimates something else would print
+    // a heading its own footnote contradicts, which is how a log-binomial model
+    // came to sit under a column labelled risk difference.
+    for (const rule of loadRules()) {
+      const adjusted = rule.adjusted === "-" ? "" : rule.adjusted;
+      const family = familyOf(adjusted);
+      if (!family) continue;
+      const headline = rule.measures.split(";")[0] ?? "";
+      expect(
+        familyOf(headline),
+        `${rule.data_type}/${rule.comparison}/${rule.design}: the model gives a ${family} but the table leads with "${headline}"`,
+      ).toBe(family);
+    }
+  });
+
+  // There is deliberately no test that a row never prints an estimate its own
+  // avoid column names. The avoid column is prose explaining a mistake, and it
+  // names the right estimate while forbidding the wrong one: "an odds ratio:
+  // with a common outcome it is not a risk ratio" rules out the odds ratio and
+  // mentions the risk ratio in the same breath. Keyword matching cannot tell
+  // those apart, which is why TBL20 compares what a table prints against the
+  // measures list and only quotes the avoid column in its message.
+});
+
 describe("degreesOfFreedomNote", () => {
   it("says the model is exploratory when the events do not afford it", () => {
     const { overfits, note } = degreesOfFreedomNote(10, 3);

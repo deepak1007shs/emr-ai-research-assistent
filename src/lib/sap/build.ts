@@ -5,7 +5,7 @@ import { decisionsBlock } from "../protocol/answers.ts";
 import { EFFORT, MODEL } from "../protocol/analyze.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { ExtractedProtocol } from "../protocol/extract.ts";
-import type { SapSpec } from "./types.ts";
+import type { AnalysisRow, SapSpec } from "./types.ts";
 import { validateSap, type Finding } from "./validate.ts";
 import { chooseTest } from "./choose-test.ts";
 import { buildSapMap } from "./map-stage.ts";
@@ -44,6 +44,17 @@ function obj<T extends Record<string, unknown>>(properties: T, description?: str
 export const SAP_JSON_SCHEMA = obj({
   title: { ...str, description: "The study title, corrected if the protocol's own is wrong." },
   design: { ...str, description: "The exact design, e.g. prospective observational cohort." },
+  design_family: {
+    type: "string",
+    enum: [
+      "pre_post", "randomised_trial", "non_inferiority_trial", "crossover_trial",
+      "cluster_trial", "factorial_trial", "cohort", "case_control", "cross_sectional",
+      "descriptive_epidemiology", "diagnostic_accuracy", "agreement",
+      "questionnaire_validation", "meta_analysis", "survival",
+    ],
+    description:
+      "The same design as one of these, chosen to match what you wrote in design. It decides which estimate is valid and which tables the study owes: only an odds ratio is estimable from case_control sampling, a cross_sectional study reports a prevalence ratio, and a randomised design's baseline table carries no p values. Where a trial is also a crossover, a cluster or a factorial trial, choose that rather than randomised_trial; where it tests non-inferiority, choose non_inferiority_trial.",
+  },
   setting: { ...str, description: "Department and institution, as one line." },
   guideline: { ...str, description: "CONSORT, STROBE, STARD, TRIPOD, PRISMA." },
   picot: obj(
@@ -342,10 +353,18 @@ analysis map is written next, from what you declare here.`,
   // and named an odds ratio for a common outcome, which is the one thing the
   // rule table says to avoid.
   const analyses = second.analyses.map((row) => {
-    const plan = chooseTest(row);
-    if (!plan) return row;
-    return {
+    // The design decides which estimate is valid, so the rule table must be
+    // able to see it. Copied onto the row rather than threaded through every
+    // caller, the same way the chosen test is.
+    const withDesign = {
       ...row,
+      design_family: frame.design_family,
+      frequency: inferFrequency(row, frame),
+    };
+    const plan = chooseTest(withDesign);
+    if (!plan) return withDesign;
+    return {
+      ...withDesign,
       test: plan.unadjusted ?? undefined,
       test_adjusted: plan.adjusted ?? undefined,
       avoid: plan.avoid ?? undefined,
@@ -397,4 +416,22 @@ analysis map is written next, from what you declare here.`,
         third.usage.cache_read_input_tokens,
     },
   };
+}
+
+/**
+ * How often the event happens, from the arithmetic where the plan left it open.
+ *
+ * The sample size calculation already assumed an event rate: expected events
+ * over sample size is that rate. Leaving the field unknown sends the rule table
+ * to its catch-all row, and the catch-all row's adjusted model is a logistic
+ * regression, so one unfilled field is the whole distance between a risk ratio
+ * and an odds ratio. The plan's own declaration wins where it made one; this
+ * only fills a blank.
+ */
+function inferFrequency(row: AnalysisRow, frame: { sample_size?: number; expected_events?: number }) {
+  if (row.data_type !== "binary") return row.frequency;
+  if (row.frequency && row.frequency !== "unknown") return row.frequency;
+  const { sample_size, expected_events } = frame;
+  if (!sample_size || expected_events === undefined) return row.frequency;
+  return expected_events / sample_size >= 0.1 ? ("common" as const) : ("rare" as const);
 }

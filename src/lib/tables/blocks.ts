@@ -1,7 +1,8 @@
 import type { AnalysisRow, Objective, SapRegistry } from "../sap/types.ts";
 import { chooseTest, degreesOfFreedomNote } from "../sap/choose-test.ts";
 import { outcomeIndex, variableIndex } from "../sap/types.ts";
-import type { ShellTable, TableModel, TableRow } from "./types.ts";
+import type { ShellTable, TableModel, TableRole, TableRow } from "./types.ts";
+import { designRule } from "./design-tables.ts";
 
 /**
  * The analytic tables, laid out from the plan rather than asked for.
@@ -25,6 +26,30 @@ const ANALYTIC = new Set(["summary", "effect_unadjusted", "effect_adjusted", "su
 
 export function isAnalyticRole(role: string): boolean {
   return ANALYTIC.has(role);
+}
+
+/**
+ * The analytic roles this version can actually draw.
+ *
+ * The design catalogue names every table a design owes, including the ones no
+ * builder exists for yet. Keeping the two lists apart is what lets the guard
+ * say "this design needs an ROC table and nothing here can draw one" instead of
+ * quietly producing a document that is missing it.
+ */
+export const BUILDABLE: ReadonlySet<TableRole> = ANALYTIC as ReadonlySet<TableRole>;
+
+/** The roles the model lays out, because they need judgement code has not got. */
+const MODEL_AUTHORED: ReadonlySet<TableRole> = new Set<TableRole>([
+  "descriptive",
+  "distribution",
+  "repeated",
+]);
+
+/** The roles a design requires that nothing in this version can produce. */
+export function unbuildableRoles(sap: SapRegistry): TableRole[] {
+  return designRule(sap.design_family).roles.filter(
+    (role) => !isAnalyticRole(role) && !MODEL_AUTHORED.has(role),
+  );
 }
 
 /**
@@ -74,6 +99,15 @@ function midSentence(label: string): string {
 
 /** "P1 - delivery room intubation" reads as a subject once the id is dropped. */
 const stripId = (label: string) => label.replace(/^[A-Z]+\d+\s*[-:]\s*/, "").trim();
+
+/** The designs whose allocation is random, and whose flow table says so. */
+const RANDOMISED = new Set([
+  "randomised_trial",
+  "non_inferiority_trial",
+  "crossover_trial",
+  "cluster_trial",
+  "factorial_trial",
+]);
 
 const TIER_RANK = { primary: 0, secondary: 1, exploratory: 2 } as const;
 type Tier = keyof typeof TIER_RANK;
@@ -207,6 +241,50 @@ function adjustmentSet(row: AnalysisRow): TableModel[] {
   const adjust = row.adjust_for_ids ?? [];
   if (!adjust.length) return [];
   return [{ name: "Adjusted", adds: adjust }];
+}
+
+/**
+ * Where everyone went.
+ *
+ * The first table a trial or a before-and-after study owes, and the one a
+ * reader checks before believing any of the others: how many were approached,
+ * how many entered, and where the difference went. It belongs to the document
+ * rather than to any one analysis, so it is built once.
+ */
+function flowTable(sap: SapRegistry, groups: string[], randomised: boolean): ShellTable {
+  const stage = (label: string) => ({ label, kind: "category" as const, indent: true });
+  const heading = (label: string) => ({ label, kind: "variable" as const, heading: true });
+
+  const rows: TableRow[] = [
+    heading("Enrolment"),
+    stage("Assessed for eligibility"),
+    stage("Excluded, did not meet the inclusion criteria"),
+    stage("Excluded, met an exclusion criterion"),
+    stage("Excluded, declined to participate"),
+    heading(randomised ? "Allocation" : "Enrolled"),
+    stage(randomised ? "Randomised" : "Enrolled and received the intervention"),
+    stage(randomised ? "Received the allocated intervention" : "Completed the baseline measurement"),
+    stage(randomised ? "Did not receive the allocated intervention" : "Withdrew before the intervention"),
+    heading("Follow-up"),
+    stage("Lost to follow-up"),
+    stage("Discontinued the intervention"),
+    heading("Analysis"),
+    stage("Included in the primary analysis"),
+    stage("Excluded from the primary analysis"),
+  ];
+
+  const columns = groups.length > 1 ? ["Stage", ...groups, "Total"] : ["Stage", "n"];
+
+  return {
+    number: 0,
+    block: "descriptive",
+    role: "flow",
+    title: `Participant flow through the study${denominator(sap)}`,
+    columns,
+    rows,
+    footnote:
+      "Every participant assessed for eligibility is accounted for on one of these rows. A study that cannot say where a participant went cannot say its analysis population is what it claims.",
+  };
 }
 
 /* ---- the five tables ---------------------------------------------- */
@@ -422,11 +500,29 @@ function subgroupTable(row: AnalysisRow, tier: Tier, ctx: BlockContext): ShellTa
   };
 }
 
-function sensitivityTable(row: AnalysisRow, tier: Tier, ctx: BlockContext): ShellTable | null {
+function sensitivityTable(
+  row: AnalysisRow,
+  tier: Tier,
+  ctx: BlockContext,
+  required: boolean,
+): ShellTable | null {
   const { sap } = ctx;
-  const populations = sap.populations ?? [];
+  const declared = sap.populations ?? [];
   const missing = sap.rules?.missing_data?.trim();
-  if (populations.length < 2 && !missing) return null;
+  if (declared.length < 2 && !missing && !required) return null;
+
+  // A design that owes this table owes it whether or not the plan remembered to
+  // name its populations. A trial is read as intention to treat and checked
+  // against per protocol; saying so here is better than omitting the table
+  // because one field was left empty.
+  const populations = declared.length
+    ? declared
+    : required
+      ? [
+          { name: "Intention to treat (primary)", definition: "" },
+          { name: "Per protocol", definition: "" },
+        ]
+      : [];
 
   const ids = row.outcome_ids ?? [];
   const subject = subjectOf(row, sap);
@@ -490,20 +586,38 @@ export function buildAnalyticTables(sap: SapRegistry, groups: string[]): ShellTa
   // number that nothing is being compared against.
   const headline = ordered.find(hasContrast);
 
+  // What the design owes. A trial owes a subgroup table and a sensitivity
+  // table; a cohort owes person-time and an attrition table instead. The plan
+  // can add to that floor but not fall below it: a study that declares
+  // subgroups gets a subgroup table whether or not its design demands one.
+  const required = new Set(designRule(sap.design_family).roles);
+  const wants = (role: TableRole, alsoWhen = false) => required.has(role) || alsoWhen;
+  // A design the plan never classified falls to the catalogue's `any` row,
+  // which carries the tables every comparative study needs, so an unclassified
+  // plan behaves exactly as it did before the catalogue existed.
+
   const out: ShellTable[] = [];
+  if (required.has("flow")) {
+    out.push(flowTable(sap, ctx.groups, RANDOMISED.has(sap.design_family ?? "")));
+  }
+
   for (const row of ordered) {
     const tier = tierOf(row, objectives);
     const block: (ShellTable | null)[] = [
-      summaryTable(row, tier, ctx),
-      unadjustedTable(row, tier, ctx),
-      adjustedTable(row, tier, ctx),
+      wants("summary") ? summaryTable(row, tier, ctx) : null,
+      wants("effect_unadjusted") ? unadjustedTable(row, tier, ctx) : null,
+      wants("effect_adjusted") ? adjustedTable(row, tier, ctx) : null,
     ];
 
     // One subgroup table and one sensitivity table for the study, not one per
     // outcome. Neither is powered, and repeating them down every secondary
     // outcome would treble the document without adding a finding.
-    if (row === headline) block.push(subgroupTable(row, tier, ctx));
-    if (tier === "primary") block.push(sensitivityTable(row, tier, ctx));
+    if (row === headline && wants("subgroup", (sap.subgroups ?? []).length > 0)) {
+      block.push(subgroupTable(row, tier, ctx));
+    }
+    if (tier === "primary" && wants("sensitivity", (sap.populations ?? []).length > 1)) {
+      block.push(sensitivityTable(row, tier, ctx, required.has("sensitivity")));
+    }
 
     out.push(...block.filter((t): t is ShellTable => Boolean(t)));
   }
@@ -520,6 +634,7 @@ const BLOCK_ORDER = ["descriptive", "primary", "secondary", "exploratory"];
  * subgroup, and whether it survives being analysed another way.
  */
 const ROLE_ORDER = [
+  "flow",
   "descriptive",
   "summary",
   "distribution",
