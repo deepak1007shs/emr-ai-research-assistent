@@ -1,4 +1,6 @@
-import type { ShellTablesSpec } from "./types.ts";
+import type { ShellTable, ShellTablesSpec } from "./types.ts";
+import { adjustedIds } from "./types.ts";
+import { hasContrast, planOf } from "./blocks.ts";
 import type { SapRegistry } from "../sap/types.ts";
 import { outcomeIndex, variableIndex } from "../sap/types.ts";
 import type { Finding } from "../sap/validate.ts";
@@ -6,13 +8,55 @@ import type { Finding } from "../sap/validate.ts";
 /**
  * Checks the shell tables against the analysis plan they report.
  *
- * The plan already says which table each analysis fills. These guards make that
- * a fact rather than an intention: an analysis with no table would never be
- * reported, and a table no analysis fills would never be filled.
+ * The plan already says which analysis each table reports. These guards make
+ * that a fact rather than an intention: an analysis with no table would never
+ * be reported, and a table no analysis fills would never be filled.
+ *
+ * They also hold the line the rule table draws. A plan that chose a risk ratio
+ * because the outcome is common, whose table then prints an odds ratio, has
+ * quietly undone the one decision the plan existed to make.
  */
 
 const CI = /95%\s*ci/i;
 const EFFECT = /\b(or|rr|hr|odds ratio|risk ratio|hazard ratio|difference|mean difference)\b/i;
+const P_VALUE = /p[- ]?value/i;
+const INTERACTION = /interaction\s*p/i;
+
+/**
+ * The estimate families a table can name.
+ *
+ * Used to compare what a table prints against what the plan chose. Comparing
+ * whole strings would not work: the plan says "Risk ratio" and a column says
+ * "Crude: risk ratio (95% CI)".
+ */
+const ESTIMATES: ReadonlyArray<readonly [string, RegExp[]]> = [
+  // The written-out name is matched whatever its case, because a plan writes
+  // "Odds ratio" and a column writes "crude odds ratio". The abbreviation is
+  // matched case sensitively, because "or" is also an English word.
+  ["odds ratio", [/\bodds ratios?\b/i, /\bORs?\b/]],
+  ["risk ratio", [/\brisk ratios?\b/i, /\bRRs?\b/]],
+  ["hazard ratio", [/\bhazard ratios?\b/i, /\bHRs?\b/]],
+  ["rate ratio", [/\brate ratios?\b/i]],
+  ["risk difference", [/\brisk differences?\b/i]],
+  ["mean difference", [/\bmean differences?\b/i]],
+  ["median difference", [/\bmedian differences?\b/i]],
+  ["number needed to treat", [/\bnumber needed to treat\b/i, /\bNNTs?\b/]],
+];
+
+function families(texts: string[]): Set<string> {
+  const found = new Set<string>();
+  for (const text of texts) {
+    for (const [name, patterns] of ESTIMATES) {
+      if (patterns.some((pattern) => pattern.test(text))) found.add(name);
+    }
+  }
+  return found;
+}
+
+/** A table whose cells are an effect estimate rather than a count. */
+const EFFECT_ROLES = new Set(["effect_unadjusted", "effect_adjusted", "subgroup", "sensitivity"]);
+/** A table that reports a comparison, and must therefore name its test. */
+const TESTED_ROLES = new Set([...EFFECT_ROLES, "summary", "accuracy"]);
 
 export function validateTables(
   spec: ShellTablesSpec,
@@ -67,26 +111,28 @@ export function validateTables(
     if (!t.rows.length) {
       error("TBL06", `Table ${t.number} has no rows.`);
     }
-    if (t.rows.every((r) => r.heading)) {
+    if (t.rows.length && t.rows.every((r) => r.heading)) {
       error("TBL07", `Table ${t.number} has only headings and no rows to fill.`);
     }
     if (!/\(n\s*=/.test(t.title)) {
       warn("TBL08", `Table ${t.number} does not carry its denominator. A table without "(n = ...)" cannot be read alone.`);
     }
 
-    const analytical = t.kind === "comparative" || t.kind === "effect" || t.kind === "accuracy";
-    if (analytical && !t.test_applied) {
+    if (TESTED_ROLES.has(t.role) && !t.test_applied) {
       error("TBL09", `Table ${t.number} reports a comparison but does not name the test applied.`);
     }
-    if (t.kind === "descriptive" && t.test_applied === undefined && /p[- ]?value/i.test(t.columns.join(" "))) {
+    if (t.role === "descriptive" && !t.test_applied && P_VALUE.test(t.columns.join(" "))) {
       warn("TBL10", `Table ${t.number} has a p-value column but names no test.`);
     }
 
     for (const column of t.columns) {
       if (/^model\s*\d/i.test(column.trim())) {
-        error("TBL11", `Table ${t.number} has a column called "${column}". Name what the model estimates, not its number.`);
+        error(
+          "TBL11",
+          `Table ${t.number} has a column called "${column}". A model column says what it holds constant, not what number it is.`,
+        );
       }
-      if (EFFECT.test(column) && !CI.test(column) && !/p[- ]?value/i.test(column)) {
+      if (EFFECT.test(column) && !CI.test(column) && !P_VALUE.test(column)) {
         error(
           "TBL12",
           `Table ${t.number} reports "${column}" without a 95% CI. An effect size without an interval says nothing about precision.`,
@@ -94,14 +140,58 @@ export function validateTables(
       }
     }
 
-    if (t.kind === "effect") {
-      const joined = t.columns.join(" ").toLowerCase();
-      if (joined.includes("adjusted") && !joined.includes("unadjusted")) {
+    // A table whose rows are estimates needs the interval somewhere, and on
+    // that shape of table the interval is a column.
+    if (t.rows.some((r) => r.kind === "measure") && !t.columns.some((c) => CI.test(c))) {
+      error(
+        "TBL12",
+        `Table ${t.number} reports estimates as rows but has no 95% CI column. An effect size without an interval says nothing about precision.`,
+      );
+    }
+
+    if (t.role === "effect_adjusted") {
+      const models = t.models ?? [];
+      if (!models.length) {
         error(
-          "TBL13",
-          `Table ${t.number} reports an adjusted effect with no unadjusted column beside it. A reader cannot see what the adjustment did.`,
+          "TBL11",
+          `Table ${t.number} reports an adjusted effect but names no models, so a reader cannot tell what each column holds constant.`,
         );
       }
+      models.forEach((m) => {
+        if (!m.adds.length) {
+          error(
+            "TBL11",
+            `Table ${t.number} has a model called "${m.name}" that holds nothing constant, so it is not an adjusted estimate.`,
+          );
+        }
+      });
+    }
+
+    if (t.role === "effect_adjusted") {
+      // Either an unadjusted column on the same row, or an unadjusted table
+      // reporting the same objective. Both let a reader see what the
+      // adjustment did; neither being present does not.
+      const joined = t.columns.join(" ").toLowerCase();
+      const beside =
+        joined.includes("unadjusted") ||
+        tables.some(
+          (o) =>
+            o.role === "effect_unadjusted" &&
+            (o.fills ?? []).some((id) => (t.fills ?? []).includes(id)),
+        );
+      if (!beside) {
+        error(
+          "TBL13",
+          `Table ${t.number} reports an adjusted effect with no unadjusted table beside it. A reader cannot see what the adjustment did.`,
+        );
+      }
+    }
+
+    if (t.role === "subgroup" && !t.columns.some((c) => INTERACTION.test(c))) {
+      error(
+        "TBL22",
+        `Table ${t.number} reports subgroups but has no interaction p column. Effect modification is read from an interaction term, never from the p value within each subgroup.`,
+      );
     }
   }
 
@@ -117,26 +207,56 @@ export function validateTables(
     // its tables answers. The plan's own table_id was assigned before anyone
     // knew how many baseline tables the study needed, so it is not checked
     // against a number: it is checked against this.
-    const analysisOf = new Map(
-      (sap.analyses ?? []).flatMap((a) => (a.objective_ids ?? []).map((id) => [id, a] as const)),
-    );
-    const byObjective = new Map<string, (typeof tables)[number]>();
+    // An objective is often answered by several analysis rows, one per outcome:
+    // three binary secondary outcomes under S2, an ordinal one under S3. A map
+    // from objective to a single analysis silently kept the last of them, and
+    // then judged every table against the wrong row.
+    type Analysis = NonNullable<SapRegistry["analyses"]>[number];
+    const analysesOf = new Map<string, Analysis[]>();
+    for (const a of sap.analyses ?? []) {
+      for (const id of a.objective_ids ?? []) {
+        analysesOf.set(id, [...(analysesOf.get(id) ?? []), a]);
+      }
+    }
+
+    /** The analyses a table reports: its objectives, narrowed by its outcome. */
+    const analysesFor = (t: ShellTable): Analysis[] => {
+      const claimed = (t.fills ?? []).flatMap((id) => analysesOf.get(id) ?? []);
+      if (!t.outcome_id) return claimed;
+      const matching = claimed.filter((a) => (a.outcome_ids ?? []).includes(t.outcome_id!));
+      // Nothing matching is itself a finding, reported by TBL16 below.
+      return matching.length ? matching : claimed;
+    };
+
+    // An objective is reported by a block of tables, not by one: the incidence,
+    // the crude effect, the adjusted model, the subgroups, the sensitivity
+    // analyses. What must not repeat is the job, not the objective.
+    const byRole = new Map<string, ShellTable>();
+    const reported = new Set<string>();
     for (const t of tables) {
       for (const objectiveId of t.fills ?? []) {
-        if (byObjective.has(objectiveId)) {
+        reported.add(objectiveId);
+        // Two tables may do the same job under one objective when they report
+        // different outcomes, which is how three secondary outcomes answered
+        // the same way are printed.
+        const key = `${objectiveId}:${t.role}:${t.outcome_id ?? t.title}`;
+        const already = byRole.get(key);
+        if (already) {
           error(
             "TBL19",
-            `${objectiveId} is reported by both Table ${byObjective.get(objectiveId)!.number} and Table ${t.number}. One analysis, one table.`,
+            `${objectiveId} reports ${
+              t.outcome_id ? `"${nameOf(t.outcome_id)}"` : "the same thing"
+            } twice the same way, in Table ${already.number} and Table ${t.number}. Two tables under one objective must either report different outcomes or do different jobs, so either the plan has the same analysis twice or one of these tables is redundant.`,
           );
         } else {
-          byObjective.set(objectiveId, t);
+          byRole.set(key, t);
         }
       }
     }
 
     for (const analysis of sap.analyses ?? []) {
       for (const objectiveId of analysis.objective_ids ?? []) {
-        if (!byObjective.has(objectiveId)) {
+        if (!reported.has(objectiveId)) {
           error(
             "TBL14",
             `No table reports ${objectiveId}, so that analysis would never be reported.`,
@@ -146,9 +266,7 @@ export function validateTables(
     }
 
     for (const t of tables) {
-      const filled = (t.fills ?? [])
-        .map((id) => analysisOf.get(id))
-        .filter((a): a is NonNullable<typeof a> => Boolean(a));
+      const filled = analysesFor(t);
       if (t.block !== "descriptive" && !filled.length) {
         warn(
           "TBL15",
@@ -185,9 +303,32 @@ export function validateTables(
         }
       }
 
-      // An adjusted column must adjust for what the plan said it would.
-      if (t.adjusted_for?.length) {
-        for (const id of t.adjusted_for) {
+      // The estimate a table prints is the plan's decision, already made. A
+      // table that names another one has undone it: an odds ratio on a common
+      // outcome is not a risk ratio, and overstates the effect.
+      if (EFFECT_ROLES.has(t.role)) {
+        const planned = filled.flatMap((a) => planOf(a).measures);
+        if (planned.length) {
+          const allowed = families(planned);
+          const named = families([
+            ...t.columns,
+            ...t.rows.filter((r) => r.kind === "measure").map((r) => r.label),
+          ]);
+          const stray = [...named].filter((f) => !allowed.has(f));
+          if (stray.length) {
+            const why = filled.map((a) => planOf(a).avoid).find(Boolean);
+            error(
+              "TBL20",
+              `Table ${t.number} reports ${stray.join(" and ")}, which is not what the plan chose for this outcome (${planned.join("; ")}).${why ? ` The plan rules it out: ${why}.` : ""}`,
+            );
+          }
+        }
+      }
+
+      // An adjusted column must hold constant what the plan said it would.
+      const adjusted = adjustedIds(t);
+      if (adjusted.length) {
+        for (const id of adjusted) {
           const variable = byVariable.get(id);
           if (!variable) {
             error(
@@ -203,10 +344,10 @@ export function validateTables(
             );
           }
         }
-        const planned = new Set(
+        const plannedIds = new Set(
           filled.flatMap((a) => [...(a.exposure_ids ?? []), ...(a.adjust_for_ids ?? [])]),
         );
-        const extra = filled.length ? t.adjusted_for.filter((id) => !planned.has(id)) : [];
+        const extra = filled.length ? adjusted.filter((id) => !plannedIds.has(id)) : [];
         if (extra.length) {
           warn(
             "TBL18",
@@ -216,6 +357,64 @@ export function validateTables(
           );
         }
       }
+    }
+
+    /* ---- the primary outcome gets a block, not a table -------------- */
+
+    const rolesFor = (objectiveId: string) =>
+      new Set(
+        tables.filter((t) => (t.fills ?? []).includes(objectiveId)).map((t) => t.role),
+      );
+
+    for (const objective of sap.objectives ?? []) {
+      if (objective.tier !== "primary") continue;
+      const [analysis] = analysesOf.get(objective.id) ?? [];
+      if (!analysis) continue;
+      const roles = rolesFor(objective.id);
+
+      const wanted: [string, boolean, string][] = [
+        [
+          "summary",
+          roles.has("summary") || roles.has("repeated") || roles.has("distribution"),
+          "how many patients in each group had the outcome, with the denominators the effect is computed from",
+        ],
+        [
+          "effect_unadjusted",
+          roles.has("effect_unadjusted") ||
+            !hasContrast(analysis) ||
+            !planOf(analysis).measures.length,
+          "the crude effect, with its confidence interval",
+        ],
+        [
+          "effect_adjusted",
+          roles.has("effect_adjusted") ||
+            !(analysis.adjust_for_ids ?? []).length ||
+            Boolean(analysis.no_adjustment_reason),
+          "the effect with the confounders the plan named held constant",
+        ],
+      ];
+
+      for (const [role, satisfied, what] of wanted) {
+        if (!satisfied) {
+          error(
+            "TBL21",
+            `The primary outcome (${objective.id}) has no ${role.replace(/_/g, " ")} table, so the document never reports ${what}.`,
+          );
+        }
+      }
+    }
+
+    if ((sap.subgroups ?? []).length && !tables.some((t) => t.role === "subgroup")) {
+      error(
+        "TBL23",
+        `The plan names ${sap.subgroups!.length} subgroup analysis${sap.subgroups!.length === 1 ? "" : "es"} but no table reports one, so they would never appear.`,
+      );
+    }
+    if ((sap.populations ?? []).length > 1 && !tables.some((t) => t.role === "sensitivity")) {
+      warn(
+        "TBL23",
+        `The plan names ${sap.populations!.length} analysis populations but no sensitivity table compares them. A conclusion that holds in only one population is not a robust one.`,
+      );
     }
   }
 

@@ -93,8 +93,13 @@ function drawTable(table: ShellTable, labelOf: (id: string, fallback: string) =>
     }),
   );
 
-  if (table.test_applied) blocks.push(italic(`Test applied: ${table.test_applied}`));
-  if (table.footnote) blocks.push(italic(table.footnote));
+  // The reference plans all print the test as part of the footnote rather than
+  // as a line of its own, which keeps everything under a table in one voice.
+  const notes = [
+    table.test_applied ? `test used = ${table.test_applied.replace(/\.$/, "")}` : "",
+    table.footnote,
+  ].filter(Boolean);
+  if (notes.length) blocks.push(italic(`Footnote: ${notes.join(". ")}`));
   return blocks;
 }
 

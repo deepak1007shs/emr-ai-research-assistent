@@ -329,23 +329,40 @@ analysis map is written next, from what you declare here.`,
   });
   spent += second.usage.output_tokens;
 
-  const front: Omit<SapSpec, keyof RulesResult["rules"]> = {
-    ...frame,
-    analyses: second.analyses,
-  };
-
   // The analyses are planned here, by rule, before the third call. That is the
   // reason there is a third call: the assumptions belong to the analysis that
   // was chosen, and a model asked for both at once would be guessing at its own
   // output. Both halves of every plan, because an adjusted model's assumptions
   // are not the unadjusted estimate's.
+  //
+  // The plan is written onto the row and stored with it. It used to be computed
+  // here, read once for the list below and thrown away, which left every reader
+  // downstream to work it out again. The shell tables could not: they were sent
+  // the analyses without a test and had to name the effect measure themselves,
+  // and named an odds ratio for a common outcome, which is the one thing the
+  // rule table says to avoid.
+  const analyses = second.analyses.map((row) => {
+    const plan = chooseTest(row);
+    if (!plan) return row;
+    return {
+      ...row,
+      test: plan.unadjusted ?? undefined,
+      test_adjusted: plan.adjusted ?? undefined,
+      avoid: plan.avoid ?? undefined,
+      measures: plan.measures,
+    };
+  });
+
+  const front: Omit<SapSpec, keyof RulesResult["rules"]> = {
+    ...frame,
+    analyses,
+  };
+
   const tests = [
     ...new Set(
-      front.analyses.flatMap((row) => {
-        const plan = chooseTest(row);
-        if (!plan) return [];
-        return [plan.unadjusted, plan.adjusted].filter((t): t is string => Boolean(t));
-      }),
+      analyses.flatMap((row) =>
+        [row.test, row.test_adjusted].filter((t): t is string => Boolean(t)),
+      ),
     ),
   ];
 

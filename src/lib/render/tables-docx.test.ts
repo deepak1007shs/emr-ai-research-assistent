@@ -24,11 +24,26 @@ describe("the shell tables document", () => {
       "Secondary outcomes",
       "Exploratory analyses",
     ];
+    // A study with no exploratory objective prints no exploratory block, so
+    // only the blocks that appear are checked, and they must appear in order.
     let cursor = -1;
+    let printed = 0;
     for (const heading of order) {
       const at = visible.indexOf(heading);
-      expect(at, `${heading} missing or out of order`).toBeGreaterThan(cursor);
+      if (at === -1) continue;
+      expect(at, `${heading} is out of order`).toBeGreaterThan(cursor);
       cursor = at;
+      printed += 1;
+    }
+    expect(printed).toBeGreaterThanOrEqual(3);
+  });
+
+  it("reports the primary outcome with a block of tables, not one table", async () => {
+    const forPrimary = tablesFixture.tables.filter((t) => t.block === "primary");
+    expect(forPrimary.length).toBeGreaterThan(1);
+    const { visible } = await read();
+    for (const table of forPrimary) {
+      expect(visible).toContain(`Table ${table.number}: ${table.title}`);
     }
   });
 
@@ -38,24 +53,37 @@ describe("the shell tables document", () => {
     expect(visible).toContain("(n = 125)");
   });
 
-  it("puts unadjusted and adjusted side by side, each with a CI", async () => {
+  it("puts the unadjusted and adjusted estimate side by side, never a model number", async () => {
     const { visible } = await read();
-    expect(visible).toContain("Unadjusted OR (95% CI)");
-    expect(visible).toContain("Adjusted OR (95% CI)");
+    expect(visible).toContain("Unadjusted odds ratio (95% CI)");
+    expect(visible).toContain("Adjusted odds ratio (95% CI)");
     expect(visible).not.toMatch(/Model\s*\d/);
+  });
+
+  it("names the estimate the plan chose, and rules out the one it did not", async () => {
+    const { visible } = await read();
+    expect(visible).toContain("Odds ratio (Yes vs No)");
+    expect(visible).toContain("Risk difference (Yes vs No)");
+    expect(visible).toContain("Not to be reported here:");
+  });
+
+  it("reads effect modification from an interaction, never a within-subgroup p", async () => {
+    const { visible } = await read();
+    expect(visible).toContain("Interaction p");
+    expect(visible).toContain("not from the p value within each subgroup");
   });
 
   it("uses a heading row for a variable and indents its parts", async () => {
     const { visible } = await read();
-    expect(visible).toContain("Age (years)");
+    expect(visible).toContain("Age group");
     expect(visible).toContain("Mean ± SD");
     expect(visible).toContain("40 to 60 years");
   });
 
   it("names the test under every analytical table", async () => {
     const { visible } = await read();
-    expect(visible).toContain("Test applied: Clopper-Pearson");
-    expect(visible).toContain("Test applied: Mann-Whitney U test");
+    expect(visible).toContain("Footnote: test used = Proportion with exact (Clopper-Pearson) 95% CI");
+    expect(visible).toContain("Footnote: test used = Mann-Whitney U");
   });
 
   it("marks exploratory analyses as not confirmatory", async () => {

@@ -2,86 +2,26 @@ import { describe, expect, it } from "vitest";
 import { validateTables } from "./validate.ts";
 import type { SapRegistry } from "../sap/types.ts";
 import { tablesFixture } from "./fixture.ts";
+import { sapFixture } from "../sap/fixture.ts";
 import type { ShellTablesSpec } from "./types.ts";
 
 const clean = () => structuredClone(tablesFixture) as ShellTablesSpec;
 const codes = (s: ShellTablesSpec, plan?: SapRegistry) =>
   validateTables(s, plan).findings.map((f) => f.code);
 
-const sap = (): SapRegistry => ({
-  title: "A study",
-  objectives: [
-    { id: "P1", tier: "primary", question: "What proportion convert?" },
-    { id: "S1", tier: "secondary", question: "Which factors are associated with conversion?" },
-    { id: "S2", tier: "secondary", question: "Does operative duration differ?" },
-  ],
-  variables: [
-    { id: "var_age", label: "Age (years)", data_type: "continuous", unit_coding: "Years", role: "confounder" },
-    {
-      id: "var_age_group",
-      label: "Age group",
-      data_type: "ordinal",
-      unit_coding: "< 40 / 40 to 60 / > 60",
-      role: "descriptor",
-    },
-    { id: "var_sex", label: "Sex", data_type: "binary", unit_coding: "Male / Female", role: "confounder" },
-    {
-      id: "var_bmi",
-      label: "Body mass index (kg/m2)",
-      data_type: "continuous",
-      unit_coding: "kg/m2",
-      role: "confounder",
-    },
-  ],
-  outcomes: [
-    {
-      id: "out_conversion",
-      what: "Intraoperative conversion",
-      how: "the surgeon's record",
-      instrument: "proforma",
-      when: "the index operation",
-      units: "Yes / No",
-      domain: "clinical",
-      source_variable_ids: [],
-    },
-  ],
-  analyses: [
-    {
-      objective_ids: ["P1"],
-      label: "P1 - rate",
-      outcome_ids: ["out_conversion"],
-      exposure_ids: [], adjust_for_ids: [],
-      data_type: "binary",
-      comparison: "single_group",
-      pairing: "none" as const,
-      table_ids: ["T2"],
-    },
-    {
-      objective_ids: ["S1"],
-      label: "S1 - factors",
-      outcome_ids: ["out_conversion"],
-      exposure_ids: [], adjust_for_ids: ["var_age"],
-      data_type: "binary",
-      comparison: "adjusted",
-      pairing: "none" as const,
-      table_ids: ["T3"],
-    },
-    {
-      objective_ids: ["S2"],
-      label: "S2 - operative duration",
-      outcome_ids: ["out_conversion"],
-      exposure_ids: [], adjust_for_ids: [],
-      data_type: "continuous",
-      comparison: "two_groups",
-      pairing: "none" as const,
-      table_ids: ["T4"],
-    },
-  ],
-});
+/**
+ * Tables are found by the job they do, not by where they sit. One outcome now
+ * owns a block of them, so a position is not a stable way to name one.
+ */
+const roled = (s: ShellTablesSpec, role: string) => s.tables.find((t) => t.role === role)!;
+const renumber = (s: ShellTablesSpec) => s.tables.forEach((t, i) => (t.number = i + 1));
+
+/** The plan the fixture is generated from. */
+const sap = (): SapRegistry => structuredClone(sapFixture) as SapRegistry;
 
 describe("validateTables", () => {
   it("passes the fixture", () => {
-    const { ok, findings } = validateTables(clean());
+    const { ok, findings } = validateTables(clean(), sap());
     expect(findings.filter((f) => f.severity === "ERROR"), JSON.stringify(findings, null, 2)).toEqual([]);
     expect(ok).toBe(true);
   });
@@ -90,6 +30,51 @@ describe("validateTables", () => {
     const s = clean();
     s.tables[2].number = 9;
     expect(codes(s)).toContain("TBL01");
+  });
+
+  it("the primary outcome gets a block of tables, not one table", () => {
+    const roles = clean()
+      .tables.filter((t) => (t.fills ?? []).includes("P1"))
+      .map((t) => t.role);
+    expect(roles).toContain("summary");
+    expect(roles).toContain("sensitivity");
+    expect(roles.length).toBeGreaterThan(1);
+  });
+
+  it("TBL21 - the primary outcome has no table showing what happened", () => {
+    const s = clean();
+    s.tables = s.tables.filter(
+      (t) => !((t.fills ?? []).includes("P1") && t.role === "summary"),
+    );
+    renumber(s);
+    expect(codes(s, sap())).toContain("TBL21");
+  });
+
+  it("TBL23 - subgroups are planned but never tabulated", () => {
+    const s = clean();
+    s.tables = s.tables.filter((t) => t.role !== "subgroup");
+    renumber(s);
+    const p = sap();
+    p.subgroups = [{ subgroup: "Recurrent versus primary hernia", how_tested: "An interaction term." }];
+    expect(codes(s, p)).toContain("TBL23");
+  });
+
+  it("TBL22 - a subgroup table read from within-subgroup p values", () => {
+    const s = clean();
+    const t = roled(s, "effect_unadjusted");
+    t.role = "subgroup";
+    t.columns = ["Subgroup", "Estimate", "95% CI", "P value"];
+    expect(codes(s, sap())).toContain("TBL22");
+  });
+
+  it("TBL20 - the table names an estimate the plan did not choose", () => {
+    const s = clean();
+    const t = roled(s, "effect_unadjusted");
+    // The plan chose a median difference for this skewed outcome.
+    t.rows = [{ label: "Risk ratio", kind: "measure" }];
+    const findings = validateTables(s, sap()).findings;
+    expect(findings.map((f) => f.code)).toContain("TBL20");
+    expect(findings.find((f) => f.code === "TBL20")?.message).toContain("not what the plan chose");
   });
 
   it("TBL02 - blocks out of order", () => {
@@ -114,43 +99,72 @@ describe("validateTables", () => {
 
   it("TBL09 - a comparison with no named test", () => {
     const s = clean();
-    delete s.tables[3].test_applied;
+    delete roled(s, "effect_unadjusted").test_applied;
     expect(codes(s)).toContain("TBL09");
   });
 
   it("TBL11 - a column called Model 1", () => {
     const s = clean();
-    s.tables[3].columns[3] = "Model 2";
+    roled(s, "effect_adjusted").columns[1] = "Model 2";
     expect(codes(s)).toContain("TBL11");
+  });
+
+  it("TBL11 - a model that holds nothing constant", () => {
+    const s = clean();
+    roled(s, "effect_adjusted").models![0].adds = [];
+    expect(codes(s)).toContain("TBL11");
+  });
+
+  it("a model is named for what it holds constant, not by a number", () => {
+    const models = roled(clean(), "effect_adjusted").models!;
+    expect(models.every((m) => m.adds.length)).toBe(true);
+    expect(models.some((m) => /^model\s*\d/i.test(m.name))).toBe(false);
   });
 
   it("TBL12 - an effect size with no confidence interval", () => {
     const s = clean();
-    s.tables[3].columns[1] = "Unadjusted OR";
+    roled(s, "effect_adjusted").columns[1] = "Unadjusted OR";
     const findings = validateTables(s).findings;
     expect(findings.map((f) => f.code)).toContain("TBL12");
     expect(findings.find((f) => f.code === "TBL12")?.message).toContain("precision");
   });
 
+  it("TBL12 - estimates as rows with no interval column", () => {
+    const s = clean();
+    const t = roled(s, "effect_unadjusted");
+    t.columns = ["Measure", "Estimate", "P value"];
+    expect(codes(s)).toContain("TBL12");
+  });
+
   it("TBL13 - adjusted reported with no unadjusted beside it", () => {
     const s = clean();
-    s.tables[3].columns = ["Predictor", "Adjusted OR (95% CI)", "P value"];
+    s.tables = s.tables.filter((t) => t.role !== "effect_unadjusted");
+    // Nor an unadjusted column on the table itself.
+    roled(s, "effect_adjusted").columns = ["Predictor", "Adjusted OR (95% CI)", "P value"];
+    renumber(s);
     expect(codes(s)).toContain("TBL13");
   });
 
   it("TBL14 - an analysis no table reports", () => {
     const s = clean();
-    // The table that reported P1 now says it reports nothing.
-    s.tables[2].fills = [];
+    // Nothing reports P1 any more.
+    for (const t of s.tables) t.fills = t.fills?.filter((id) => id !== "P1");
     const findings = validateTables(s, sap()).findings;
     expect(findings.map((f) => f.code)).toContain("TBL14");
     expect(findings.find((f) => f.code === "TBL14")?.message).toContain("never be reported");
   });
 
-  it("TBL19 - two tables claiming the same analysis", () => {
+  it("TBL19 - two tables doing the same job for one analysis", () => {
     const s = clean();
-    s.tables[3].fills = ["P1"];
+    const t = roled(s, "sensitivity");
+    s.tables.push({ ...structuredClone(t), number: s.tables.length + 1 });
     expect(codes(s, sap())).toContain("TBL19");
+  });
+
+  it("TBL19 - several tables for one analysis are fine when the jobs differ", () => {
+    const forP1 = clean().tables.filter((t) => (t.fills ?? []).includes("P1"));
+    expect(forP1.length).toBeGreaterThan(1);
+    expect(codes(clean(), sap())).not.toContain("TBL19");
   });
 
   it("REF08 - a row reports a variable the plan does not declare", () => {
@@ -172,8 +186,8 @@ describe("validateTables", () => {
       domain: "clinical",
       source_variable_ids: [],
     });
-    // Table 4 says it reports S1, whose outcome is conversion, not this one.
-    s.tables[3].outcome_id = "out_other";
+    // This table says it reports S1, whose outcome is conversion, not this one.
+    roled(s, "effect_adjusted").outcome_id = "out_other";
     const findings = validateTables(s, p).findings;
     expect(findings.map((f) => f.code)).toContain("TBL16");
     expect(findings.find((f) => f.code === "TBL16")?.message).toContain("measures");
@@ -189,7 +203,9 @@ describe("validateTables", () => {
       unit_coding: "Minutes",
       role: "mediator",
     });
-    s.tables[3].adjusted_for = ["var_op_duration"];
+    roled(s, "effect_adjusted").models = [
+      { name: "Adjusted", adds: ["var_age", "var_op_duration"] },
+    ];
     const findings = validateTables(s, p).findings;
     expect(findings.map((f) => f.code)).toContain("TBL17");
     expect(findings.find((f) => f.code === "TBL17")?.message).toContain("removes part of the effect");
@@ -198,8 +214,8 @@ describe("validateTables", () => {
   it("TBL18 - the table adjusts for something the plan never listed", () => {
     const s = clean();
     const p = sap();
-    // S1 lists var_age only; table 4, which reports S1, adjusts for two.
-    s.tables[3].adjusted_for = ["var_age", "var_bmi"];
+    // S1 lists age and BMI; this model adds sex, which the plan never named.
+    roled(s, "effect_adjusted").models![0].adds = ["var_age", "var_bmi", "var_sex"];
     const findings = validateTables(s, p).findings;
     expect(findings.map((f) => f.code)).toContain("TBL18");
     expect(findings.find((f) => f.code === "TBL18")?.severity).toBe("WARN");

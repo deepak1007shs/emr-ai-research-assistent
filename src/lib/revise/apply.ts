@@ -277,14 +277,15 @@ export function applyTablesRevision(
     (e) => ({
       number: e.number,
       block: e.block,
+      role: e.role,
       outcome_id: trimmed(e.outcome_id),
-      adjusted_for: e.adjusted_for?.length ? e.adjusted_for : undefined,
+      models: e.models?.length ? e.models : undefined,
       title: e.title,
-      kind: e.kind,
       columns: e.columns ?? [],
       rows: (e.rows ?? []).map((r) => ({
         variable_id: trimmed(r.variable_id),
         label: r.label ?? "",
+        kind: r.kind || undefined,
         heading: r.heading || undefined,
         indent: r.indent || undefined,
       })),

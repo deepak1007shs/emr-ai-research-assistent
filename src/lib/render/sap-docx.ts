@@ -359,7 +359,20 @@ export async function buildSapDocx(
   const avoided = new Map<string, string>();
 
   const rows = spec.analyses.map((row) => {
-    const plan = chooseTest(row);
+    // The rule table is consulted for the reasoning, but the decision itself is
+    // read back from the row where the plan wrote it. Otherwise editing
+    // test-rules.md would silently change what a stored plan says it will do,
+    // and the shell tables built from that plan would no longer agree with it.
+    const chosen = chooseTest(row);
+    const plan =
+      chosen && (row.test || row.test_adjusted || row.avoid)
+        ? {
+            ...chosen,
+            unadjusted: row.test ?? chosen.unadjusted,
+            adjusted: row.test_adjusted ?? chosen.adjusted,
+            avoid: row.avoid ?? chosen.avoid,
+          }
+        : chosen;
     if (plan) {
       reasons.set(planKey(plan), plan.why);
       if (plan.avoid) avoided.set(planKey(plan), plan.avoid);

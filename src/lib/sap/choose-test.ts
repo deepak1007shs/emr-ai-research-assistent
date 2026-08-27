@@ -29,6 +29,7 @@ export type Rule = {
   adjusted: string;
   avoid: string;
   why: string;
+  measures: string;
 };
 
 export type AnalysisPlan = {
@@ -39,6 +40,15 @@ export type AnalysisPlan = {
   /** What must not be done here, and why. */
   avoid: string | null;
   why: string;
+  /**
+   * The estimates the effect table prints, one to a row.
+   *
+   * `unadjusted` is prose, written for a statistician to read. This is the same
+   * decision in a form a table can be laid out from, so the effect measure on a
+   * shell table is never invented: a common binary outcome gets a risk ratio
+   * because the rule says so, not because a model guessed.
+   */
+  measures: string[];
   overridden: boolean;
 };
 
@@ -61,20 +71,26 @@ export function loadRules(source?: string): Rule[] {
         .split("|")
         .map((cell) => cell.trim()),
     )
-    .filter((cells) => cells.length === 9)
+    .filter((cells) => cells.length === 10)
     // Drop the header and the --- separator.
     .filter((cells) => cells[0] !== "data_type" && !/^-+$/.test(cells[0]))
-    .map(([data_type, comparison, pairing, skewed, frequency, unadjusted, adjusted, avoid, why]) => ({
-      data_type,
-      comparison,
-      pairing,
-      skewed,
-      frequency,
-      unadjusted,
-      adjusted,
-      avoid,
-      why,
-    }));
+    .map(
+      ([
+        data_type, comparison, pairing, skewed, frequency,
+        unadjusted, adjusted, avoid, why, measures,
+      ]) => ({
+        data_type,
+        comparison,
+        pairing,
+        skewed,
+        frequency,
+        unadjusted,
+        adjusted,
+        avoid,
+        why,
+        measures,
+      }),
+    );
 
   if (!source) cached = rules;
   return rules;
@@ -102,6 +118,10 @@ export function chooseTest(
       adjusted: null,
       avoid: null,
       why: row.override_reason ?? "Departs from the standard rule; no reason was given.",
+      // An override leaves the rule table behind, so there is no list to read.
+      // The override itself becomes the one estimate the effect table prints,
+      // which keeps the table honest: it reports what was actually planned.
+      measures: [row.test_override],
       overridden: true,
     };
   }
@@ -125,6 +145,10 @@ export function chooseTest(
     adjusted: dash(hit.adjusted),
     avoid: dash(hit.avoid),
     why: hit.why,
+    measures: (dash(hit.measures) ?? "")
+      .split(";")
+      .map((measure) => measure.trim())
+      .filter(Boolean),
     overridden: false,
   };
 }

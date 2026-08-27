@@ -240,11 +240,13 @@ describe("revising the shell tables", () => {
             number: 2,
             block: "descriptive",
             outcome_id: "",
-            adjusted_for: [],
+            models: [],
             title: "Comorbidity by conversion status (n = 125)",
-            kind: "descriptive",
+            role: "descriptive",
             columns: ["Variable", "Converted", "Completed", "P value"],
-            rows: [{ variable_id: "", label: "Diabetes mellitus", heading: false, indent: false }],
+            rows: [
+              { variable_id: "", label: "Diabetes mellitus", kind: "variable", heading: false, indent: false },
+            ],
             test_applied: "Pearson chi-square test.",
             footnote: "",
           },
@@ -259,22 +261,25 @@ describe("revising the shell tables", () => {
     expect(changed).toContain("Table 2");
   });
 
-  it("removing a table the plan fills is caught", () => {
+  it("removing the tables the plan fills is caught", () => {
+    // P1 is reported by a block, so removing one table of it leaves the others.
+    // Removing all of them is what leaves the analysis with nowhere to print.
+    const before = tables();
+    const forP1 = before.tables.filter((t) => (t.fills ?? []).includes("P1"));
     const { spec } = applyTablesRevision(
-      tables(),
+      before,
       {
         ...empty,
-        table_edits: [
-          {
-            op: "remove", number: 3, block: "primary", outcome_id: "", adjusted_for: [],
-            title: "", kind: "comparative", columns: [], rows: [], test_applied: "", footnote: "",
-          },
-        ],
+        table_edits: forP1.map((t) => ({
+          op: "remove" as const, number: t.number, block: "primary" as const,
+          outcome_id: "", models: [], title: "", role: "summary" as const,
+          columns: [], rows: [], test_applied: "", footnote: "",
+        })),
       },
       labels,
     );
 
-    expect(spec.tables.map((t) => t.number)).not.toContain(3);
+    expect(spec.tables.flatMap((t) => t.fills ?? [])).not.toContain("P1");
     // The plan still sends an analysis to T3, which no longer exists.
     const plan = structuredClone(sapFixture);
     expect(validateTables(spec, plan).findings.map((f) => f.code)).toContain("TBL14");

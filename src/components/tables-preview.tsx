@@ -69,6 +69,21 @@ export function TablesPreview({
   );
 }
 
+/**
+ * Everything printed under a table, in one voice.
+ *
+ * Mirrors `tables-docx.ts`: the test is part of the footnote rather than a line
+ * of its own, which is how the reference plans print it.
+ */
+function footnote(table: ShellTable): string {
+  return [
+    table.test_applied ? `test used = ${table.test_applied.replace(/\.$/, "")}` : "",
+    table.footnote,
+  ]
+    .filter(Boolean)
+    .join(". ");
+}
+
 function ShellTableBlock({
   table,
   labelOf,
@@ -125,8 +140,7 @@ function ShellTableBlock({
         </DocTable>
       </div>
 
-      {table.test_applied && <Note>Test applied: {plain(table.test_applied)}</Note>}
-      {table.footnote && <Note>{plain(table.footnote)}</Note>}
+      {footnote(table) && <Note>Footnote: {plain(footnote(table))}</Note>}
     </div>
   );
 }

@@ -47,6 +47,8 @@ export const sapFixture: SapSpec = {
   variables: [
     { id: "var_conversion", label: "Intraoperative conversion", data_type: "binary", unit_coding: "Yes / No", role: "outcome" },
     { id: "var_age", label: "Age", data_type: "continuous", unit_coding: "Years", role: "confounder" },
+    { id: "var_age_group", label: "Age group", data_type: "ordinal", unit_coding: "< 40 / 40 to 60 / > 60", role: "descriptor" },
+    { id: "var_sex", label: "Sex", data_type: "binary", unit_coding: "Male / Female", role: "descriptor" },
     { id: "var_bmi", label: "Body mass index", data_type: "continuous", unit_coding: "kg/m2", role: "confounder" },
     { id: "var_prev", label: "Previous abdominal surgery", data_type: "binary", unit_coding: "Yes / No", role: "confounder" },
     {

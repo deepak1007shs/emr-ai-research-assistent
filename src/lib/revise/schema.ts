@@ -187,18 +187,36 @@ export const TABLES_REVISION_SCHEMA = obj({
       number: { type: "integer" },
       block: { type: "string", enum: ["descriptive", "primary", "secondary", "exploratory"] },
       outcome_id: { ...str, description: "The outcome this reports. Empty for a descriptive table." },
-      adjusted_for: { ...strArray, description: "For an effect table: the variable ids adjusted for." },
       title: { ...str, description: "Including the denominator, e.g. '... (n = 125)'." },
-      kind: {
+      role: {
         type: "string",
-        enum: ["descriptive", "comparative", "effect", "accuracy", "distribution", "repeated"],
+        enum: [
+          "descriptive", "summary", "effect_unadjusted", "effect_adjusted",
+          "subgroup", "sensitivity", "accuracy", "distribution", "repeated",
+        ],
+        description:
+          "What this table is for. One outcome is reported by several: the summary with its denominators, the crude effect, the adjusted models, the subgroups, the sensitivity analyses.",
+      },
+      models: {
+        type: "array",
+        description:
+          "For an adjusted table, the model its adjusted column reports: what it is called and which variable ids it holds constant. Empty otherwise.",
+        items: obj({
+          name: { ...str, description: "What the model is called, e.g. 'Adjusted'. Never 'Model 1'." },
+          adds: { ...strArray, description: "The variable ids this model holds constant." },
+        }),
       },
       columns: strArray,
       rows: {
         type: "array",
         items: obj({
           variable_id: { ...str, description: "The variable this row reports, from the plan." },
-          label: { ...str, description: "Used when variable_id is empty: a sub-row or a category." },
+          label: { ...str, description: "Used when variable_id is empty: a sub-row, a category, an estimate, a subgroup or an analysis population." },
+          kind: {
+            type: "string",
+            enum: ["variable", "category", "measure", "subgroup", "population", "model_term"],
+            description: "What the row stands for. measure for an estimate such as a risk ratio.",
+          },
           heading: bool,
           indent: bool,
         }),

@@ -1,120 +1,81 @@
-import type { ShellTablesSpec } from "./types.ts";
+import { sapFixture } from "../sap/fixture.ts";
+import { buildAnalyticTables, mergeTables } from "./blocks.ts";
+import type { ShellTable, ShellTablesSpec } from "./types.ts";
 
-/** Shaped after the DrUtkarsh results document, with the cells empty. */
+/**
+ * Shaped after the DrUtkarsh results document, with the cells empty.
+ *
+ * Only the descriptive half is written out. The analytic tables are generated
+ * from the analysis plan exactly as they are in a real build, so the fixture
+ * cannot drift from what the pipeline actually produces: if the block rules
+ * change, this changes with them.
+ */
+
+const groups = ["Converted", "Completed as TAPP"];
+
+const described: ShellTable[] = [
+  {
+    number: 1,
+    block: "descriptive",
+    role: "descriptive",
+    title: "Demographic profile of adults undergoing TAPP repair by conversion status (n = 125)",
+    columns: [
+      "Variable",
+      "Converted (n = ) n (%)",
+      "Completed as TAPP (n = ) n (%)",
+      "Total (n = 125) n (%)",
+      "P value",
+    ],
+    rows: [
+      { variable_id: "var_age", label: "Age (years)", kind: "variable", heading: true },
+      { label: "Mean ± SD", kind: "category", indent: true },
+      { variable_id: "var_age_group", label: "Age group", kind: "variable", heading: true },
+      { label: "< 40 years", kind: "category", indent: true },
+      { label: "40 to 60 years", kind: "category", indent: true },
+      { label: "> 60 years", kind: "category", indent: true },
+      { variable_id: "var_sex", label: "Sex", kind: "variable", heading: true },
+      { label: "Male", kind: "category", indent: true },
+      { label: "Female", kind: "category", indent: true },
+      { variable_id: "var_bmi", label: "Body mass index (kg/m2)", kind: "variable", heading: true },
+      { label: "Mean ± SD", kind: "category", indent: true },
+    ],
+    test_applied:
+      "Independent t-test for continuous variables; Pearson chi-square, or Fisher exact where any expected cell is under 5, for categorical variables.",
+  },
+  {
+    number: 2,
+    block: "descriptive",
+    role: "descriptive",
+    title: "Comorbidity and risk factors by conversion status (n = 125)",
+    columns: [
+      "Variable",
+      "Converted (n = ) n (%)",
+      "Completed as TAPP (n = ) n (%)",
+      "Total (n = 125) n (%)",
+      "P value",
+    ],
+    rows: [
+      { label: "Diabetes mellitus", kind: "variable" },
+      { label: "Hypertension", kind: "variable" },
+      { label: "Smoking status", kind: "variable", heading: true },
+      { label: "Current", kind: "category", indent: true },
+      { label: "Former", kind: "category", indent: true },
+      { label: "Never", kind: "category", indent: true },
+      { label: "Previous abdominal surgery", kind: "variable" },
+    ],
+    test_applied: "Pearson chi-square test, or Fisher exact where any expected cell is under 5.",
+  },
+];
+
 export const tablesFixture: ShellTablesSpec = {
   title: "Factors Associated with Intraoperative Conversion during TAPP Repair of Ventral Hernia",
-  labels: {
-    var_age: "Age (years)",
-    var_age_group: "Age group",
-    var_sex: "Sex",
-    var_bmi: "Body mass index (kg/m2)",
-    var_conversion: "Conversion to another technique",
-    out_conversion: "Intraoperative conversion",
-  },
-  groups: ["Converted", "Completed as TAPP"],
-  tables: [
-    {
-      number: 1,
-      block: "descriptive",
-      kind: "descriptive",
-      title: "Demographic profile of adults undergoing TAPP repair by conversion status (n = 125)",
-      columns: [
-        "Variable",
-        "Converted (n = ) n (%)",
-        "Completed as TAPP (n = ) n (%)",
-        "Total (n = 125) n (%)",
-        "P value",
-      ],
-      rows: [
-        { variable_id: "var_age", label: "Age (years)", heading: true },
-        { label: "Mean ± SD", indent: true },
-        { variable_id: "var_age_group", label: "Age group", heading: true },
-        { label: "< 40 years", indent: true },
-        { label: "40 to 60 years", indent: true },
-        { label: "> 60 years", indent: true },
-        { variable_id: "var_sex", label: "Sex", heading: true },
-        { label: "Male", indent: true },
-        { label: "Female", indent: true },
-        { variable_id: "var_bmi", label: "Body mass index (kg/m2)", heading: true },
-        { label: "Mean ± SD", indent: true },
-      ],
-      test_applied:
-        "Independent t-test for continuous variables; Pearson chi-square, or Fisher exact where any expected cell is under 5, for categorical variables.",
-    },
-    {
-      number: 2,
-      block: "descriptive",
-      kind: "descriptive",
-      title: "Comorbidity and risk factors by conversion status (n = 125)",
-      columns: [
-        "Variable",
-        "Converted (n = ) n (%)",
-        "Completed as TAPP (n = ) n (%)",
-        "Total (n = 125) n (%)",
-        "P value",
-      ],
-      rows: [
-        { label: "Diabetes mellitus" },
-        { label: "Hypertension" },
-        { label: "Smoking status", heading: true },
-        { label: "Current", indent: true },
-        { label: "Former", indent: true },
-        { label: "Never", indent: true },
-        { label: "Previous abdominal surgery" },
-      ],
-      test_applied: "Pearson chi-square test, or Fisher exact where any expected cell is under 5.",
-    },
-    {
-      number: 3,
-      block: "primary",
-      fills: ["P1"],
-      kind: "distribution",
-      title: "Rate of intraoperative conversion (n = 125)",
-      columns: ["Outcome", "n", "%", "95% CI"],
-      rows: [
-        { label: "Converted to another technique" },
-        { label: "Completed as TAPP" },
-      ],
-      test_applied: "Clopper-Pearson exact 95% confidence interval for a single proportion.",
-    },
-    {
-      number: 4,
-      block: "secondary",
-      fills: ["S1"],
-      kind: "effect",
-      title: "Factors associated with intraoperative conversion (n = 125)",
-      columns: [
-        "Predictor",
-        "Unadjusted OR (95% CI)",
-        "P value",
-        "Adjusted OR (95% CI)",
-        "P value",
-      ],
-      rows: [
-        { label: "Age (per 1 year increase)" },
-        { label: "Body mass index (per 1 kg/m2 increase)" },
-        { label: "Previous abdominal surgery (yes versus no)" },
-        { label: "Adhesion severity (per Zuhlke grade)" },
-      ],
-      test_applied:
-        "Univariable then multivariable binary logistic regression. The adjusted model is exploratory: at 10 expected events it affords one predictor.",
-      footnote: "Reference category for previous abdominal surgery is No.",
-    },
-    {
-      number: 5,
-      block: "exploratory",
-      fills: ["S2"],
-      kind: "comparative",
-      title: "Operative duration by conversion status (n = 125)",
-      columns: [
-        "Variable",
-        "Converted (n = )",
-        "Completed as TAPP (n = )",
-        "Median difference (95% CI)",
-        "P value",
-      ],
-      rows: [{ label: "Operative duration (minutes), median (IQR)" }],
-      test_applied: "Mann-Whitney U test, with a Hodges-Lehmann median difference.",
-    },
-  ],
+  // Copied from the plan's registry by code, exactly as a real build copies it.
+  // Hand-writing them here would let the fixture prove a link the pipeline does
+  // not actually make.
+  labels: Object.fromEntries([
+    ...sapFixture.variables.map((v) => [v.id, v.label]),
+    ...sapFixture.outcomes.map((o) => [o.id, o.what]),
+  ]),
+  groups,
+  tables: mergeTables(described, buildAnalyticTables(sapFixture, groups), sapFixture),
 };

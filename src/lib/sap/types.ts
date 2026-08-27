@@ -123,8 +123,20 @@ export type AnalysisRow = {
   /** The model may depart from the rule table, but must say why in public. */
   test_override?: string;
   override_reason?: string;
-  /** Filled by chooseTest(); never by the model. */
+  /**
+   * The plan chosen for this row, written by chooseTest() and never by the
+   * model. Stored rather than recomputed at render time, because the case
+   * report form and the shell tables read the plan too: a table that has to
+   * guess the effect measure will guess an odds ratio for a common outcome,
+   * which is the error the rule table exists to prevent.
+   */
   test?: string;
+  /** The adjusted model, where the rule table names one. */
+  test_adjusted?: string;
+  /** What must not be done here, and why. */
+  avoid?: string;
+  /** The estimates the effect table prints, one to a row. */
+  measures?: string[];
 };
 
 /** The clinical question decomposed. Everything below must trace back to it. */
@@ -313,12 +325,27 @@ export function outcomeDefinition(outcome: Outcome): string {
  * A case report form and a set of shell tables need the registries and the
  * analysis rows; they have no use for the estimand or the interim-analysis
  * policy. Saying so keeps them from depending on the whole document.
+ *
+ * The optional half was widened once the shell tables grew a block per outcome.
+ * A subgroup table cannot be laid out without the subgroups, and a sensitivity
+ * table cannot be laid out without the populations, so a plan that declared
+ * both and passed neither produced a document that quietly dropped them.
  */
 export type SapRegistry = Pick<
   SapSpec,
   "title" | "objectives" | "variables" | "outcomes" | "analyses"
 > &
-  Partial<Pick<SapSpec, "sample_size" | "expected_events">>;
+  Partial<
+    Pick<
+      SapSpec,
+      | "sample_size"
+      | "expected_events"
+      | "populations"
+      | "subgroups"
+      | "steps"
+      | "rules"
+    >
+  >;
 
 /**
  * Which of the two Statistical Analysis Plans is being rendered.

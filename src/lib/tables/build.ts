@@ -1,5 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
-import { loadKnowledge } from "../protocol/knowledge.ts";
 import { explainApiError } from "../protocol/api-error.ts";
 import { decisionsBlock } from "../protocol/answers.ts";
 import { EFFORT, MODEL } from "../protocol/analyze.ts";
@@ -7,7 +8,8 @@ import type { TokenUsage } from "../protocol/pricing.ts";
 import type { SapSpec } from "../sap/types.ts";
 import type { CrfSpec } from "../crf/types.ts";
 import type { Finding } from "../sap/validate.ts";
-import type { ShellTablesSpec } from "./types.ts";
+import type { ShellTable, ShellTablesSpec } from "./types.ts";
+import { buildAnalyticTables, mergeTables } from "./blocks.ts";
 import { validateTables } from "./validate.ts";
 
 /**
@@ -17,6 +19,14 @@ import { validateTables } from "./validate.ts";
  * what will exist to report it with. A shell table is the same table a filled one
  * will be, so the columns and the row order are decided here rather than after
  * the data arrive.
+ *
+ * The document has two halves. The analytic tables are built from the plan by
+ * `blocks.ts`, because their shape is a consequence of the analysis row and not
+ * a judgement. The model lays out the other half, where judgement is what is
+ * actually needed: which baseline variables belong in the descriptive table,
+ * which time points a repeated measure was taken at, which categories a
+ * distribution has. The two are merged and numbered here, which is the only
+ * point at which anyone knows how many tables there are.
  */
 
 export class TablesError extends Error {
@@ -24,6 +34,29 @@ export class TablesError extends Error {
     super(message);
     this.name = "TablesError";
   }
+}
+
+const KNOWLEDGE_PATH = path.join(
+  process.cwd(),
+  "src",
+  "lib",
+  "tables",
+  "knowledge",
+  "shell-tables.md",
+);
+
+let knowledge: string | null = null;
+
+/**
+ * What the model is told about laying out a table.
+ *
+ * This used to be the protocol-review knowledge: five files about critiquing a
+ * protocol, none of which mentions a shell table. The model was being taught the
+ * wrong subject and then asked to lay out tables anyway.
+ */
+function loadTablesKnowledge(): string {
+  if (!knowledge) knowledge = fs.readFileSync(KNOWLEDGE_PATH, "utf8");
+  return knowledge;
 }
 
 const str = { type: "string" } as const;
@@ -43,43 +76,40 @@ export const TABLES_JSON_SCHEMA = obj({
   groups: {
     ...strArray,
     description:
-      "How the comparison groups are named in every column header, e.g. Converted and Completed. One entry for a single-group study.",
+      "How the comparison groups are named in every column header, e.g. Converted and Completed. One entry for a single-group study. Every table in the document uses this wording, so write each arm the way the protocol names it.",
   },
   tables: {
     type: "array",
     description:
-      "Numbered contiguously from 1, in block order: descriptive first, then primary, then secondary, then exploratory.",
+      "Only the descriptive, distribution and repeated-measure tables. The analytic tables are built from the plan and are not yours to write. Number yours from 1 in the order you print them; they are renumbered once both halves are merged.",
     items: obj({
       number: { type: "integer" },
       block: { type: "string", enum: ["descriptive", "primary", "secondary", "exploratory"] },
+      role: {
+        type: "string",
+        enum: ["descriptive", "distribution", "repeated"],
+        description:
+          "descriptive for a baseline table, distribution for one outcome's categories, repeated for a measure recorded at several time points.",
+      },
       outcome_id: {
         ...str,
         description:
-          "The id of the outcome this table reports, from the analysis plan. It must be the outcome of the analysis whose table this is. Empty for a descriptive table.",
+          "The id of the outcome this table reports, from the analysis plan. Empty for a descriptive table.",
       },
       fills: {
         ...strArray,
         description:
-          "The objective ids this table reports, e.g. ['P1'] or ['S1','S2'] when one table answers two. Empty for a descriptive table. Every objective in the plan must be filled by exactly one table, and you number the tables yourself: ignore the plan's table_id, which was assigned before anyone knew how many baseline tables there would be.",
-      },
-      adjusted_for: {
-        ...strArray,
-        description:
-          "For an effect table: the variable ids the adjusted column adjusts for. They must be the predictors the plan lists for this analysis. Empty otherwise.",
+          "The objective ids this table reports. Set it on a distribution or repeated table so the plan knows where its analysis is printed. Empty for a descriptive table.",
       },
       title: {
         ...str,
         description:
           "The full title, which MUST end with the denominator in brackets: 'Demographic profile by conversion status (n = 125)'. Use the study's sample size. A table without its n cannot be read on its own.",
       },
-      kind: {
-        type: "string",
-        enum: ["descriptive", "comparative", "effect", "accuracy", "distribution", "repeated"],
-      },
       columns: {
         ...strArray,
         description:
-          "For a baseline table: Variable, then one column per group with its n and 'n (%)', then Total, then P value. For an effect table: Predictor, Unadjusted <measure> (95% CI), P value, Adjusted <measure> (95% CI), P value. Never a column called Model 1. Every effect column carries a 95% CI.",
+          "For a baseline table: Variable, then one column per group with its n, then Total, then P value. For a repeated table: Timepoint, then one column per group. Use the group wording from the groups list. Any column reporting an effect estimate carries a 95% CI.",
       },
       rows: {
         type: "array",
@@ -96,6 +126,11 @@ export const TABLES_JSON_SCHEMA = obj({
             description:
               "Used when variable_id is empty. When variable_id is set, leave this empty: the wording comes from the plan.",
           },
+          kind: {
+            type: "string",
+            enum: ["variable", "category"],
+            description: "variable for a variable, category for one of its levels or a time point.",
+          },
           heading: { type: "boolean", description: "True for a variable heading that spans the table." },
           indent: { type: "boolean", description: "True for a sub-row under a heading." },
         }),
@@ -103,7 +138,7 @@ export const TABLES_JSON_SCHEMA = obj({
       test_applied: {
         ...str,
         description:
-          "The test, copied from the analysis plan. Required for any comparative, effect or accuracy table. Empty for a purely descriptive one.",
+          "The test, copied from the analysis plan. Required wherever the table carries a p-value column. Never choose one yourself. Empty for a purely descriptive one.",
       },
       footnote: { ...str, description: "Reference categories, or what the denominator is. Empty when not needed." },
     }),
@@ -117,25 +152,24 @@ cells empty. Everything a filled table carries must be decided now - the columns
 the row order, the denominator in the title, the test named underneath - so that
 when the data arrive nothing is left to choose.
 
-The baseline table comes first and describes who was in the study, by outcome
-group, with no significance testing implied beyond the p-value column. Then the
-primary outcome. Then the secondary outcomes. Then anything exploratory, marked
-as such.
+You lay out one half of the document. The analytic tables, which report each
+outcome's incidence, its crude and adjusted effect, its subgroups and its
+sensitivity analyses, are built from the analysis plan by rule and are already
+written. Do not write them, do not number against them, and do not duplicate
+them. Your half is the descriptive tables, the category distributions, and any
+measure recorded at several time points, because those need what the plan cannot
+supply: a judgement about which baseline variables matter and what the time
+points were.
 
-Where an analysis is adjusted, the table shows the unadjusted and the adjusted
-effect side by side, each with a 95% confidence interval and its own p value, so
-a reader can see what the adjustment did. Never label a column Model 1 or Model 2.
+The baseline table comes first and describes who was in the study, by group, with
+no significance testing implied beyond the p-value column.
 
 Refer to every variable and every outcome by the id the analysis plan gave it,
 and do not retype its wording. The plan, the case report form and these tables all
 point at the same ids, so a variable named once is named the same in all three.
 
-You number the tables, not the plan. The plan assigned a table id to each
-analysis before it knew how many baseline tables this study needs, so those
-numbers are provisional. Number yours from 1 in the order they are printed,
-descriptive first, and say in the fills field which objectives each table answers.
-Every
-objective in the plan gets exactly one table.
+Never name a statistical test yourself. The plan carries the test it chose on
+every analysis row, together with what it ruled out and why; copy it.
 
 Every title ends with its denominator in brackets.
 
@@ -165,8 +199,10 @@ export async function buildTablesSpec(
   const content: Anthropic.ContentBlockParam[] = [
     {
       type: "text",
-      text: `The analysis plan. Every row here needs the table it names, and the test
-named on that table must be the test the plan chose:
+      text: `The analysis plan. Every analysis row carries the test the plan chose, the
+adjusted model where there is one, what it ruled out, and the estimates its
+effect table prints. Those tables are already built. Read the plan for what your
+own tables must sit beside and must not repeat:
 
 ${JSON.stringify({
         title: sap.title,
@@ -176,6 +212,17 @@ ${JSON.stringify({
         variables: sap.variables,
         outcomes: sap.outcomes,
         analyses: sap.analyses,
+        populations: sap.populations,
+        subgroups: sap.subgroups,
+        steps: sap.steps,
+        rules: {
+          effect_estimates: sap.rules?.effect_estimates,
+          missing_data: sap.rules?.missing_data,
+          multiplicity: sap.rules?.multiplicity,
+          significance: sap.rules?.significance,
+          continuous_summary: sap.rules?.continuous_summary,
+          categorical_summary: sap.rules?.categorical_summary,
+        },
       })}`,
     },
   ];
@@ -201,10 +248,13 @@ ${JSON.stringify({
 
   content.push({
     type: "text",
-    text: `Lay out every table this study will report, cells empty. Start with the
-baseline and descriptive tables covering age, age group where it helps, sex,
-comorbidity, risk factors, and any baseline value the protocol singles out. Then
-the primary outcome, then each secondary outcome, then anything exploratory.`,
+    text: `Lay out the descriptive half of this document, cells empty: the baseline
+tables covering age, age group where it helps, sex, comorbidity, risk factors,
+and any baseline value the protocol singles out, described by group. Then a
+distribution table wherever one outcome's categories deserve a table of their
+own, and a repeated table wherever a measure was recorded at several time points,
+with the time points as rows. Nothing else: the incidence, effect, subgroup and
+sensitivity tables are already built from the plan.`,
   });
 
   options.onProgress?.("Laying out the tables");
@@ -216,7 +266,7 @@ the primary outcome, then each secondary outcome, then anything exploratory.`,
     output_config: { effort: EFFORT, format: { type: "json_schema", schema: TABLES_JSON_SCHEMA } },
     system: [
       { type: "text", text: ROLE },
-      { type: "text", text: loadKnowledge(), cache_control: { type: "ephemeral", ttl: "1h" } },
+      { type: "text", text: loadTablesKnowledge(), cache_control: { type: "ephemeral", ttl: "1h" } },
     ],
     messages: [{ role: "user", content }],
   });
@@ -257,24 +307,26 @@ the primary outcome, then each secondary outcome, then anything exploratory.`,
   for (const v of sap.variables ?? []) labels[v.id] = v.label;
   for (const o of sap.outcomes ?? []) labels[o.id] = o.what;
 
+  const described: ShellTable[] = (raw.tables ?? []).map((t) => ({
+    ...t,
+    outcome_id: t.outcome_id?.trim() || undefined,
+    fills: t.fills?.length ? t.fills : undefined,
+    test_applied: t.test_applied?.trim() || undefined,
+    footnote: t.footnote?.trim() || undefined,
+    rows: (t.rows ?? []).map((r) => ({
+      variable_id: r.variable_id?.trim() || undefined,
+      label: r.label,
+      kind: r.kind || undefined,
+      heading: r.heading || undefined,
+      indent: r.indent || undefined,
+    })),
+  }));
+
   const spec: ShellTablesSpec = {
     ...raw,
     title: sap.title,
     labels,
-    tables: (raw.tables ?? []).map((t) => ({
-      ...t,
-      outcome_id: t.outcome_id?.trim() || undefined,
-      fills: t.fills?.length ? t.fills : undefined,
-      adjusted_for: t.adjusted_for?.length ? t.adjusted_for : undefined,
-      test_applied: t.test_applied?.trim() || undefined,
-      footnote: t.footnote?.trim() || undefined,
-      rows: (t.rows ?? []).map((r) => ({
-        variable_id: r.variable_id?.trim() || undefined,
-        label: r.label,
-        heading: r.heading || undefined,
-        indent: r.indent || undefined,
-      })),
-    })),
+    tables: mergeTables(described, buildAnalyticTables(sap, raw.groups ?? []), sap),
   };
 
   const { findings } = validateTables(spec, sap);
