@@ -13,7 +13,7 @@ import { Breadcrumb } from "@/components/breadcrumb";
 import type { SapSpec } from "@/lib/sap/types";
 import type { ShellTablesSpec } from "@/lib/tables/types";
 
-export const metadata = { title: "Statistical Analysis Plan — SAP Builder" };
+export const metadata = { title: "Statistical Analysis Plan — EMR AI Research Assistant" };
 
 const DESCRIPTION =
   "Your objectives rewritten as answerable questions, and the analysis map that links each one to its outcomes, its predictors and the tables it will fill. The analysis is planned from the data type and the comparison, so the same study always gives the same plan.";

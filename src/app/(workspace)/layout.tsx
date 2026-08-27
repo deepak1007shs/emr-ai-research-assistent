@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { Logo } from "@/components/logo";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { loadRail } from "@/lib/workspace/rail";
@@ -39,13 +40,10 @@ export default async function WorkspaceLayout({ children }: LayoutProps<"/">) {
     <div className="flex h-screen flex-col overflow-hidden bg-bg">
       <header className="no-print flex h-[var(--header-h)] shrink-0 items-center gap-4 border-b border-line bg-surface px-4">
         <Link href="/" className="flex shrink-0 items-center gap-2.5">
-          <span
-            className="flex size-6 items-center justify-center rounded-md bg-brand text-2xs font-bold text-white"
-            style={{ letterSpacing: "-0.02em" }}
-          >
-            S
+          <Logo className="size-6 shrink-0" />
+          <span className="text-base font-semibold tracking-tight text-ink">
+            EMR AI Research Assistant
           </span>
-          <span className="text-base font-semibold tracking-tight text-ink">SAP Builder</span>
         </Link>
 
         <span aria-hidden className="h-5 w-px shrink-0 bg-line" />

@@ -13,7 +13,7 @@ import { Breadcrumb } from "@/components/breadcrumb";
 import type { ShellTablesSpec } from "@/lib/tables/types";
 import type { SapSpec } from "@/lib/sap/types";
 
-export const metadata = { title: "Shell Tables — SAP Builder" };
+export const metadata = { title: "Shell Tables — EMR AI Research Assistant" };
 
 const DESCRIPTION =
   "Every table the study will report, with the cells empty: the baseline and descriptive tables, then the primary outcome, the secondary outcomes, and anything exploratory. Where an analysis is adjusted, the unadjusted and adjusted effects sit side by side so a reader can see what the adjustment did.";

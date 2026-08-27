@@ -11,7 +11,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SAP Builder — Protocol Review",
+  title: "EMR AI Research Assistant — Protocol Review",
   description:
     "Understand and review a medical research protocol: design, objectives, outcomes, sample size, and the issues to fix.",
 };

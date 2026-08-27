@@ -3,7 +3,7 @@ import { UploadForm } from "@/components/upload-form";
 import { UsageTotal } from "@/components/usage-panel";
 import type { TokenUsage } from "@/lib/protocol/pricing";
 
-export const metadata = { title: "New protocol — SAP Builder" };
+export const metadata = { title: "New protocol — EMR AI Research Assistant" };
 
 /**
  * Uploading, in the middle of the workspace.

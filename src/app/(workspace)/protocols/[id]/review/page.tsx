@@ -12,7 +12,7 @@ import { Breadcrumb } from "@/components/breadcrumb";
 import { DocumentToolbar } from "@/components/document-toolbar";
 import type { TokenUsage } from "@/lib/protocol/pricing";
 
-export const metadata = { title: "Protocol Review — SAP Builder" };
+export const metadata = { title: "Protocol Review — EMR AI Research Assistant" };
 
 export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/review"> ) {
   const { id } = await params;

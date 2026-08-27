@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
+import { Logo } from "@/components/logo";
 import { createElement as h } from "react";
 import { writeFile } from "node:fs/promises";
 import { it, vi } from "vitest";
@@ -56,8 +57,10 @@ it.skipIf(!process.env.OUT)("writes the shell harness", async () => {
   const page = h("div", { className: "flex h-screen flex-col overflow-hidden bg-bg" },
     h("header", { className: "flex h-[var(--header-h)] shrink-0 items-center gap-4 border-b border-line bg-surface px-4" },
       h("div", { className: "flex shrink-0 items-center gap-2.5" },
-        h("span", { className: "flex size-6 items-center justify-center rounded-md bg-brand text-2xs font-bold text-white" }, "S"),
-        h("span", { className: "text-base font-semibold tracking-tight text-ink" }, "SAP Builder")),
+        // The mark, as the header ships it. The harness exists to show what the
+        // page really looks like, so a stand-in here would make it lie again.
+        Logo({ className: "size-6 shrink-0" }),
+        h("span", { className: "text-base font-semibold tracking-tight text-ink" }, "EMR AI Research Assistant")),
       h("span", { className: "h-5 w-px shrink-0 bg-line" }),
       h("nav", { className: "flex min-w-0 flex-1 items-center gap-1.75 text-sm text-ink-3" },
         h("span", { className: "max-w-[16rem] truncate" }, "Satyanarayana \u2014 DM Thesis (Final)"),
