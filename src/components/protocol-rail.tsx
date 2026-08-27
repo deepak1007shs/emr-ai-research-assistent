@@ -150,6 +150,9 @@ export function ProtocolRail({
                       : "font-medium text-ink-2 hover:bg-line-2"
                   }`}
                   style={{ letterSpacing: "-0.005em" }}
+                  // Larger type in a fixed-width panel truncates sooner, so the
+                  // whole name is a hover away.
+                  title={protocol.filename}
                 >
                   <span
                     aria-hidden

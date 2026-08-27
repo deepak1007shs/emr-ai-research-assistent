@@ -76,3 +76,21 @@ describe("the app's own type", () => {
     expect(css).toContain("--font-mono: var(--font-geist-mono)");
   });
 });
+
+describe("the panels either side of the document", () => {
+  it("are set a size larger, without moving the document", () => {
+    // The middle is the size the .docx is, because the point of reading it here
+    // is that it is the same document. The panels are not a document.
+    expect(css).toMatch(/@utility panel-type \{\s*--type-scale:\s*1\.15/);
+    expect(css).toMatch(/--type-scale:\s*1;/);
+  });
+
+  it("scale by multiplying the design's sizes, not by restating them", () => {
+    // Restated sizes drift from the design the first time one is edited.
+    for (const token of ["--text-2xs", "--text-xs", "--text-sm", "--text-base", "--text-lg"]) {
+      expect(css, token).toMatch(
+        new RegExp(`${token}: calc\\([\\d.]+rem \\* var\\(--type-scale\\)\\)`),
+      );
+    }
+  });
+});

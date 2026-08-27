@@ -44,13 +44,13 @@ export function WorkspaceFrame({
 
   return (
     <div className="flex min-h-0 flex-1">
-      <aside className="no-print hidden w-[var(--rail-w)] shrink-0 border-r border-line bg-surface md:flex md:flex-col">
+      <aside className="panel-type no-print hidden w-[var(--rail-w)] shrink-0 border-r border-line bg-surface md:flex md:flex-col">
         {rail()}
       </aside>
 
       {railOpen && (
         <div className="no-print fixed inset-0 z-30 flex md:hidden">
-          <div className="flex h-full w-[calc(var(--rail-w)*1.15)] max-w-[85vw] flex-col border-r border-line bg-surface">
+          <div className="panel-type flex h-full w-[calc(var(--rail-w)*1.15)] max-w-[85vw] flex-col border-r border-line bg-surface">
             {rail(() => setRailOpen(false))}
           </div>
           <button

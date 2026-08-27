@@ -69,7 +69,7 @@ it.skipIf(!process.env.OUT)("writes the shell harness", async () => {
           h("span", { className: "flex size-[1.375rem] items-center justify-center rounded-full bg-brand-100 text-2xs font-bold text-brand-ink" }, "DE"),
           h("span", { className: "text-xs font-medium text-ink-2" }, "deepak1007shs")))),
     h("div", { className: "flex min-h-0 flex-1" },
-      h("aside", { className: "flex w-[var(--rail-w)] shrink-0 flex-col border-r border-line bg-surface" },
+      h("aside", { className: "panel-type flex w-[var(--rail-w)] shrink-0 flex-col border-r border-line bg-surface" },
         h(ProtocolRail, { protocols, activeProtocolId: "p1", activeDoc: "tables" as DocKind })),
       h("div", { className: "flex min-h-0 min-w-0 flex-1 flex-col" },
         h(DocumentToolbar, { title: "Shell tables", status: "built" as const,

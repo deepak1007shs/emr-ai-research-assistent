@@ -39,7 +39,7 @@ export function ReviewRail({
   const mustFix = findings.filter((f) => f.severity === "ERROR").length;
 
   return (
-    <aside className="no-print hidden w-[var(--review-w)] shrink-0 flex-col border-l border-line bg-surface xl:flex">
+    <aside className="panel-type no-print hidden w-[var(--review-w)] shrink-0 flex-col border-l border-line bg-surface xl:flex">
       <div className="shrink-0 border-b border-line-2 px-4 pt-3.5 pb-2.5">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold tracking-tight text-ink">Review</span>
