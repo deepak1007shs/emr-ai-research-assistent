@@ -25,12 +25,46 @@ const row = (over: Partial<AnalysisRow>): AnalysisRow => ({
 });
 
 describe("the rule table", () => {
-  it("reads, and every row returns a plan rather than a test name", () => {
+  it("reads, and every rule returns a plan rather than a test name", () => {
     const rules = loadRules();
     expect(rules.length).toBeGreaterThan(30);
     for (const rule of rules) {
-      expect(rule.unadjusted, JSON.stringify(rule)).toBeTruthy();
       expect(rule.why, JSON.stringify(rule)).toBeTruthy();
+      expect(rule.summary, JSON.stringify(rule)).toBeTruthy();
+      // Something must be planned: a test, or a model where the estimate is
+      // only meaningful once confounders are held constant.
+      const named =
+        rule.parametric?.test ||
+        rule.nonparametric?.test ||
+        rule.parametric?.adjusted ||
+        rule.nonparametric?.adjusted;
+      expect(named, JSON.stringify(rule)).toBeTruthy();
+    }
+  });
+
+  it("every rule says what it assumes and how that is checked", () => {
+    for (const rule of loadRules()) {
+      const all = [...rule.assumptions, ...rule.adjusted_assumptions];
+      expect(all.length, `${rule.data_type}/${rule.comparison} assumes nothing`).toBeGreaterThan(0);
+      for (const a of all) {
+        expect(a.assumption, JSON.stringify(a)).toBeTruthy();
+        expect(a.how_checked, JSON.stringify(a)).toBeTruthy();
+        expect(a.if_violated, JSON.stringify(a)).toBeTruthy();
+      }
+    }
+  });
+
+  it("a test that prints a p value also names its statistic and its effect size", () => {
+    // Table 80 of the house reference: an inferential table carries the test
+    // statistic with its degrees of freedom, the p value and an effect size.
+    for (const rule of loadRules()) {
+      for (const branch of [rule.parametric, rule.nonparametric]) {
+        if (!branch?.statistic) continue;
+        expect(
+          branch.effect,
+          `${rule.data_type}/${rule.comparison}: "${branch.test}" prints ${branch.statistic} with no effect size`,
+        ).toBeTruthy();
+      }
     }
   });
 
@@ -255,14 +289,15 @@ describe("the rule table does not contradict itself", () => {
     // a heading its own footnote contradicts, which is how a log-binomial model
     // came to sit under a column labelled risk difference.
     for (const rule of loadRules()) {
-      const adjusted = rule.adjusted === "-" ? "" : rule.adjusted;
-      const family = familyOf(adjusted);
-      if (!family) continue;
-      const headline = rule.measures.split(";")[0] ?? "";
-      expect(
-        familyOf(headline),
-        `${rule.data_type}/${rule.comparison}/${rule.design}: the model gives a ${family} but the table leads with "${headline}"`,
-      ).toBe(family);
+      for (const branch of [rule.parametric, rule.nonparametric]) {
+        const family = familyOf(branch?.adjusted ?? "");
+        if (!family) continue;
+        const headline = branch!.measures[0] ?? "";
+        expect(
+          familyOf(headline),
+          `${rule.data_type}/${rule.comparison}/${rule.design}: the model gives a ${family} but the table leads with "${headline}"`,
+        ).toBe(family);
+      }
     }
   });
 

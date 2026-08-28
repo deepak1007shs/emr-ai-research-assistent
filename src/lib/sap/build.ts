@@ -7,7 +7,7 @@ import type { TokenUsage } from "../protocol/pricing.ts";
 import type { ExtractedProtocol } from "../protocol/extract.ts";
 import type { AnalysisRow, SapSpec } from "./types.ts";
 import { validateSap, type Finding } from "./validate.ts";
-import { chooseTest } from "./choose-test.ts";
+import { chooseTest, plannedTests } from "./choose-test.ts";
 import { buildSapMap } from "./map-stage.ts";
 import { buildSapRules, type RulesResult } from "./rules-stage.ts";
 
@@ -387,11 +387,15 @@ analysis map is written next, from what you declare here.`,
     analyses,
   };
 
+  // Every method by name, both branches of the normality decision included.
+  // The stored `test` is a conditional sentence where there are two, and the
+  // assumptions are stated per test, so they cannot be joined by that.
   const tests = [
     ...new Set(
-      analyses.flatMap((row) =>
-        [row.test, row.test_adjusted].filter((t): t is string => Boolean(t)),
-      ),
+      analyses.flatMap((row) => {
+        const plan = chooseTest(row);
+        return plan ? plannedTests(plan) : [];
+      }),
     ),
   ];
 

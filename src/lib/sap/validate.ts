@@ -1,6 +1,6 @@
 import type { SapSpec } from "./types.ts";
 import { outcomeIndex, variableIndex } from "./types.ts";
-import { chooseTest } from "./choose-test.ts";
+import { chooseTest, plannedTests } from "./choose-test.ts";
 
 /**
  * The guards on an analysis model.
@@ -199,12 +199,10 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
   // Both halves: an adjusted model's assumptions are not the unadjusted
   // estimate's, and a plan that states one and not the other is half checked.
   const chosen = new Set(
-    analyses
-      .flatMap((row) => {
-        const plan = chooseTest(row);
-        return plan ? [plan.unadjusted, plan.adjusted] : [];
-      })
-      .filter((t): t is string => Boolean(t)),
+    analyses.flatMap((row) => {
+      const plan = chooseTest(row);
+      return plan ? plannedTests(plan) : [];
+    }),
   );
   const checked = new Set((spec.assumption_checks ?? []).map((c) => c.test));
   for (const test of chosen) {
