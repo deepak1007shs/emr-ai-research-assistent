@@ -243,6 +243,24 @@ describe("validateSap", () => {
     expect(found?.message).toContain("case control");
   });
 
+  it("TEST03 - the analysis ignores that the same patient was measured again", () => {
+    const s = clean();
+    s.analyses[1].pairing = "repeated";
+    // An override is the only way past the rule table, and it must not be a way
+    // past this: the table can have a gap, and this is what notices.
+    s.analyses[1].test_override = "Independent t-test on each care phase";
+    s.analyses[1].override_reason = "Planted for the test.";
+    const found = validateSap(s).findings.find((f) => f.code === "TEST03");
+    expect(found?.message).toContain("as though it came from a different patient");
+    expect(found?.severity).toBe("ERROR");
+  });
+
+  it("TEST03 - and is satisfied by a mixed model", () => {
+    const s = clean();
+    s.analyses[1].pairing = "repeated";
+    expect(codes(s)).not.toContain("TEST03");
+  });
+
   it("TEST01 - no rule covers the row", () => {
     const s = clean();
     s.analyses[0].data_type = "count";

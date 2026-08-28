@@ -183,6 +183,52 @@ describe("the design decides which estimate is valid", () => {
   });
 });
 
+describe("a repeated measure decides its own model", () => {
+  // The temperature of one baby across three care phases is one baby three
+  // times. The table used to match `pairing` under two_groups alone, so a
+  // trajectory that also adjusted for confounders fell to ordinary regression
+  // and was planned as though every reading came from a different baby.
+  const repeated = (over: Partial<AnalysisRow>) =>
+    chooseTest(row({ pairing: "repeated", ...over }))!;
+
+  it.each(["two_groups", "adjusted", "many_groups", "association", "single_group"] as const)(
+    "a continuous measure repeated under %s gets a mixed model",
+    (comparison) => {
+      const plan = repeated({ data_type: "continuous", comparison });
+      expect(plan.adjusted).toMatch(/mixed-effects/i);
+      expect(plan.measures[0]).toContain("Group by time interaction");
+    },
+  );
+
+  it("a binary outcome repeated gets a mixed model or GEE, never a chi-square", () => {
+    const plan = repeated({ data_type: "binary", comparison: "many_groups" });
+    expect(plan.adjusted).toMatch(/mixed-effects logistic|estimating equations/i);
+    expect(plan.avoid).toContain("intervals far too narrow");
+  });
+
+  it("an ordered and a counted outcome too", () => {
+    expect(repeated({ data_type: "ordinal", comparison: "adjusted" }).adjusted).toMatch(/mixed-effects/i);
+    expect(repeated({ data_type: "count", comparison: "two_groups" }).adjusted).toMatch(/mixed-effects/i);
+  });
+
+  it("but agreement and correlation are not trajectories, and keep their own rows", () => {
+    // They sit above the repeated row on purpose: two raters measuring the same
+    // patient is repetition of a different kind, and a mixed model is not what
+    // it needs.
+    expect(repeated({ data_type: "continuous", comparison: "agreement" }).unadjusted).toContain(
+      "Intraclass correlation",
+    );
+    expect(repeated({ data_type: "continuous", comparison: "correlation" }).unadjusted).toContain(
+      "Pearson",
+    );
+  });
+
+  it("and a measure taken once is still analysed as one measure", () => {
+    const plan = chooseTest(row({ data_type: "continuous", comparison: "adjusted", pairing: "none" }))!;
+    expect(plan.adjusted).toContain("Multivariable linear regression");
+  });
+});
+
 describe("the rule table does not contradict itself", () => {
   // Every family of estimate a row can name, so that the model a row chooses
   // can be compared with the estimates it says the table will print. The

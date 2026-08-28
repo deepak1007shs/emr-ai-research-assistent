@@ -297,6 +297,30 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
         `No rule covers ${(a.objective_ids ?? []).join(', ')} (${a.data_type}, ${a.comparison}). Add a row to test-rules.md, or set an override with a reason.`,
       );
     }
+    // The plan chosen must actually account for how the measurements relate.
+    // The rule table matched `pairing` under one comparison only, so a measure
+    // repeated across three care phases and adjusted for confounders fell to
+    // the ordinary regression row and was planned as though every reading came
+    // from a different patient. A gap in the table is invisible; this is not.
+    const plan = chooseTest(a);
+    if (plan) {
+      const named = [plan.unadjusted, plan.adjusted].filter(Boolean).join(" ");
+      const handles =
+        a.pairing === "repeated"
+          ? /mixed[- ]effects|mixed model|generalised estimating|generalized estimating|\bGEE\b|repeated|Friedman|marginal mean/i
+          : a.pairing === "paired"
+            ? /paired|McNemar|signed[- ]rank|conditional logistic|matched|mixed[- ]effects/i
+            : null;
+      if (handles && !handles.test(named)) {
+        error(
+          "TEST03",
+          `${(a.objective_ids ?? []).join(", ")} measures the same patient ${
+            a.pairing === "repeated" ? "at three or more occasions" : "twice"
+          }, but the analysis chosen for it is "${named}", which treats every reading as though it came from a different patient. Intervals from it are far too narrow.`,
+        );
+      }
+    }
+
     if (a.test_override && !a.override_reason?.trim()) {
       error("TEST02", `${(a.objective_ids ?? []).join(', ')} overrides the standard test but gives no reason. An override that is not explained cannot be judged.`);
     }
