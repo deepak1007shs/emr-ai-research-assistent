@@ -48,7 +48,7 @@ describe("the CRF document", () => {
     const { visible } = await read();
     expect(visible).toContain("roll-call");
     expect(visible).toContain("primary outcome");
-    expect(visible).toContain("Conversion to another technique");
+    expect(visible).toContain("Intraoperative conversion");
   });
 
   it("uses the house table and letters the sections", async () => {
@@ -62,7 +62,7 @@ describe("the CRF document", () => {
 
   it("sets the primary outcome apart", async () => {
     const { visible } = await read();
-    expect(visible).toContain("Conversion to another technique (primary outcome)");
+    expect(visible).toContain("Intraoperative conversion (primary outcome)");
   });
 
   it("never offers a calculated value as a field", async () => {

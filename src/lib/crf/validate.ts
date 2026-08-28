@@ -242,7 +242,7 @@ export function validateCrf(crf: CrfSpec, sap?: SapRegistry): { ok: boolean; fin
       if (!captured.has(field.variable_id) && !derived.has(field.variable_id)) {
         error(
           "CRF09",
-          `The form does not collect "${field.label}", which ${field.because}. A variable nobody records cannot be analysed.`,
+          `The form does not collect "${field.label}". It is needed because ${field.because}, and a variable nobody records cannot be analysed.`,
         );
       }
     }

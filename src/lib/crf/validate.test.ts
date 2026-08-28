@@ -1,100 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { validateCrf } from "./validate.ts";
 import { crfFixture } from "./fixture.ts";
+import { sapFixture } from "../sap/fixture.ts";
 import type { CrfSpec } from "./types.ts";
 import type { SapRegistry } from "../sap/types.ts";
 
 const clean = () => structuredClone(crfFixture) as CrfSpec;
 const codes = (crf: CrfSpec, sap?: SapRegistry) => validateCrf(crf, sap).findings.map((f) => f.code);
 
-const sap = (): SapRegistry => ({
-  title: "A study",
-  objectives: [
-    { id: "P1", tier: "primary", question: "What proportion convert?" },
-    { id: "S1", tier: "secondary", question: "Is adhesion severity associated with conversion?" },
-  ],
-  variables: [
-    { id: "var_age", label: "Age", data_type: "continuous", unit_coding: "Years", role: "confounder" },
-    { id: "var_sex", label: "Sex", data_type: "binary", unit_coding: "Male / Female", role: "descriptor" },
-    { id: "var_height", label: "Height", data_type: "continuous", unit_coding: "cm", role: "descriptor" },
-    { id: "var_weight", label: "Weight", data_type: "continuous", unit_coding: "kg", role: "descriptor" },
-    {
-      id: "var_bmi",
-      label: "Body mass index",
-      data_type: "continuous",
-      unit_coding: "kg/m2",
-      role: "confounder",
-      derived_from: ["var_height", "var_weight"],
-    },
-    {
-      id: "var_adhesion",
-      label: "Adhesion severity",
-      data_type: "ordinal",
-      unit_coding: "I / II / III / IV",
-      role: "predictor",
-    },
-    { id: "var_surgery_date", label: "Date of surgery", data_type: "continuous", unit_coding: "Date", role: "descriptor" },
-    {
-      id: "var_discharge_date",
-      label: "Date of discharge",
-      data_type: "continuous",
-      unit_coding: "Date",
-      role: "descriptor",
-    },
-    {
-      id: "var_los",
-      label: "Postoperative length of stay",
-      data_type: "count",
-      unit_coding: "Whole days",
-      role: "outcome",
-      derived_from: ["var_surgery_date", "var_discharge_date"],
-    },
-    {
-      id: "var_conversion",
-      label: "Conversion to another technique",
-      data_type: "binary",
-      unit_coding: "Yes / No",
-      role: "outcome",
-    },
-  ],
-  outcomes: [
-    {
-      id: "out_conversion",
-      what: "Intraoperative conversion",
-      how: "the surgeon's record",
-      instrument: "proforma",
-      when: "the index operation",
-      units: "Yes / No",
-      domain: "clinical",
-      source_variable_ids: ["var_conversion"],
-    },
-  ],
-  analyses: [
-    {
-      objective_ids: ["P1"],
-      label: "P1 - rate",
-      outcome_ids: ["out_conversion"],
-      exposure_ids: [], adjust_for_ids: [],
-      data_type: "binary",
-      comparison: "single_group",
-      pairing: "none" as const,
-      table_ids: ["T1"],
-    },
-    {
-      objective_ids: ["S1"],
-      label: "S1 - adhesion severity",
-      outcome_ids: ["out_conversion"],
-      // Coherent on purpose: everything the plan declares with an analytic role
-      // is used by an analysis. A confounder nothing adjusts for is a defect,
-      // and CRF11 is the guard that says so.
-      exposure_ids: ["var_adhesion"], adjust_for_ids: ["var_age", "var_bmi"],
-      data_type: "binary",
-      comparison: "adjusted",
-      pairing: "none" as const,
-      table_ids: ["T2"],
-    },
-  ],
-});
+/**
+ * The plan the form is built from.
+ *
+ * The real one, not a local copy of it. A local copy is how the two fixtures
+ * drifted apart in the first place: the form collected height and weight and
+ * derived body mass index, which is correct, while the plan it was checked
+ * against declared neither.
+ */
+const sap = (): SapRegistry => structuredClone(sapFixture) as SapRegistry;
 
 describe("validateCrf", () => {
   it("passes the approved form", () => {

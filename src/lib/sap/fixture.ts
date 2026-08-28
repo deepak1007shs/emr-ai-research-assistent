@@ -48,9 +48,35 @@ export const sapFixture: SapSpec = {
   variables: [
     { id: "var_conversion", label: "Intraoperative conversion", data_type: "binary", unit_coding: "Yes / No", role: "outcome" },
     { id: "var_age", label: "Age", data_type: "continuous", unit_coding: "Years", role: "confounder" },
-    { id: "var_age_group", label: "Age group", data_type: "ordinal", unit_coding: "< 40 / 40 to 60 / > 60", role: "descriptor" },
+    {
+      id: "var_age_group", label: "Age group", data_type: "ordinal",
+      unit_coding: "< 40 / 40 to 60 / > 60", role: "descriptor",
+      // Banded from the age itself. The form records the years and the band is
+      // worked out, because a band entered by hand cannot be re-cut later.
+      derived_from: ["var_age"],
+    },
     { id: "var_sex", label: "Sex", data_type: "binary", unit_coding: "Male / Female", role: "descriptor" },
-    { id: "var_bmi", label: "Body mass index", data_type: "continuous", unit_coding: "kg/m2", role: "confounder" },
+    { id: "var_height", label: "Height", data_type: "continuous", unit_coding: "cm", role: "descriptor" },
+    { id: "var_weight", label: "Weight", data_type: "continuous", unit_coding: "kg", role: "descriptor" },
+    {
+      id: "var_bmi", label: "Body mass index", data_type: "continuous",
+      unit_coding: "kg/m2", role: "confounder",
+      derived_from: ["var_height", "var_weight"],
+    },
+    {
+      id: "var_adhesion", label: "Adhesion severity", data_type: "ordinal",
+      unit_coding: "I / II / III / IV", role: "descriptor",
+      timepoints: ["at the index operation"],
+    },
+    { id: "var_surgery_date", label: "Date of surgery", data_type: "continuous", unit_coding: "Date", role: "descriptor" },
+    { id: "var_discharge_date", label: "Date of discharge", data_type: "continuous", unit_coding: "Date", role: "descriptor" },
+    {
+      id: "var_los", label: "Postoperative length of stay", data_type: "count",
+      unit_coding: "Whole days", role: "descriptor",
+      // The two dates are recorded and the stay is counted from them. A
+      // duration entered by hand cannot be checked against anything.
+      derived_from: ["var_surgery_date", "var_discharge_date"],
+    },
     { id: "var_prev", label: "Previous abdominal surgery", data_type: "binary", unit_coding: "Yes / No", role: "confounder" },
     {
       id: "var_duration", label: "Operative duration", data_type: "continuous", unit_coding: "Minutes", role: "mediator",

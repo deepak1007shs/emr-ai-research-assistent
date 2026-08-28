@@ -49,7 +49,7 @@ describe("one concept, one wording", () => {
   it("the roll-call names the field by id, so it cannot point at nothing", async () => {
     const text = await visible(await buildCrfDocx(crfFixture));
     // The primary outcome's roll-call entry resolves to the field's own wording.
-    expect(text).toContain("Conversion to another technique");
+    expect(text).toContain("Intraoperative conversion");
     expect(text).not.toContain("NOT CAPTURED");
   });
 
