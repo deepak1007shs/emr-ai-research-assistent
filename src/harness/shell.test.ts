@@ -2,6 +2,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Logo } from "@/components/logo";
 import { createElement as h } from "react";
 import { writeFile } from "node:fs/promises";
+import { existsSync, readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { it, vi } from "vitest";
 
 // The rail and the composer reach for the router. This harness renders them to
@@ -83,6 +85,22 @@ it.skipIf(!process.env.OUT)("writes the shell harness", async () => {
             h(TablesPreview, { spec: tablesFixture, flagged })),
           h(ReviewRail, { findings }))))
   );
+
+  // The stylesheet is copied in beside this file, and a copy goes stale. The
+  // harness exists to show what ships, so a stale one is worse than no
+  // screenshot at all: it once showed the wrong panel scale, and then the wrong
+  // brand colour, and both times it looked right.
+  const cssPath = new URL("app.css", pathToFileURL(process.env.OUT!));
+  const shipped = readFileSync("src/app/globals.css", "utf8").match(/--brand:\s*(#[0-9a-f]{6})/i)?.[1];
+  const harnessed = existsSync(cssPath)
+    ? readFileSync(cssPath, "utf8").match(/--brand:\s*(#[0-9a-f]{6})/i)?.[1]
+    : null;
+  if (shipped && harnessed && shipped.toLowerCase() !== harnessed.toLowerCase()) {
+    throw new Error(
+      `app.css beside the harness is stale: it has --brand ${harnessed}, the app has ${shipped}. ` +
+        `Refresh it from the running dev server before trusting the screenshot.`,
+    );
+  }
 
   const html = `<!doctype html><html data-theme="${process.env.THEME ?? "light"}"><head><meta charset="utf-8"><link rel="stylesheet" href="app.css"></head><body>${renderToStaticMarkup(page)}</body></html>`;
   await writeFile(process.env.OUT!, html);

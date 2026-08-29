@@ -105,7 +105,7 @@ describe("white and blue", () => {
     for (const token of ["--brand", "--brand-ink", "--brand-50", "--brand-100", "--brand-200"]) {
       expect(css, token).toMatch(new RegExp(`${token}:\\s*#[0-9a-f]{6}`, "i"));
     }
-    expect(css).toMatch(/--brand:\s*#3059c9/);
+    expect(css).toMatch(/--brand:\s*#3b7db8/);
   });
 
   it("names the text that sits on the blue rather than assuming white", () => {

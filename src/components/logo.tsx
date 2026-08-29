@@ -14,7 +14,7 @@ export function Logo({ className = "size-6" }: { className?: string }) {
       role="img"
       aria-label="EMR AI Research Assistant"
     >
-      <rect width="64" height="64" rx="14" fill="#3059c9" />
+      <rect width="64" height="64" rx="14" fill="#3b7db8" />
       <rect
         x="8.2"
         y="8.2"
