@@ -278,7 +278,12 @@ analysis map is written next, from what you declare here.`,
 
   const stream = client.messages.stream({
     model: MODEL,
-    max_tokens: 32000,
+  // Thinking counts against this, not only the JSON, so the budget covers the
+  // reasoning as well as the registry it produces. The review and the case
+  // report form have run at 64000 on this model since they were written; the
+  // plan was left at half that, and stage one crossed it once the registry
+  // grew a design family, a timepoint list and a derivation for every variable.
+    max_tokens: 64000,
     thinking: { type: "adaptive" },
     output_config: { effort: EFFORT, format: { type: "json_schema", schema: SAP_JSON_SCHEMA } },
     system: [
@@ -310,7 +315,9 @@ analysis map is written next, from what you declare here.`,
   }
 
   if (message.stop_reason === "max_tokens") {
-    throw new SapError("The plan was cut off before it finished.");
+    throw new SapError(
+      "The plan was cut off while the registries were being written. The protocol may be unusually long, or may declare more variables than one pass can hold; try uploading the protocol without its appendices.",
+    );
   }
 
   const text = message.content

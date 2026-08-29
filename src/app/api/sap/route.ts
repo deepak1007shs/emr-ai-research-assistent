@@ -109,10 +109,17 @@ export async function POST(request: NextRequest) {
           warnings: result.findings.filter((f) => f.severity === "WARN").length,
         });
       } catch (error) {
-        send({
-          type: "error",
-          message: error instanceof Error ? error.message : "Building the plan failed.",
+        const message = error instanceof Error ? error.message : "Building the plan failed.";
+        // Recorded, not only sent. A failure that leaves nothing behind can only
+        // be diagnosed from the runs that happened to succeed beside it.
+        await supabase.from("sap_plans").insert({
+          protocol_id: protocolRow.id,
+          review_id: body.reviewId ?? null,
+          owner: user.id,
+          status: "failed",
+          error: message,
         });
+        send({ type: "error", message });
       } finally {
         controller.close();
       }

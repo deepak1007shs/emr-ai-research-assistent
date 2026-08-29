@@ -191,7 +191,12 @@ ${tests.map((t) => `- ${t}`).join("\n")}`,
 
   const stream = client.messages.stream({
     model: MODEL,
-    max_tokens: 32000,
+  // Thinking counts against this, not only the JSON, so the budget covers the
+  // reasoning as well as the registry it produces. The review and the case
+  // report form have run at 64000 on this model since they were written; the
+  // plan was left at half that, and stage one crossed it once the registry
+  // grew a design family, a timepoint list and a derivation for every variable.
+    max_tokens: 64000,
     thinking: { type: "adaptive" },
     output_config: { effort: EFFORT, format: { type: "json_schema", schema: SAP_RULES_JSON_SCHEMA } },
     system: [{ type: "text", text: ROLE }],
@@ -217,6 +222,10 @@ ${tests.map((t) => `- ${t}`).join("\n")}`,
     if (explained) throw new Error(explained);
     throw error;
   }
+  if (message.stop_reason === "max_tokens") {
+    throw new Error("The statistical rules were cut off before they finished.");
+  }
+
   const text = message.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
     .map((b) => b.text)
