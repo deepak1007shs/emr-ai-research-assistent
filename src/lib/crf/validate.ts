@@ -1,4 +1,4 @@
-import type { CrfSpec } from "./types.ts";
+import type { CrfField, CrfSpec } from "./types.ts";
 import type { SapRegistry } from "../sap/types.ts";
 import { variableIndex } from "../sap/types.ts";
 import { requiredFields, requiredVisits } from "./required.ts";
@@ -66,10 +66,22 @@ function isPlanId(id: string): boolean {
 }
 
 /** Every variable id the form collects, whether captured or derived. */
+/**
+ * Every field on the form, a section's parts included.
+ *
+ * The parts were added and this was not, so a field inside one was invisible to
+ * every check that asks what the form collects.
+ */
 function capturedIds(crf: CrfSpec): Set<string> {
   const ids = new Set<string>();
-  for (const f of crf.identifiers) if (f.variable_id) ids.add(f.variable_id);
-  for (const s of crf.sections) for (const f of s.fields) if (f.variable_id) ids.add(f.variable_id);
+  const take = (fields: CrfField[] | undefined) => {
+    for (const f of fields ?? []) if (f.variable_id) ids.add(f.variable_id);
+  };
+  take(crf.identifiers);
+  for (const section of crf.sections) {
+    take(section.fields);
+    for (const part of section.sections ?? []) take(part.fields);
+  }
   return ids;
 }
 

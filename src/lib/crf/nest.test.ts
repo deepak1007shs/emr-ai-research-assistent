@@ -49,6 +49,25 @@ describe("a section with parts", () => {
   });
 });
 
+describe("a field inside a section's parts", () => {
+  it("counts as collected, like any other", async () => {
+    // The parts were added and the check that asks what the form collects was
+    // not, so a field in one was invisible to every guard: it looked missing,
+    // and was asked for a second time.
+    const { validateCrf } = await import("./validate.ts");
+    const { crfFixture } = await import("./fixture.ts");
+    const { sapFixture } = await import("../sap/fixture.ts");
+    const inPart = crfFixture.sections
+      .flatMap((s) => s.sections ?? [])
+      .flatMap((p) => p.fields)
+      .map((f) => f.variable_id);
+    expect(inPart).toContain("var_adhesion");
+
+    const missed = validateCrf(crfFixture, sapFixture).findings.filter((f) => f.code === "CRF09");
+    expect(missed.map((f) => f.message).join(" ")).not.toContain("Adhesion severity");
+  });
+});
+
 describe("a question answered by more than one person", () => {
   it("gives each their own labelled line", () => {
     expect(

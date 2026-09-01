@@ -132,9 +132,12 @@ describe("not less, not extra", () => {
   it("CRF09 - the form leaves out something an analysis needs", () => {
     const c = clean();
     const p = sap();
-    // Every field for the exposure is removed.
+    // Every field for the exposure is removed, including the one in a section's
+    // parts, which the checks now see as well.
+    const drop = (f: { variable_id?: string }) => f.variable_id !== "var_adhesion";
     for (const section of c.sections) {
-      section.fields = section.fields.filter((f) => f.variable_id !== "var_adhesion");
+      section.fields = section.fields.filter(drop);
+      for (const part of section.sections ?? []) part.fields = part.fields.filter(drop);
     }
     const found = validateCrf(c, p).findings.find((f) => f.code === "CRF09");
     expect(found?.message).toContain("Adhesion severity");

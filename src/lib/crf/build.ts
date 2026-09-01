@@ -457,11 +457,19 @@ nothing.`;
 /** Every variable the plan requires that no field and no calculated value covers. */
 export function missingFields(spec: CrfSpec, sap: SapSpec): RequiredField[] {
   const captured = new Set<string>();
-  for (const f of spec.identifiers ?? []) if (f.variable_id) captured.add(f.variable_id);
-  for (const s of spec.sections ?? []) {
-    for (const f of s.fields ?? []) if (f.variable_id) captured.add(f.variable_id);
+  const take = (fields: CrfField[] | undefined) => {
+    for (const f of fields ?? []) if (f.variable_id) captured.add(f.variable_id);
+  };
+  take(spec.identifiers);
+  for (const section of spec.sections ?? []) {
+    take(section.fields);
+    // A section's parts hold fields too, and this counted none of them, so a
+    // field in one looked missing and was asked for a second time.
+    for (const part of section.sections ?? []) take(part.fields);
   }
-  for (const d of spec.derived ?? []) if (d.variable_id) captured.add(d.variable_id);
+  // Being listed among the calculated values is not being collected. It used to
+  // count here, which is how a study's own exposure came to have no box on the
+  // form and nothing to say so.
   return requiredFields(sap).filter((f) => !captured.has(f.variable_id));
 }
 
