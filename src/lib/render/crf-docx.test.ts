@@ -4,8 +4,8 @@ import { buildCrfDocx, responseFor } from "./crf-docx.ts";
 import { HOUSE_FONT } from "./house-style.ts";
 import { crfFixture } from "../crf/fixture.ts";
 
-async function read() {
-  const zip = await JSZip.loadAsync(await buildCrfDocx(crfFixture));
+async function read(variant: "form" | "plan" = "form") {
+  const zip = await JSZip.loadAsync(await buildCrfDocx(crfFixture, variant));
   const document = await zip.file("word/document.xml")!.async("string");
   const styles = await zip.file("word/styles.xml")!.async("string");
   const visible = document
@@ -31,21 +31,40 @@ describe("responseFor", () => {
 });
 
 describe("the CRF document", () => {
-  it("leads with the data-collection plan, then the form", async () => {
+  it("is the form and nothing else", async () => {
+    // The person filling this in does not need the evidence that it is
+    // complete. They need the questions, starting at the first one.
     const { visible } = await read();
-    expect(visible.indexOf("DATA COLLECTION PLAN")).toBeGreaterThan(-1);
-    expect(visible.indexOf("DATA COLLECTION PLAN")).toBeLessThan(visible.indexOf("CASE REPORT FORM"));
+    expect(visible).toContain("CASE RECORD FORM");
+    expect(visible).not.toContain("DATA COLLECTION PLAN");
+    expect(visible).not.toContain("roll-call");
+    expect(visible).not.toContain("Collected once");
+    expect(visible).not.toContain("Values calculated");
+  });
+
+  it("and the plan is the evidence, in its own document", async () => {
+    const { visible } = await read("plan");
+    expect(visible).toContain("DATA COLLECTION PLAN");
+    expect(visible).toContain("roll-call");
+    expect(visible).toContain("Collected once, collected repeatedly");
+    expect(visible).not.toContain("CASE RECORD FORM");
+  });
+
+  it("still tells the collector not to enter what is calculated", async () => {
+    // Said where the temptation is, under the section that collects its parts.
+    const { visible } = await read();
+    expect(visible).toContain("Do not enter it here");
   });
 
   it("ticks the grid where an element is collected, and nowhere else", async () => {
-    const { visible } = await read();
+    const { visible } = await read("plan");
     expect(visible).toContain("DATA ELEMENT");
     expect(visible).toContain("✓");
     for (const visit of crfFixture.visits) expect(visible).toContain(visit);
   });
 
   it("prints the roll-call with the field that captures each role", async () => {
-    const { visible } = await read();
+    const { visible } = await read("plan");
     expect(visible).toContain("roll-call");
     expect(visible).toContain("primary outcome");
     expect(visible).toContain("Intraoperative conversion");
@@ -80,11 +99,11 @@ describe("the CRF document", () => {
   });
 
   it("lists the calculated values with their formulas", async () => {
-    const { visible } = await read();
-    const tail = visible.split("Values calculated from this form")[1] ?? "";
+    const { visible } = await read("plan");
+    const tail = visible.split("Values calculated from the form")[1] ?? "";
     expect(tail).toContain("Body mass index");
     expect(tail).toContain("Weight in kg divided by height in metres squared");
-    expect(tail).toContain("cannot be audited");
+    expect(tail).toContain("worked out somewhere nobody can check");
   });
 
   it("has no investigator sign-off", async () => {

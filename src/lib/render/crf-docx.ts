@@ -75,7 +75,20 @@ function table(headers: string[], rows: string[][], options: { centreFrom?: numb
 }
 
 
-export async function buildCrfDocx(spec: CrfSpec): Promise<Buffer> {
+/**
+ * Which of the two documents is being rendered.
+ *
+ * `form` is what the data collector fills in, and nothing else. `plan` is the
+ * evidence that the form is complete and collects nothing spare: the visit
+ * grid, the roll-call and what is recorded once against what is recorded every
+ * visit. They have different readers, which is why they are no longer one file.
+ */
+export type CrfVariant = "form" | "plan";
+
+export async function buildCrfDocx(
+  spec: CrfSpec,
+  variant: CrfVariant = "form",
+): Promise<Buffer> {
   // Every wording comes from the plan's registry, resolved by id. The form
   // cannot call a variable something the plan does not call it.
   // An id the registry cannot resolve falls back to the wording carried here,
@@ -91,6 +104,11 @@ export async function buildCrfDocx(spec: CrfSpec): Promise<Buffer> {
 
   /* ---- the data-collection plan ------------------------------------ */
 
+  // Evidence for the supervisor and the committee, not instructions for the
+  // person filling in the form. It used to sit on the front of the form, and a
+  // nurse recording the sixtieth patient had to page through a visit grid and a
+  // twenty-six row build-time check before the first question.
+  if (variant === "plan") {
   doc.push(
     new Paragraph({
       text: "DATA COLLECTION PLAN",
@@ -137,14 +155,37 @@ export async function buildCrfDocx(spec: CrfSpec): Promise<Buffer> {
   doc.push(para(`Once: ${spec.collected_once.join("; ")}.`));
   doc.push(para(`Repeatedly: ${spec.collected_repeatedly.join("; ")}.`));
 
+    if (spec.derived.length) {
+      doc.push(h("Values calculated from the form, not collected on it", HeadingLevel.HEADING_2));
+      doc.push(
+        italic(
+          "A number the collector arrives already holding was worked out somewhere nobody can check, so the form asks for the parts and these are computed from them.",
+        ),
+      );
+      doc.push(
+        table(
+          ["Value", "Calculated from", "How"],
+          spec.derived.map((d) => [
+            d.variable_id ? labelOf(d.variable_id, d.name) : d.name,
+            d.from_variable_ids
+              .map((id) => labelOf(id, fieldLabels.get(id) ?? id))
+              .join("; "),
+            d.how,
+          ]),
+        ),
+      );
+    }
+
+    return Packer.toBuffer(new Document({ styles: HOUSE_STYLES, sections: [{ children: doc }] }));
+  }
+
   /* ---- the form ----------------------------------------------------- */
 
   doc.push(
     new Paragraph({
-      text: "CASE REPORT FORM (CRF)",
+      text: "CASE RECORD FORM",
       heading: HeadingLevel.TITLE,
       alignment: AlignmentType.CENTER,
-      pageBreakBefore: true,
       spacing: { after: 140 },
     }),
   );
@@ -172,36 +213,18 @@ export async function buildCrfDocx(spec: CrfSpec): Promise<Buffer> {
     ]);
 
   doc.push(h("Form & Subject Identifiers", HeadingLevel.HEADING_2));
-  doc.push(table(["#", "Field / Variable", "Field type", "Response"], fieldRows(spec.identifiers)));
+  doc.push(table(["S.No.", "Field / Variable", "Field type", "Response"], fieldRows(spec.identifiers)));
 
   for (const section of spec.sections) {
     doc.push(h(`Section ${section.letter} - ${section.title}`, HeadingLevel.HEADING_2));
-    doc.push(table(["#", "Field / Variable", "Field type", "Response"], fieldRows(section.fields)));
+    doc.push(table(["S.No.", "Field / Variable", "Field type", "Response"], fieldRows(section.fields)));
     if (section.note) doc.push(italic(section.note));
   }
 
-  /* ---- what the form deliberately does not collect ------------------ */
-
-  if (spec.derived.length) {
-    doc.push(h("Values calculated from this form, not collected on it", HeadingLevel.HEADING_2));
-    doc.push(
-      table(
-        ["Value", "Calculated from", "How"],
-        spec.derived.map((d) => [
-          d.variable_id ? labelOf(d.variable_id, d.name) : d.name,
-          d.from_variable_ids
-            .map((id) => labelOf(id, fieldLabels.get(id) ?? id))
-            .join("; "),
-          d.how,
-        ]),
-      ),
-    );
-    doc.push(
-      italic(
-        "Do not record these here. A computed value entered by hand cannot be audited, and the raw data is what lets an error be corrected later.",
-      ),
-    );
-  }
+  // What is calculated rather than collected is listed in the plan document,
+  // and said again in the section note where the temptation to enter it is:
+  // "Body mass index is calculated from height and weight. Do not enter it
+  // here." A table of it on the form is a third telling nobody needs.
 
   return Packer.toBuffer(new Document({ styles: HOUSE_STYLES, sections: [{ children: doc }] }));
 }

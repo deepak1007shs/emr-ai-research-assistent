@@ -12,7 +12,6 @@ import { DocSection, DocTable, DocumentShell, Note, Td } from "./document-shell"
  * a form because a data collector must recognise the page.
  */
 
-const TICK = "✓";
 const FIELD_HEADERS = ["#", "Field / Variable", "Field type", "Response"];
 
 export function CrfPreview({ spec }: { spec: CrfSpec }) {
@@ -24,7 +23,6 @@ export function CrfPreview({ spec }: { spec: CrfSpec }) {
   // Read back from a row, so every list is treated as possibly absent.
   const identifiers = spec.identifiers ?? [];
   const sections = spec.sections ?? [];
-  const visits = spec.visits ?? [];
 
   const fieldLabels = new Map<string, string>();
   for (const f of [...identifiers, ...sections.flatMap((s) => s.fields)]) {
@@ -32,64 +30,10 @@ export function CrfPreview({ spec }: { spec: CrfSpec }) {
   }
 
   return (
-    <DocumentShell kind="Data Collection Plan & Case Report Form" title={plain(spec.title)}>
-      <DocSection title="Data collection plan">
-        <Note>
-          Rows are data elements, columns are the visits. A tick means collect it here; an empty
-          cell means do not.
-        </Note>
-        <p className="text-sm leading-relaxed">{plain(spec.capture_pattern)}</p>
-
-        <DocTable headers={["DATA ELEMENT", ...visits]}>
-          {(spec.data_elements ?? []).map((element, i) => (
-            <tr key={i}>
-              <Td>{line(element.element)}</Td>
-              {visits.map((visit) => (
-                <Td key={visit} centre>
-                  {element.visits.includes(visit) ? TICK : ""}
-                </Td>
-              ))}
-            </tr>
-          ))}
-        </DocTable>
-      </DocSection>
-
-      <DocSection title="Exposure, outcome and confounder roll-call">
-        <Note>A build-time check. It stops the study&apos;s own variables going missing.</Note>
-        <DocTable headers={["Role", "Variable", "Field", "Where captured"]}>
-          {(spec.roll_call ?? []).map((entry, i) => {
-            const captured = Boolean(entry.field_variable_id);
-            return (
-              <tr key={i}>
-                <Td>{entry.role.replace(/_/g, " ")}</Td>
-                <Td>{line(labelOf(entry.ref_id, fieldLabels.get(entry.ref_id) ?? entry.ref_id))}</Td>
-                <Td>
-                  {captured ? (
-                    line(
-                      labelOf(
-                        entry.field_variable_id,
-                        fieldLabels.get(entry.field_variable_id) ?? entry.field_variable_id,
-                      ),
-                    )
-                  ) : (
-                    <span className="font-semibold text-danger">NOT CAPTURED</span>
-                  )}
-                </Td>
-                <Td>{line(entry.where)}</Td>
-              </tr>
-            );
-          })}
-        </DocTable>
-
-        <p className="text-xs leading-relaxed">
-          <span className="font-semibold">Once:</span> {plain((spec.collected_once ?? []).join("; "))}.
-        </p>
-        <p className="text-xs leading-relaxed">
-          <span className="font-semibold">Repeatedly:</span>{" "}
-          {plain((spec.collected_repeatedly ?? []).join("; "))}.
-        </p>
-      </DocSection>
-
+    // Mirrors `crf-docx.ts`: what is on screen is what the download contains,
+    // and the download is the form. The collection plan is the other document,
+    // downloaded beside it, because the two have different readers.
+    <DocumentShell kind="Case Record Form" title={plain(spec.title)}>
       <DocSection title="Form & Subject Identifiers">
         <FieldTable fields={identifiers} nameOf={nameOf} />
       </DocSection>
@@ -101,29 +45,6 @@ export function CrfPreview({ spec }: { spec: CrfSpec }) {
         </DocSection>
       ))}
 
-      {(spec.derived ?? []).length > 0 && (
-        <DocSection title="Values calculated from this form, not collected on it">
-          <DocTable headers={["Value", "Calculated from", "How"]}>
-            {(spec.derived ?? []).map((d, i) => (
-              <tr key={i}>
-                <Td bold>{line(d.variable_id ? labelOf(d.variable_id, d.name) : d.name)}</Td>
-                <Td>
-                  {line(
-                    d.from_variable_ids
-                      .map((id) => labelOf(id, fieldLabels.get(id) ?? id))
-                      .join("; "),
-                  )}
-                </Td>
-                <Td>{line(d.how)}</Td>
-              </tr>
-            ))}
-          </DocTable>
-          <Note>
-            Do not record these here. A computed value entered by hand cannot be audited, and the
-            raw data is what lets an error be corrected later.
-          </Note>
-        </DocSection>
-      )}
     </DocumentShell>
   );
 }

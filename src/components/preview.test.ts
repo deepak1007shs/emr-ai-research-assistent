@@ -100,15 +100,23 @@ describe("the CRF preview", () => {
     expect(screen).toContain("years");
   });
 
-  it("carries the plan and the form, as the document does", () => {
+  it("shows the form, which is what the download contains", () => {
+    const screen = screenText(CrfPreview({ spec: crfFixture }));
+    expect(screen).toContain("Case Record Form");
+    expect(screen).toContain("Form & Subject Identifiers");
+    for (const section of crfFixture.sections) {
+      expect(screen, section.title).toContain(section.title);
+    }
+  });
+
+  it("and not the evidence that the form is complete, which is the other document", () => {
     const screen = screenText(CrfPreview({ spec: crfFixture }));
     for (const heading of [
       "Data collection plan",
       "Exposure, outcome and confounder roll-call",
-      "Form & Subject Identifiers",
-      "Values calculated from this form, not collected on it",
+      "Values calculated",
     ]) {
-      expect(screen, heading).toContain(heading);
+      expect(screen, heading).not.toContain(heading);
     }
   });
 

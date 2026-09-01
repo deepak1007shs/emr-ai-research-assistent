@@ -80,7 +80,9 @@ describe("when an id cannot be resolved", () => {
     // alternative is a blank cell in the check that exists to catch this.
     delete crf.labels.out_conversion;
 
-    const text = await visible(await buildCrfDocx(crf));
+    // The roll-call is evidence, so it is in the plan document rather than on
+    // the form the collector fills in.
+    const text = await visible(await buildCrfDocx(crf, "plan"));
     expect(text).toContain("out_conversion");
   });
 

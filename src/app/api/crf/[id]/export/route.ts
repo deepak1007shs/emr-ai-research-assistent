@@ -13,7 +13,7 @@ function slugify(filename: string): string {
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
@@ -31,13 +31,23 @@ export async function GET(
   }
 
   const protocol = data.protocols as unknown as { filename: string } | null;
-  const buffer = await buildCrfDocx(data.spec as CrfSpec);
+
+  // Two documents with two readers. The form is what the data collector fills
+  // in; the plan is the evidence for the supervisor that the form collects
+  // everything the analysis needs and nothing it does not. They were one file,
+  // and the collector had to page through the evidence to reach the first
+  // question.
+  const plan = request.nextUrl.searchParams.get("doc") === "plan";
+  const variant = plan ? ("plan" as const) : ("form" as const);
+  const suffix = plan ? "data-collection-plan" : "case-record-form";
+
+  const buffer = await buildCrfDocx(data.spec as CrfSpec, variant);
 
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type":
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "Content-Disposition": `attachment; filename="${slugify(protocol?.filename ?? "study")}-case-report-form.docx"`,
+      "Content-Disposition": `attachment; filename="${slugify(protocol?.filename ?? "study")}-${suffix}.docx"`,
     },
   });
 }

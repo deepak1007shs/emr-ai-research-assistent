@@ -77,6 +77,8 @@ export default async function CrfPage({ params }: PageProps<"/protocols/[id]/crf
           stale ? "built from an earlier analysis plan" : null,
         ].filter((m): m is string => Boolean(m))}
         downloadHref={`/api/crf/${form.id}/export`}
+        alsoHref={`/api/crf/${form.id}/export?doc=plan`}
+        alsoLabel="Collection plan"
       >
         <BuildButton
           kind="crf"
