@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { extractProtocol } from "@/lib/protocol/extract";
 import { buildSapSpec } from "@/lib/sap/build";
+import { checkCoverage } from "@/lib/sap/coverage";
 import { MODEL } from "@/lib/protocol/analyze";
 import { costOf, type TokenUsage } from "@/lib/protocol/pricing";
 import { loadDecisions } from "@/lib/workspace/decisions";
@@ -80,10 +81,40 @@ export async function POST(request: NextRequest) {
           },
         });
 
+        // The plan is finished; now read the protocol back against it. This is
+        // the only check in the application that looks at the protocol at all,
+        // so a variable the protocol describes and the plan missed is invisible
+        // without it. A failure here must not lose the plan, which is why it is
+        // caught: a plan with no coverage check is worth more than no plan.
+        let coverage: Awaited<ReturnType<typeof checkCoverage>> | null = null;
+        try {
+          coverage = await checkCoverage(protocol, result.spec, {
+            onProgress: (message) => send({ type: "status", message }),
+            onUsage: (usage) => send({ type: "usage", usage, cost: costOf(MODEL, usage).total }),
+          });
+        } catch {
+          send({
+            type: "status",
+            message: "The plan is built. The protocol could not be read back against it.",
+          });
+        }
+
+        const usage = coverage
+          ? {
+              input_tokens: result.usage.input_tokens + coverage.usage.input_tokens,
+              output_tokens: result.usage.output_tokens + coverage.usage.output_tokens,
+              cache_creation_input_tokens:
+                result.usage.cache_creation_input_tokens + coverage.usage.cache_creation_input_tokens,
+              cache_read_input_tokens:
+                result.usage.cache_read_input_tokens + coverage.usage.cache_read_input_tokens,
+            }
+          : result.usage;
+        const findings = [...result.findings, ...(coverage?.findings ?? [])];
+
         send({
           type: "usage",
-          usage: result.usage,
-          cost: costOf(result.model, result.usage).total,
+          usage,
+          cost: costOf(result.model, usage).total,
         });
 
         const { data: row, error } = await supabase
@@ -94,9 +125,9 @@ export async function POST(request: NextRequest) {
             owner: user.id,
             status: "ready",
             spec: result.spec,
-            validation: { findings: result.findings },
+            validation: { findings },
             model: result.model,
-            usage: result.usage,
+            usage,
           })
           .select("id")
           .single();
@@ -105,8 +136,8 @@ export async function POST(request: NextRequest) {
         send({
           type: "done",
           sapId: row.id,
-          errors: result.findings.filter((f) => f.severity === "ERROR").length,
-          warnings: result.findings.filter((f) => f.severity === "WARN").length,
+          errors: findings.filter((f) => f.severity === "ERROR").length,
+          warnings: findings.filter((f) => f.severity === "WARN").length,
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Building the plan failed.";

@@ -12,6 +12,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { SAP_JSON_SCHEMA } from "./src/lib/sap/build.ts";
 import { SAP_MAP_JSON_SCHEMA } from "./src/lib/sap/map-stage.ts";
 import { SAP_RULES_JSON_SCHEMA } from "./src/lib/sap/rules-stage.ts";
+import { COVERAGE_JSON_SCHEMA } from "./src/lib/sap/coverage.ts";
 import { CRF_COMPLETION_SCHEMA, CRF_JSON_SCHEMA } from "./src/lib/crf/build.ts";
 import { TABLES_JSON_SCHEMA } from "./src/lib/tables/build.ts";
 import {
@@ -50,6 +51,7 @@ for (const [name, schema] of [
   ["SAP 1 - frame and registries", SAP_JSON_SCHEMA],
   ["SAP 2 - analysis map", SAP_MAP_JSON_SCHEMA],
   ["SAP 3 - rules and assumptions", SAP_RULES_JSON_SCHEMA],
+  ["SAP 4 - protocol read back", COVERAGE_JSON_SCHEMA],
   ["CRF", CRF_JSON_SCHEMA],
   ["CRF completion", CRF_COMPLETION_SCHEMA],
   ["Shell tables", TABLES_JSON_SCHEMA],
