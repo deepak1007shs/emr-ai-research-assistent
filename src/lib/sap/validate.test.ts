@@ -32,6 +32,8 @@ const clean = (): SapSpec => ({
   ],
   variables: [
     { id: "var_conversion", label: "Conversion", data_type: "binary", unit_coding: "Yes / No", role: "outcome" },
+    // A surgical study owes its patients' baseline fitness, which STU03 asks for.
+    { id: "var_asa", label: "ASA physical status grade", data_type: "ordinal", unit_coding: "I / II / III / IV", role: "descriptor" },
     { id: "var_age", label: "Age", data_type: "continuous", unit_coding: "Years", role: "confounder" },
     {
       id: "var_duration", label: "Operative duration", data_type: "continuous",

@@ -56,6 +56,11 @@ export const sapFixture: SapSpec = {
       derived_from: ["var_age"],
     },
     { id: "var_sex", label: "Sex", data_type: "binary", unit_coding: "Male / Female", role: "descriptor" },
+    {
+      id: "var_asa", label: "ASA physical status grade", data_type: "ordinal",
+      unit_coding: "I / II / III / IV", role: "descriptor",
+      timepoints: ["before the operation"],
+    },
     { id: "var_height", label: "Height", data_type: "continuous", unit_coding: "cm", role: "descriptor" },
     { id: "var_weight", label: "Weight", data_type: "continuous", unit_coding: "kg", role: "descriptor" },
     {

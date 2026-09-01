@@ -51,6 +51,12 @@ export const crfFixture: CrfSpec = {
           type: "Single-select",
           options: ["Yes", "No"],
         },
+        {
+          variable_id: "var_asa",
+          label: "ASA physical status grade",
+          type: "Single-select",
+          options: ["I", "II", "III", "IV"],
+        },
       ],
       note: "Body mass index is calculated from height and weight. Do not enter it here.",
     },

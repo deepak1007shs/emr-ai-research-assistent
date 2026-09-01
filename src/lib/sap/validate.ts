@@ -1,6 +1,7 @@
 import type { SapSpec } from "./types.ts";
 import { outcomeIndex, variableIndex } from "./types.ts";
 import { chooseTest, plannedTests } from "./choose-test.ts";
+import { unmetRequirements } from "./design-variables.ts";
 
 /**
  * The guards on an analysis model.
@@ -439,6 +440,19 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
         `The design reads "${spec.design}", which is a ${said[1].replace(/_/g, " ")}, but it is classified as ${spec.design_family.replace(/_/g, " ")}. The classification is what the rules read, so the two must agree.`,
       );
     }
+  }
+
+  /* ---- what the design requires, whatever the protocol said --------- */
+
+  // The protocol is not the last word on what a study must record. A trial
+  // reports its harms, a cohort reports its person-time, cancer surgery reports
+  // how much disease was left behind, and none of that stops being true because
+  // the protocol forgot to say so.
+  for (const rule of unmetRequirements(spec)) {
+    warn(
+      "STU03",
+      `A ${(spec.design_family ?? "study").replace(/_/g, " ")} of this kind has to record ${rule.requires}, and no variable in the plan does. ${rule.why}`,
+    );
   }
 
   /* ---- every outcome is reported ----------------------------------- */
