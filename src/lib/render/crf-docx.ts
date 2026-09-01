@@ -43,13 +43,17 @@ function italic(text: string) {
 }
 
 function cell(text: string, bold = false, centre = false) {
+  // A response can carry a line per respondent, so a newline is a line and not
+  // a space. Everything else has none and prints exactly as it did.
+  const lines = String(text ?? "").split("\n");
   return new TableCell({
-    children: [
-      new Paragraph({
-        alignment: centre ? AlignmentType.CENTER : AlignmentType.LEFT,
-        children: [new TextRun({ text: line(text), bold })],
-      }),
-    ],
+    children: lines.map(
+      (part) =>
+        new Paragraph({
+          alignment: centre ? AlignmentType.CENTER : AlignmentType.LEFT,
+          children: [new TextRun({ text: line(part), bold })],
+        }),
+    ),
     margins: { top: 60, bottom: 60, left: 100, right: 100 },
     borders: { top: HOUSE_BORDER, bottom: HOUSE_BORDER, left: HOUSE_BORDER, right: HOUSE_BORDER },
   });
@@ -215,10 +219,20 @@ export async function buildCrfDocx(
   doc.push(h("Form & Subject Identifiers", HeadingLevel.HEADING_2));
   doc.push(table(["S.No.", "Field / Variable", "Field type", "Response"], fieldRows(spec.identifiers)));
 
+  const HEAD = ["S.No.", "Field / Variable", "Field type", "Response"];
+
   for (const section of spec.sections) {
     doc.push(h(`Section ${section.letter} - ${section.title}`, HeadingLevel.HEADING_2));
-    doc.push(table(["S.No.", "Field / Variable", "Field type", "Response"], fieldRows(section.fields)));
+    if (section.fields.length) doc.push(table(HEAD, fieldRows(section.fields)));
     if (section.note) doc.push(italic(section.note));
+
+    // A section's parts each get their own table under its heading, numbered
+    // from the section's letter: H1, H2, H3. One level and no deeper.
+    (section.sections ?? []).forEach((part, i) => {
+      doc.push(h(`${section.letter}${i + 1} - ${part.title}`, HeadingLevel.HEADING_3));
+      doc.push(table(HEAD, fieldRows(part.fields)));
+      if (part.note) doc.push(italic(part.note));
+    });
   }
 
   // What is calculated rather than collected is listed in the plan document,

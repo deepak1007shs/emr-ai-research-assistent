@@ -40,8 +40,19 @@ export function CrfPreview({ spec }: { spec: CrfSpec }) {
 
       {sections.map((section) => (
         <DocSection key={section.letter} title={`Section ${section.letter} - ${section.title}`}>
-          <FieldTable fields={section.fields} nameOf={nameOf} />
+          {section.fields.length > 0 && <FieldTable fields={section.fields} nameOf={nameOf} />}
           {section.note && <Note>{plain(section.note)}</Note>}
+
+          {/* A section's parts, each its own table under its heading. */}
+          {(section.sections ?? []).map((part, i) => (
+            <div key={part.title} className="mt-5">
+              <h4 className="text-sm font-semibold text-ink">{`${section.letter}${i + 1} - ${plain(part.title)}`}</h4>
+              <div className="mt-2">
+                <FieldTable fields={part.fields} nameOf={nameOf} />
+              </div>
+              {part.note && <Note>{plain(part.note)}</Note>}
+            </div>
+          ))}
         </DocSection>
       ))}
 

@@ -83,6 +83,26 @@ export const crfFixture: CrfSpec = {
         },
         { variable_id: "var_discharge_date", label: "Date of discharge", type: "Date", mask: "DD/MM/YYYY" },
       ],
+      // One heading over two blocks that share nothing else, which is what a
+      // sub-section is for. Adhesion severity is graded independently by two
+      // surgeons, so each gets a line: a single line cannot hold a
+      // disagreement, and the disagreement is what an agreement study measures.
+      sections: [
+        {
+          letter: "",
+          title: "Adhesion grading, scored independently",
+          fields: [
+            {
+              variable_id: "var_adhesion",
+              label: "Adhesion severity",
+              type: "Single-select",
+              options: ["I", "II", "III", "IV"],
+              respondents: ["R1", "R2"],
+            },
+          ],
+          note: "Each surgeon grades without seeing the other's answer.",
+        },
+      ],
     },
   ],
   derived: [

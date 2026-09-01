@@ -59,6 +59,11 @@ const FIELD = obj({
   unit: { ...str, description: "Required for a Number: years, cm, mmHg, minutes. Empty otherwise." },
   primary_outcome: { type: "boolean", description: "True only for the study's primary outcome field." },
   note: { ...str, description: "A short qualifier such as 'If yes, ...'. Empty when not needed." },
+  respondents: {
+    ...strArray,
+    description:
+      "Who answers, where more than one person answers the same question: ['R1','R2'] for two observers reading the same scan. Each gets its own response line, so what each of them said is recorded separately, which is the whole point of an agreement or reliability study. Empty everywhere else, which is almost everywhere.",
+  },
 });
 
 export const CRF_JSON_SCHEMA = obj({
@@ -113,7 +118,11 @@ export const CRF_JSON_SCHEMA = obj({
     description:
       "Lettered A onward and named by topic. One section per visit for anything collected repeatedly, so each visit's section stands alone.",
     items: obj({
-      letter: { ...str, description: "A, B, C..." },
+      letter: {
+        ...str,
+        description:
+          "A, B, C... A letter followed by a digit makes this a part of the section with that letter: H1, H2 and H3 are the three blocks of section H, each its own table under its heading. Use that where one heading covers blocks that share nothing else, such as an index test with its scan details, its direct features and its indirect features. Most sections are a plain letter.",
+      },
       title: { ...str, description: "The topic, e.g. Demographics & Identification." },
       visit: { ...str, description: "Which visit this section is filled at." },
       fields: { type: "array", items: FIELD },
@@ -336,6 +345,9 @@ cannot be analysed.`,
       options: f.options?.length ? f.options : undefined,
       unit: f.unit?.trim() || undefined,
       note: f.note?.trim() || undefined,
+      // An empty list means one respondent, which is the ordinary case, and the
+      // field then prints exactly as it always has.
+      respondents: f.respondents?.length ? f.respondents : undefined,
       primary_outcome: f.primary_outcome || undefined,
     };
   };
@@ -345,11 +357,13 @@ cannot be analysed.`,
     title: sap.title,
     labels,
     identifiers: (raw.identifiers ?? []).map(tidyField),
-    sections: (raw.sections ?? []).map((s) => ({
-      ...s,
-      note: s.note?.trim() || undefined,
-      fields: (s.fields ?? []).map(tidyField),
-    })),
+    sections: nestParts(
+      (raw.sections ?? []).map((s) => ({
+        ...s,
+        note: s.note?.trim() || undefined,
+        fields: (s.fields ?? []).map(tidyField),
+      })),
+    ),
     derived: (raw.derived ?? []).map((d) => {
       const variable_id = d.variable_id?.trim() || undefined;
       return {
@@ -580,4 +594,39 @@ export function mergeSections(existing: CrfSection[], extra: CrfSection[]): CrfS
 
   const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   return merged.map((s, i) => ({ ...s, letter: LETTERS[i] ?? String(i + 1) }));
+}
+
+/**
+ * Folds `H1`, `H2` into section `H`.
+ *
+ * The model returns the sections flat and says which is a part of which by its
+ * letter, because a sub-section carrying the whole field object inside the
+ * schema doubled the grammar and the API refused to compile it. The shape the
+ * renderers want is nested, so it is nested here, where it costs nothing.
+ */
+export function nestParts(sections: CrfSection[]): CrfSection[] {
+  const parents = new Map<string, CrfSection>();
+  const out: CrfSection[] = [];
+
+  for (const section of sections) {
+    if (/^[A-Za-z]\d+$/.test(section.letter.trim())) continue;
+    const parent = { ...section, sections: undefined as CrfSection[] | undefined };
+    parents.set(section.letter.trim().toUpperCase(), parent);
+    out.push(parent);
+  }
+
+  for (const section of sections) {
+    const part = section.letter.trim().match(/^([A-Za-z])(\d+)$/);
+    if (!part) continue;
+    const parent = parents.get(part[1].toUpperCase());
+    // A part whose parent was never declared is kept as a section of its own
+    // rather than dropped: a form missing a block is worse than an odd letter.
+    if (!parent) {
+      out.push(section);
+      continue;
+    }
+    parent.sections = [...(parent.sections ?? []), section];
+  }
+
+  return out;
 }

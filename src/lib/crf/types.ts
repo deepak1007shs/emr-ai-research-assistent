@@ -33,6 +33,16 @@ export type CrfField = {
   primary_outcome?: boolean;
   /** Shown under the field, e.g. "If yes, ...". */
   note?: string;
+  /**
+   * Who answers, where more than one person answers the same question.
+   *
+   * `["R1", "R2"]` gives an agreement study one response line per observer, so
+   * what each of them said is recorded separately. That is the whole design: a
+   * form with one line cannot hold a disagreement, and a disagreement is what
+   * the study measures. Empty everywhere else, and the field prints as it
+   * always has.
+   */
+  respondents?: string[];
 };
 
 export type CrfSection = {
@@ -42,6 +52,15 @@ export type CrfSection = {
   /** Which visit this section is filled at, matching a visit label. */
   visit?: string;
   fields: CrfField[];
+  /**
+   * Parts of this section, each its own table under the section's heading.
+   *
+   * One level, no deeper. An index test is often three blocks that share a
+   * heading and nothing else: the scan details, the direct features and the
+   * indirect ones. Flattening them into one table loses which block a finding
+   * belongs to, and nesting further would produce a form nobody can follow.
+   */
+  sections?: CrfSection[];
   /** Printed under the table, e.g. "Body mass index is calculated. Do not enter it here." */
   note?: string;
 };

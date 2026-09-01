@@ -13,8 +13,20 @@ export const BOX = "☐";
 
 const blank = (n: number) => "_".repeat(n);
 
-/** Pre-printed options, a unit, or a ruled blank. */
+/**
+ * Pre-printed options, a unit, or a ruled blank.
+ *
+ * Where more than one person answers the same question, each gets a line of
+ * their own, labelled. A single line cannot hold a disagreement, and in an
+ * agreement study the disagreement is the result.
+ */
 export function responseFor(field: CrfField): string {
+  const answer = oneAnswer(field);
+  if (!field.respondents?.length) return answer;
+  return field.respondents.map((who) => `${who}:  ${answer}`).join("\n");
+}
+
+function oneAnswer(field: CrfField): string {
   if (field.options?.length) {
     return field.options.map((o) => `${BOX} ${o}`).join("   ");
   }

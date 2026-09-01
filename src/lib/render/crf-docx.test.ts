@@ -106,6 +106,22 @@ describe("the CRF document", () => {
     expect(tail).toContain("worked out somewhere nobody can check");
   });
 
+  it("splits a section into its parts, numbered from its letter", async () => {
+    const { visible } = await read();
+    expect(visible).toContain("B1 - Adhesion grading, scored independently");
+    // The part sits under its section, not beside it.
+    expect(visible.indexOf("Section B -")).toBeLessThan(visible.indexOf("B1 -"));
+  });
+
+  it("gives each observer a line of their own", async () => {
+    // A single line cannot hold a disagreement, and the disagreement is what an
+    // agreement study measures.
+    const { visible } = await read();
+    expect(visible).toContain("R1:");
+    expect(visible).toContain("R2:");
+    expect(visible).toContain("Each surgeon grades without seeing");
+  });
+
   it("has no investigator sign-off", async () => {
     const { visible } = await read();
     expect(visible).not.toContain("Sign-off");
