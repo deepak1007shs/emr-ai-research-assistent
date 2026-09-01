@@ -522,7 +522,7 @@ export function validateTables(
     if ((sap.populations ?? []).length > 1 && !tables.some((t) => t.role === "sensitivity")) {
       warn(
         "TBL23",
-        `The plan names ${sap.populations!.length} analysis populations but no sensitivity table compares them. A conclusion that holds in only one population is not a robust one.`,
+        `The plan names ${sap.populations!.length} analysis populations but no sensitivity table compares them. A conclusion that holds in only one population is one the data will not carry.`,
       );
     }
   }

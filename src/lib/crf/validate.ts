@@ -300,6 +300,29 @@ export function validateCrf(crf: CrfSpec, sap?: SapRegistry): { ok: boolean; fin
       }
     }
 
+    // The same variable with two boxes in one section. Two boxes across two
+    // sections is a measure repeated at two visits and is right; two in one
+    // place is one question asked twice, and the two answers can disagree with
+    // nothing to say which was meant.
+    for (const section of crf.sections ?? []) {
+      const here = new Map<string, number>();
+      const parts = [section, ...(section.sections ?? [])];
+      for (const part of parts) {
+        for (const field of part.fields ?? []) {
+          if (!field.variable_id) continue;
+          here.set(field.variable_id, (here.get(field.variable_id) ?? 0) + 1);
+        }
+      }
+      for (const [id, n] of here) {
+        if (n > 1) {
+          warn(
+            "CRF14",
+            `Section ${section.letter} asks for "${nameOf(id)}" ${n} times. One question asked twice gets two answers, and nothing on the form says which was meant.`,
+          );
+        }
+      }
+    }
+
     // A visit the plan measures at, with nowhere on the form to record it.
     const visited = new Set(
       (crf.sections ?? [])

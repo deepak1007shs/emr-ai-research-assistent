@@ -199,6 +199,32 @@ describe("not less, not extra", () => {
     expect(found.map((f) => f.message).join(" ")).not.toContain("Study subject ID");
   });
 
+  it("CRF14 - one question asked twice in the same section", () => {
+    const c = clean();
+    c.sections[0].fields.push({
+      variable_id: "var_age",
+      label: "Age",
+      type: "Number",
+      unit: "years",
+    });
+    const found = validateCrf(c, sap()).findings.find((f) => f.code === "CRF14");
+    expect(found?.message).toContain("Age");
+    expect(found?.message).toContain("which was meant");
+  });
+
+  it("CRF14 - but not the same measure at two visits, which is right", () => {
+    const c = clean();
+    // A second section is a second visit, and a measure recorded at both is
+    // recorded twice on purpose.
+    c.sections.push({
+      letter: "C",
+      title: "Follow-up",
+      visit: "1 Month",
+      fields: [{ variable_id: "var_age", label: "Age", type: "Number", unit: "years" }],
+    });
+    expect(codes(c, sap())).not.toContain("CRF14");
+  });
+
   it("CRF12 - the plan measures at a visit the form has no section for", () => {
     const c = clean();
     const p = sap();

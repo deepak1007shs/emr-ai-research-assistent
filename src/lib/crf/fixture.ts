@@ -80,7 +80,6 @@ export const crfFixture: CrfSpec = {
       visit: "Intra-op",
       fields: [
         { variable_id: "var_surgery_date", label: "Date of surgery", type: "Date", mask: "DD/MM/YYYY" },
-        { variable_id: "var_adhesion", label: "Adhesion severity", type: "Single-select", options: ["I", "II", "III", "IV"] },
         {
           variable_id: "var_duration",
           label: "Operative duration",

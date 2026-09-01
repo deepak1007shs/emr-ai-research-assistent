@@ -604,7 +604,7 @@ function sensitivityTable(
     rows,
     test_applied: plan.test,
     footnote: [
-      "The first row is the primary analysis. Every other row repeats it a different defensible way; a conclusion that changes between rows is not a robust one.",
+      "The first row is the primary analysis. Every other row repeats it a different defensible way, and a conclusion that changes between them is one the data will not carry.",
       missing ? `Missing data: ${missing}` : "",
     ]
       .filter(Boolean)
