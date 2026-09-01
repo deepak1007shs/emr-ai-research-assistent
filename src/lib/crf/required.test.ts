@@ -43,9 +43,12 @@ function plan(): SapRegistry {
 const ids = (sap: SapRegistry) => requiredFields(sap).map((f) => f.variable_id);
 
 describe("what the form must collect", () => {
-  it("a questionnaire score is not collected; its items are", () => {
+  it("a questionnaire score is collected, and so are its items", () => {
+    // Both. The items let the score be recomputed and checked; the score is
+    // what a person may have decided, and for a case definition applied at the
+    // bedside that decision is the variable.
     const required = ids(plan());
-    expect(required).not.toContain("var_qol_gi");
+    expect(required).toContain("var_qol_gi");
     expect(required).toContain("var_qol_item_31");
     expect(required).toContain("var_qol_item_32");
   });
@@ -75,7 +78,7 @@ describe("what the form must collect", () => {
     expect(asa.because).toContain("P1");
     expect(asa.because).toContain("holds it constant");
     const item = requiredFields(plan()).find((f) => f.variable_id === "var_qol_item_31")!;
-    expect(item.because).toContain("computed from it");
+    expect(item.because).toContain("computed from this");
   });
 
   it("the visits come from the plan, so a follow-up section has to exist", () => {
@@ -88,6 +91,13 @@ describe("what the form must collect", () => {
     // It is a descriptor, so it is required; "not extra" is judged against the
     // plan, and a plan carrying a variable nothing uses is the plan's problem.
     expect(ids(plan())).toContain("var_never_used");
+  });
+
+  it("an ingredient is required even where nothing analyses it directly", () => {
+    // The two questionnaire items answer no objective on their own. They are on
+    // the form because the score is worked out from them.
+    const item = requiredFields(plan()).find((f) => f.variable_id === "var_qol_item_32")!;
+    expect(item.because).toContain("Quality of life");
   });
 
   it("a plan with nothing derived asks for no calculated values", () => {

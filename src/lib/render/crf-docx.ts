@@ -211,7 +211,12 @@ export async function buildCrfDocx(
   const fieldRows = (fields: CrfField[]) =>
     fields.map((f, i) => [
       String(i + 1),
-      f.primary_outcome ? `${nameOf(f)} (primary outcome)` : nameOf(f),
+      // The note under the label, where whoever is filling the form is already
+      // looking. It carries the rule a calculated value is worked out from, and
+      // it had been in the spec and printed nowhere.
+      [f.primary_outcome ? `${nameOf(f)} (primary outcome)` : nameOf(f), f.note]
+        .filter(Boolean)
+        .join("\n"),
       f.type,
       responseFor(f),
     ]);

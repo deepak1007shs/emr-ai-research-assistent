@@ -136,7 +136,7 @@ export const CRF_JSON_SCHEMA = obj({
   derived: {
     type: "array",
     description:
-      "Values computed during analysis, never fields. Their ingredients MUST all be fields on the form. Length of stay comes from two dates; BMI from height and weight; a band from the number it was banded from; a score from its items.",
+      "Values worked out from other fields: length of stay from two dates, BMI from height and weight, a band from the number it was banded from, a score from its items, an acquisition group from a case definition applied to what was recorded. Each gets a field of its own AND has every ingredient on the form, so the value can be recomputed and checked against what was written down. Say the rule in `how`, and print it beside the field so whoever fills the form applies the same one.",
     items: obj({
       variable_id: {
         ...str,
@@ -193,10 +193,17 @@ copied from the plan. A field that collects a raw ingredient the plan does not
 declare carries a short key of your own instead. Both belong on the form: the
 plan analyses body mass index, and the form collects height and weight.
 
-The form collects raw and rich data, never computed values. Dates rather than
-durations. The reading rather than a yes or no. A score's items rather than its
-total. The number rather than the band. Anything that can be calculated is listed
-separately as a calculated value, with the fields it comes from.
+The form collects raw and rich data as well as the values worked out from them.
+Dates as well as the duration. The reading as well as the yes or no. A score's
+items as well as its total. The number as well as the band. Anything that can be
+calculated is ALSO listed as a calculated value naming the fields it comes from,
+so a reader can see how it was arrived at and check it.
+
+Both, and not one or the other. The ingredients alone lose whatever a person
+decided at the bedside, and for a case definition a clinician applies, that
+decision is the variable: a study comparing hospital-acquired against
+community-acquired infection needs a box saying which this was, and needs the
+admission and culture times that the classification was made from.
 
 Refer to every variable by the id the analysis plan gave it, and do not retype its
 wording. The plan, this form and the shell tables all point at the same ids, so a

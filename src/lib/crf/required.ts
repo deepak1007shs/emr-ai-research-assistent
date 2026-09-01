@@ -11,12 +11,22 @@ import { outcomeIndex, variableIndex } from "../sap/types.ts";
  * thirteen outcomes, it wrote a roll call promising a field for each of them
  * and then wrote the pre-operative half of the form and stopped.
  *
- * Two rules do most of the work, and both come from the same place. A derived
- * variable is never a field: a subscale score, a change from baseline or an
- * index is computed from things the form collects, and a number the data
- * collector arrives already holding was worked out somewhere the study cannot
- * check. And a variable measured after baseline needs a visit to be collected
- * at, which is why the plan now records when each one is measured.
+ * Every variable the plan declares gets a field, derived ones included, named
+ * as the plan names it. A derived variable's ingredients are collected too, so
+ * the value can always be recomputed and checked against what was written down.
+ *
+ * That was not always so. A derived variable used to be excluded on the rule
+ * that a number the collector arrives already holding was worked out somewhere
+ * the study cannot check, which is right for a body mass index and wrong for
+ * the thing a study is built on. A bloodstream infection is hospital-acquired
+ * or community-acquired by a case definition a person applies at the bedside,
+ * and a study whose entire comparison is that grouping had no box to write it
+ * in: only the two inputs survived, and a borderline case adjudicated by a
+ * clinician was lost. The ingredients protect the value; leaving the value off
+ * the form protects nothing.
+ *
+ * A variable measured after baseline also needs a visit to be collected at,
+ * which is why the plan records when each one is measured.
  */
 
 export type RequiredField = {
@@ -53,14 +63,13 @@ function neededIds(sap: SapRegistry): Map<string, string> {
   const want = (id: string, because: string, seen = new Set<string>()) => {
     if (seen.has(id)) return; // A plan that declares a cycle is caught by VAR02.
     seen.add(id);
-    const variable = byVariable.get(id);
-    if (isDerived(variable)) {
-      for (const input of variable!.derived_from!) {
-        want(input, `${because}, which is computed from it`, seen);
-      }
-      return;
-    }
     if (!why.has(id)) why.set(id, because);
+    // And its ingredients, so the value can be recomputed and checked against
+    // what was written down.
+    const variable = byVariable.get(id);
+    for (const input of variable?.derived_from ?? []) {
+      want(input, `${because}, and it is computed from this`, seen);
+    }
   };
 
   for (const a of sap.analyses ?? []) {
@@ -116,7 +125,7 @@ export function requiredDerived(sap: SapRegistry): RequiredDerived[] {
   const why = new Set(requiredFields(sap).map((f) => f.variable_id));
   return (sap.variables ?? [])
     .filter((v) => isDerived(v))
-    .filter((v) => (v.derived_from ?? []).some((id) => why.has(id)))
+    .filter((v) => why.has(v.id))
     .map((v) => ({
       variable_id: v.id,
       label: v.label,

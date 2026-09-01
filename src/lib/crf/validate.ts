@@ -147,12 +147,11 @@ export function validateCrf(crf: CrfSpec, sap?: SapRegistry): { ok: boolean; fin
     const duplicated = d.variable_id
       ? captured.has(d.variable_id)
       : fieldWordings.has(key(d.name));
-    if (duplicated) {
-      error(
-        "CRF06",
-        `"${d.name}" is calculated, but a field also collects it. A computed value entered by hand cannot be audited; collect its ingredients instead.`,
-      );
-    }
+    // A calculated value having a field of its own is expected now, not an
+    // error. What matters is that its ingredients are on the form as well, so
+    // the value can be recomputed and checked against what was written down,
+    // and that is CRF07 below.
+    void duplicated;
     for (const id of d.from_variable_ids) {
       if (!captured.has(id)) {
         error(
@@ -239,7 +238,12 @@ export function validateCrf(crf: CrfSpec, sap?: SapRegistry): { ok: boolean; fin
     // field that was never written.
     const required = requiredFields(sap);
     for (const field of required) {
-      if (!captured.has(field.variable_id) && !derived.has(field.variable_id)) {
+      // A field, not merely an entry in the calculated values. Being listed as
+      // calculated used to satisfy this, and that was the loophole: a study
+      // comparing hospital-acquired against community-acquired infection had
+      // its grouping named in the calculated values, no box on the form to
+      // write it in, and nothing said so.
+      if (!captured.has(field.variable_id)) {
         error(
           "CRF09",
           `The form does not collect "${field.label}". It is needed because ${field.because}, and a variable nobody records cannot be analysed.`,
@@ -247,19 +251,21 @@ export function validateCrf(crf: CrfSpec, sap?: SapRegistry): { ok: boolean; fin
       }
     }
 
-    // A score, an index or a change is worked out from things the form collects.
-    // Asking a data collector for the result moves the arithmetic somewhere the
-    // study cannot check, and loses the instrument's own rule for a part answer.
+    // A calculated value belongs on the form under the name the plan gives it,
+    // and so do the things it is calculated from. The value alone cannot be
+    // checked; the ingredients alone lose whatever a person decided at the
+    // bedside, which for a case definition applied by a clinician is the whole
+    // of it.
     const byVariable = variableIndex(sap);
     for (const id of captured) {
       const variable = byVariable.get(id);
-      if (variable?.derived_from?.length) {
-        error(
-          "CRF10",
-          `The form has a field for "${variable.label}", which the plan computes from ${variable.derived_from
-            .map((from) => byVariable.get(from)?.label ?? from)
-            .join(", ")}. Collect those and calculate this one; a total the collector arrives already holding was worked out somewhere nobody can check.`,
-        );
+      for (const input of variable?.derived_from ?? []) {
+        if (!captured.has(input) && !derived.has(input)) {
+          error(
+            "CRF10",
+            `The form records "${variable!.label}" but not ${byVariable.get(input)?.label ?? input}, which the plan says it is worked out from. Without it the value cannot be checked against anything.`,
+          );
+        }
       }
     }
 

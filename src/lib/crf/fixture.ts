@@ -46,6 +46,20 @@ export const crfFixture: CrfSpec = {
         { variable_id: "var_height", label: "Height", type: "Number", unit: "cm" },
         { variable_id: "var_weight", label: "Weight", type: "Number", unit: "kg" },
         {
+          variable_id: "var_bmi",
+          label: "Body mass index",
+          type: "Number",
+          unit: "kg/m2",
+          note: "Calculated from height and weight. Enter it if it is already recorded; it is checked against the two above.",
+        },
+        {
+          variable_id: "var_age_group",
+          label: "Age group",
+          type: "Single-select",
+          options: ["< 40 years", "40 to 60 years", "> 60 years"],
+          note: "Banded from the age recorded above.",
+        },
+        {
           variable_id: "var_prev",
           label: "Previous abdominal surgery",
           type: "Single-select",
@@ -58,7 +72,7 @@ export const crfFixture: CrfSpec = {
           options: ["I", "II", "III", "IV"],
         },
       ],
-      note: "Body mass index is calculated from height and weight. Do not enter it here.",
+      note: "Body mass index and age group are worked out from the values above, and are recorded here as well so the two can be checked against each other.",
     },
     {
       letter: "B",
@@ -82,6 +96,13 @@ export const crfFixture: CrfSpec = {
           primary_outcome: true,
         },
         { variable_id: "var_discharge_date", label: "Date of discharge", type: "Date", mask: "DD/MM/YYYY" },
+        {
+          variable_id: "var_los",
+          label: "Postoperative length of stay",
+          type: "Number",
+          unit: "days",
+          note: "Counted from the two dates above.",
+        },
       ],
       // One heading over two blocks that share nothing else, which is what a
       // sub-section is for. Adhesion severity is graded independently by two

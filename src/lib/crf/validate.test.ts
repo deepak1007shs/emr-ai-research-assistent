@@ -37,7 +37,11 @@ describe("validateCrf", () => {
     expect(codes(c)).toContain("CRF05");
   });
 
-  it("CRF06 - a calculated value offered as a field to fill in", () => {
+  it("a calculated value may have a field of its own", () => {
+    // Both the value and what it is worked out from. The ingredients let it be
+    // recomputed and checked; the value itself is what a person may have
+    // decided, and for a case definition applied at the bedside that decision
+    // is the variable, not a convenience.
     const c = clean();
     c.sections[0].fields.push({
       variable_id: "var_bmi",
@@ -45,9 +49,8 @@ describe("validateCrf", () => {
       type: "Number",
       unit: "kg/m2",
     });
-    const findings = validateCrf(c).findings;
-    expect(findings.map((f) => f.code)).toContain("CRF06");
-    expect(findings.find((f) => f.code === "CRF06")?.message).toContain("cannot be audited");
+    expect(codes(c, sap())).not.toContain("CRF06");
+    expect(codes(c, sap())).not.toContain("CRF10");
   });
 
   it("CRF07 - a calculation whose ingredients are not collected", () => {
@@ -147,14 +150,22 @@ describe("not less, not extra", () => {
     expect(found?.message).toMatch(/holds it constant|describes it/);
   });
 
-  it("CRF10 - a computed value collected as a field", () => {
+  it("CRF10 - a calculated value recorded with nothing to check it against", () => {
+    // The grouping a whole study compares by, written down and never traceable:
+    // only what the classifier decided survives, and nobody can tell whether
+    // the case definition was applied the same way twice.
     const c = clean();
-    // Body mass index is computed from height and weight; asking for the result
-    // moves the arithmetic somewhere nobody can check.
+    const p = sap();
+    for (const section of c.sections) {
+      section.fields = section.fields.filter(
+        (f) => f.variable_id !== "var_height" && f.variable_id !== "var_weight",
+      );
+    }
+    c.derived = c.derived.filter((d) => d.variable_id !== "var_bmi");
     c.sections[0].fields.push({ variable_id: "var_bmi", label: "Body mass index", type: "Number" });
-    const found = validateCrf(c, sap()).findings.find((f) => f.code === "CRF10");
-    expect(found?.message).toContain("Height");
-    expect(found?.message).toContain("Weight");
+    const found = validateCrf(c, p).findings.find((f) => f.code === "CRF10");
+    expect(found?.message).toContain("Body mass index");
+    expect(found?.message).toContain("cannot be checked against anything");
   });
 
   it("CRF13 - a field that answers no question and feeds no calculation", () => {
@@ -205,10 +216,11 @@ describe("not less, not extra", () => {
 });
 
 describe("a calculated value with no id of its own", () => {
-  it("CRF06 - still caught when a field repeats it word for word", () => {
+  it("a field repeating a calculated value word for word is no longer an error", () => {
+    // It was, on the rule that a computed value entered by hand cannot be
+    // audited. The ingredients are what make it auditable, and they are
+    // required separately.
     const c = clean();
-    // The plan does not declare it, so it has a name and no id. A field that
-    // repeats that name exactly is still the same value collected by hand.
     c.derived.push({
       name: "Charlson comorbidity index",
       from_variable_ids: ["var_age"],
@@ -219,7 +231,7 @@ describe("a calculated value with no id of its own", () => {
       type: "Number",
       unit: "points",
     });
-    expect(codes(c)).toContain("CRF06");
+    expect(codes(c, sap())).not.toContain("CRF06");
   });
 });
 

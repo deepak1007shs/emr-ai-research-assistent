@@ -50,10 +50,12 @@ describe("the CRF document", () => {
     expect(visible).not.toContain("CASE RECORD FORM");
   });
 
-  it("still tells the collector not to enter what is calculated", async () => {
-    // Said where the temptation is, under the section that collects its parts.
+  it("says beside a calculated value what it is worked out from", async () => {
+    // The value and its ingredients both, so the two can be checked against
+    // each other. Said where the field is, not in a policy somewhere else.
     const { visible } = await read();
-    expect(visible).toContain("Do not enter it here");
+    expect(visible).toContain("Calculated from height and weight");
+    expect(visible).toContain("Counted from the two dates above");
   });
 
   it("ticks the grid where an element is collected, and nowhere else", async () => {
@@ -84,18 +86,15 @@ describe("the CRF document", () => {
     expect(visible).toContain("Intraoperative conversion (primary outcome)");
   });
 
-  it("never offers a calculated value as a field", async () => {
+  it("offers a calculated value as a field, and its ingredients too", async () => {
+    // It used to offer neither, on the rule that a computed value entered by
+    // hand cannot be audited. The ingredients are what make it auditable, and a
+    // study whose entire comparison was a classification a clinician applies
+    // had nowhere to write the classification down.
     const { visible } = await read();
-    const form = visible.split("Values calculated from this form")[0];
-
-    // The name may appear in a note explaining why it is absent; what must not
-    // appear is a row, which renders as the label followed by its field type.
-    expect(form).not.toMatch(/Body mass index(Number|Text|Date|Single-select)/);
-    expect(form).not.toMatch(/Postoperative length of stay(Number|Text|Date)/);
-
-    // And the note that says so should be there.
-    expect(form).toContain("Body mass index is calculated");
-    expect(form).toContain("Do not enter it here");
+    expect(visible).toContain("Body mass index");
+    expect(visible).toContain("Height");
+    expect(visible).toContain("Weight");
   });
 
   it("lists the calculated values with their formulas", async () => {
