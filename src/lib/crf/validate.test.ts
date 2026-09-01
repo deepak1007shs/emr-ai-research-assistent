@@ -157,6 +157,34 @@ describe("not less, not extra", () => {
     expect(found?.message).toContain("Weight");
   });
 
+  it("CRF13 - a field that answers no question and feeds no calculation", () => {
+    const c = clean();
+    c.sections[0].fields.push({
+      variable_id: "chief_complaints",
+      label: "Chief complaints",
+      type: "Text",
+    });
+    const found = validateCrf(c, sap()).findings.find((f) => f.code === "CRF13");
+    expect(found?.message).toContain("Chief complaints");
+    expect(found?.message).toContain("costs the person filling it in");
+    expect(found?.severity).toBe("WARN");
+  });
+
+  it("CRF13 - but not one a calculated value is computed from", () => {
+    // Height and weight answer no question on their own; body mass index is
+    // computed from them, which is what makes them worth collecting.
+    const c = clean();
+    const raw = c.sections[0].fields.map((f) => f.variable_id);
+    expect(raw).toContain("var_height");
+    const found = validateCrf(c, sap()).findings.filter((f) => f.code === "CRF13");
+    expect(found.map((f) => f.message).join(" ")).not.toContain("Height");
+  });
+
+  it("CRF13 - and not an identifier, which is capture infrastructure", () => {
+    const found = validateCrf(clean(), sap()).findings.filter((f) => f.code === "CRF13");
+    expect(found.map((f) => f.message).join(" ")).not.toContain("Study subject ID");
+  });
+
   it("CRF12 - the plan measures at a visit the form has no section for", () => {
     const c = clean();
     const p = sap();

@@ -62,13 +62,17 @@ export default async function CrfPage({ params }: PageProps<"/protocols/[id]/crf
 
   const stale = Boolean(plan && form.sapId !== plan.id);
 
+  // A document whose own checks found something must not wear the same
+  // badge as one that passed them.
+  const problems = form.findings.some((finding) => finding.severity === "ERROR");
+
   return (
     <>
       <Breadcrumb protocol={filename} page="Case report form" />
 
       <DocumentToolbar
         title="Case report form"
-        status={stale ? "outdated" : "built"}
+        status={stale ? "outdated" : problems ? "needs fixing" : "built"}
         meta={[
           `${form.spec.sections?.length ?? 0} sections`,
           `${versions.length} version${versions.length === 1 ? "" : "s"} · built ${new Date(

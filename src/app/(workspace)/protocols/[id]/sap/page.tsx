@@ -52,13 +52,17 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
     );
   }
 
+  // A document whose own checks found something must not wear the same
+  // badge as one that passed them.
+  const problems = plan.findings.some((finding) => finding.severity === "ERROR");
+
   return (
     <>
       <Breadcrumb protocol={filename} page="Analysis plan" />
 
       <DocumentToolbar
         title="Analysis plan"
-        status="built"
+        status={problems ? "needs fixing" : "built"}
         meta={[
           `${plan.spec.analyses?.length ?? 0} analyses`,
           `${versions.length} version${versions.length === 1 ? "" : "s"} · built ${new Date(

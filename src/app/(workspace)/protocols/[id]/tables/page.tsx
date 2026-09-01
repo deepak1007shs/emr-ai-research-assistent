@@ -53,13 +53,17 @@ export default async function TablesPage({ params }: PageProps<"/protocols/[id]/
     tables.findings.map((f) => tableNumberIn(f.message)).filter((n): n is number => n !== null),
   );
 
+  // A document whose own checks found something must not wear the same
+  // badge as one that passed them.
+  const problems = tables.findings.some((finding) => finding.severity === "ERROR");
+
   return (
     <>
       <Breadcrumb protocol={filename} page="Shell tables" />
 
       <DocumentToolbar
         title="Shell tables"
-        status={stale ? "outdated" : "built"}
+        status={stale ? "outdated" : problems ? "needs fixing" : "built"}
         meta={[
           `${tables.spec.tables?.length ?? 0} tables`,
           `${versions.length} version${versions.length === 1 ? "" : "s"} · built ${new Date(

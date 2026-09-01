@@ -9,10 +9,14 @@ import { DownloadIcon } from "./icons";
  * of reading it here first.
  */
 
-export type Status = "built" | "outdated" | "not built";
+export type Status = "built" | "needs fixing" | "outdated" | "not built";
 
 const STATUS: Record<Status, { label: string; className: string }> = {
   built: { label: "Built", className: "bg-ok-50 text-ok" },
+  // A document whose own checks failed must not wear the same badge as one
+  // that passed them. It is still downloadable, and the findings beside it say
+  // what is wrong; what it may not do is look finished.
+  "needs fixing": { label: "Needs fixing", className: "bg-warn-50 text-warn" },
   outdated: { label: "Outdated", className: "bg-amber-50 text-amber" },
   "not built": { label: "Not built", className: "bg-line-2 text-ink-3" },
 };

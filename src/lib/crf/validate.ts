@@ -274,6 +274,26 @@ export function validateCrf(crf: CrfSpec, sap?: SapRegistry): { ok: boolean; fin
       );
     }
 
+    // Not extra, the other half. CRF11 above catches a plan variable nothing
+    // analyses; this catches a field carrying a key of its own that feeds no
+    // calculated value and is not an identifier. Those are the ones that
+    // accumulate: forty-three of one form's fifty-nine fields were chief
+    // complaints, menstrual history and general condition, free text nobody
+    // would ever analyse, each costing the collector time and a chance to err.
+    const feedsSomething = new Set(
+      (crf.derived ?? []).flatMap((d) => d.from_variable_ids ?? []),
+    );
+    for (const section of crf.sections ?? []) {
+      for (const field of [...(section.fields ?? []), ...(section.sections ?? []).flatMap((p) => p.fields ?? [])]) {
+        const id = field.variable_id;
+        if (id && (byVariable.has(id) || feedsSomething.has(id))) continue;
+        warn(
+          "CRF13",
+          `The form collects "${field.label || id || "an unnamed field"}", which no analysis uses and nothing is calculated from. Every field costs the person filling it in, so either an analysis is missing or the field is.`,
+        );
+      }
+    }
+
     // A visit the plan measures at, with nowhere on the form to record it.
     const visited = new Set(
       (crf.sections ?? [])
