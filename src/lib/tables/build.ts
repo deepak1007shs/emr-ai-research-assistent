@@ -10,6 +10,7 @@ import type { CrfSpec } from "../crf/types.ts";
 import type { Finding } from "../sap/validate.ts";
 import type { ShellTable, ShellTablesSpec } from "./types.ts";
 import { buildAnalyticTables, mergeTables } from "./blocks.ts";
+import { assignSlots, descriptiveSlots } from "./slots.ts";
 import { designRule } from "./design-tables.ts";
 import { validateTables } from "./validate.ts";
 
@@ -91,6 +92,12 @@ export const TABLES_JSON_SCHEMA = obj({
         enum: ["descriptive", "distribution", "repeated"],
         description:
           "descriptive for a baseline table, distribution for one outcome's categories, repeated for a measure recorded at several time points.",
+      },
+      slot: {
+        type: "string",
+        enum: ["A1", "A2", "A3", "A4", "A5", "A6", "A7", ""],
+        description:
+          "Which of the seven descriptive slots this table fills. Required for a descriptive table and empty for any other. Every slot the study has data for should appear, each once; a study with nothing to put in a slot leaves it out rather than printing an empty table. A7 is for surgical and procedural studies only.",
       },
       outcome_id: {
         ...str,
@@ -264,13 +271,20 @@ ${
 
   content.push({
     type: "text",
-    text: `Lay out the descriptive half of this document, cells empty: the baseline
-tables covering age, age group where it helps, sex, comorbidity, risk factors,
-and any baseline value the protocol singles out, described by group. Then a
-distribution table wherever one outcome's categories deserve a table of their
-own, and a repeated table wherever a measure was recorded at several time points,
-with the time points as rows. Nothing else: the incidence, effect, subgroup and
-sensitivity tables are already built from the plan.`,
+    text: `Lay out the descriptive half of this document, cells empty.
+
+The baseline tables fill these seven slots, in this order. Give each table the
+slot it fills. Leave a slot out where the study has nothing to put in it, rather
+than printing an empty table, and do not put one thing in two slots:
+
+${descriptiveSlots()
+      .map((slot) => `- ${slot.slot} ${slot.title}: ${slot.holds}`)
+      .join("\n")}
+
+Then a distribution table wherever one outcome's categories deserve a table of
+their own, and a repeated table wherever a measure was recorded at several time
+points, with the time points as rows. Nothing else: the incidence, effect,
+subgroup and sensitivity tables are already built from the plan.`,
   });
 
   options.onProgress?.("Laying out the tables");
@@ -325,6 +339,7 @@ sensitivity tables are already built from the plan.`,
 
   const described: ShellTable[] = (raw.tables ?? []).map((t) => ({
     ...t,
+    slot: t.slot?.trim() || undefined,
     outcome_id: t.outcome_id?.trim() || undefined,
     fills: t.fills?.length ? t.fills : undefined,
     test_applied: t.test_applied?.trim() || undefined,
@@ -342,7 +357,14 @@ sensitivity tables are already built from the plan.`,
     ...raw,
     title: sap.title,
     labels,
-    tables: mergeTables(described, buildAnalyticTables(sap, raw.groups ?? []), sap),
+    // Printed once under the block they govern. Copied by code, like the
+    // labels, so the tables cannot state a rule the plan does not.
+    multiplicity: sap.rules?.multiplicity?.trim() || undefined,
+    missing_data: sap.rules?.missing_data?.trim() || undefined,
+    tables: assignSlots(
+      mergeTables(described, buildAnalyticTables(sap, raw.groups ?? []), sap),
+      (sap.objectives ?? []).map((o) => o.id),
+    ),
   };
 
   const { findings } = validateTables(spec, sap);

@@ -341,6 +341,50 @@ function summaryTable(row: AnalysisRow, tier: Tier, ctx: BlockContext): ShellTab
   };
 }
 
+/**
+ * The primary outcome before the cohort is split by anything.
+ *
+ * The first thing a reader wants and the last thing a plan remembers: how often
+ * it happened, or what it measured, across everyone. Every comparison after it
+ * is read against this number, and a document that opens with a group
+ * difference has asked the reader to judge a difference before knowing the
+ * quantity it is a difference in.
+ */
+function distributionTable(row: AnalysisRow, tier: Tier, ctx: BlockContext): ShellTable | null {
+  if (row.comparison === "descriptive") return null;
+  const { sap } = ctx;
+  const ids = row.outcome_ids ?? [];
+  if (ids.length !== 1) return null;
+
+  const outcome = outcomeIndex(sap).get(ids[0]);
+  const subject = subjectOf(row, sap);
+
+  // The outcome's own levels where its coding names them, one row otherwise.
+  const levels = (outcome?.units ?? "")
+    .split("/")
+    .map((level) => level.trim())
+    .filter(Boolean);
+  const categorical = row.data_type === "binary" || row.data_type === "nominal" || row.data_type === "ordinal";
+  const rows: TableRow[] =
+    categorical && levels.length > 1
+      ? levels.map((level) => ({ label: level, kind: "category" as const }))
+      : [{ label: subject, kind: "category" as const }];
+
+  return {
+    number: 0,
+    block: BLOCK_OF[tier],
+    role: "distribution",
+    outcome_id: ids[0],
+    fills: row.objective_ids?.length ? [...row.objective_ids] : undefined,
+    title: capitalise(`${subject} in the whole cohort${denominator(sap)}`),
+    columns: ["Category", ...summaryColumns(row)],
+    rows,
+    test_applied: planOf(row).test,
+    footnote:
+      "The whole cohort, before it is split by anything. Every comparison that follows is read against this.",
+  };
+}
+
 function unadjustedTable(row: AnalysisRow, tier: Tier, ctx: BlockContext): ShellTable | null {
   const plan = planOf(row);
   const measures = plan.measures;
@@ -480,7 +524,11 @@ function subgroupTable(row: AnalysisRow, tier: Tier, ctx: BlockContext): ShellTa
 
   return {
     number: 0,
-    block: BLOCK_OF[tier],
+    // Exploratory, not primary. A subgroup analysis is not powered, is not
+    // corrected for multiplicity and generates a hypothesis rather than
+    // settling one, which is what its own footnote has always said. Printing it
+    // beside the primary result invited it to be read as one.
+    block: "exploratory",
     role: "subgroup",
     outcome_id: ids.length === 1 ? ids[0] : undefined,
     fills: row.objective_ids?.length ? [...row.objective_ids] : undefined,
@@ -596,6 +644,14 @@ export function buildAnalyticTables(sap: SapRegistry, groups: string[]): ShellTa
   // which carries the tables every comparative study needs, so an unclassified
   // plan behaves exactly as it did before the catalogue existed.
 
+  /**
+   * Whether an objective asks what caused something, or only how much of it
+   * there was. A descriptive objective is reported and not modelled: an
+   * adjusted estimate beneath it claims more than the question asked.
+   */
+  const isCausal = (row: AnalysisRow) =>
+    (row.objective_ids ?? []).some((id) => objectives.get(id)?.intent === "causal");
+
   const out: ShellTable[] = [];
   if (required.has("flow")) {
     out.push(flowTable(sap, ctx.groups, RANDOMISED.has(sap.design_family ?? "")));
@@ -603,10 +659,19 @@ export function buildAnalyticTables(sap: SapRegistry, groups: string[]): ShellTa
 
   for (const row of ordered) {
     const tier = tierOf(row, objectives);
+    // The primary outcome opens with itself, across everyone, before anything
+    // is compared. A reader cannot judge a difference without the quantity it
+    // is a difference in.
     const block: (ShellTable | null)[] = [
+      tier === "primary" ? distributionTable(row, tier, ctx) : null,
       wants("summary") ? summaryTable(row, tier, ctx) : null,
       wants("effect_unadjusted") ? unadjustedTable(row, tier, ctx) : null,
-      wants("effect_adjusted") ? adjustedTable(row, tier, ctx) : null,
+      // The primary question is the study's reason for existing, so it carries
+      // its adjusted estimate wherever the plan names confounders. A secondary
+      // one carries it only where the objective says it is causal.
+      wants("effect_adjusted") && (tier === "primary" || isCausal(row))
+        ? adjustedTable(row, tier, ctx)
+        : null,
     ];
 
     // One subgroup table and one sensitivity table for the study, not one per
@@ -636,8 +701,8 @@ const BLOCK_ORDER = ["descriptive", "primary", "secondary", "exploratory"];
 const ROLE_ORDER = [
   "flow",
   "descriptive",
-  "summary",
   "distribution",
+  "summary",
   "repeated",
   "effect_unadjusted",
   "effect_adjusted",
@@ -663,13 +728,19 @@ export function mergeTables(
   const outcomeRank = new Map((sap.outcomes ?? []).map((o, i) => [o.id, i]));
   const objectiveRank = new Map((sap.objectives ?? []).map((o, i) => [o.id, i]));
 
-  const subject = (t: ShellTable) => {
-    if (t.outcome_id && outcomeRank.has(t.outcome_id)) return outcomeRank.get(t.outcome_id)!;
+  // An objective's tables belong together. Ordering by outcome first scattered
+  // a secondary objective's three tables between another objective's, so the
+  // document read C1.1, C1.2, C2.1, C1.3 and no block was contiguous.
+  const objectiveOf = (t: ShellTable) => {
     for (const id of t.fills ?? []) {
       if (objectiveRank.has(id)) return objectiveRank.get(id)!;
     }
     return Number.MAX_SAFE_INTEGER;
   };
+  const outcomeOf = (t: ShellTable) =>
+    t.outcome_id && outcomeRank.has(t.outcome_id)
+      ? outcomeRank.get(t.outcome_id)!
+      : Number.MAX_SAFE_INTEGER;
 
   // Two analysis rows that differ only in something the table cannot show
   // produce the same table twice. A plan that does that has a problem, but
@@ -687,7 +758,9 @@ export function mergeTables(
     .sort((a, b) => {
       const block = BLOCK_ORDER.indexOf(a.table.block) - BLOCK_ORDER.indexOf(b.table.block);
       if (block) return block;
-      const outcome = subject(a.table) - subject(b.table);
+      const objective = objectiveOf(a.table) - objectiveOf(b.table);
+      if (objective) return objective;
+      const outcome = outcomeOf(a.table) - outcomeOf(b.table);
       if (outcome) return outcome;
       const role = ROLE_ORDER.indexOf(a.table.role) - ROLE_ORDER.indexOf(b.table.role);
       if (role) return role;

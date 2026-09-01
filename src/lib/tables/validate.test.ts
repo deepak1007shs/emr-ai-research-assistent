@@ -43,8 +43,11 @@ describe("validateTables", () => {
 
   it("TBL21 - the primary outcome has no table showing what happened", () => {
     const s = clean();
+    // Both of the tables that could show it: the whole cohort and the split by
+    // group. Either alone satisfies the requirement, which is the point.
     s.tables = s.tables.filter(
-      (t) => !((t.fills ?? []).includes("P1") && t.role === "summary"),
+      (t) =>
+        !((t.fills ?? []).includes("P1") && (t.role === "summary" || t.role === "distribution")),
     );
     renumber(s);
     expect(codes(s, sap())).toContain("TBL21");

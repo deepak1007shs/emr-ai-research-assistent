@@ -457,6 +457,62 @@ export function validateTables(
       );
     }
 
+    /* ---- the house skeleton ----------------------------------------- */
+
+    const filled = new Set(
+      tables.filter((t) => t.block === "descriptive").map((t) => t.slot).filter(Boolean),
+    );
+
+    for (const t of tables) {
+      if (t.block === "descriptive" && !t.slot) {
+        error(
+          "TBL26",
+          `Table ${t.number} is a baseline table but does not say which of the seven descriptive slots it fills. Without it nobody can see which part of the skeleton is missing.`,
+        );
+      }
+    }
+
+    // A slot the study plainly owes. Demography is owed by every study; the
+    // theatre table only by one that goes to theatre, which is what the design
+    // catalogue already knows.
+    if (tables.some((t) => t.block === "descriptive") && !filled.has("A1")) {
+      warn("TBL27", "There is no A1 demography table. Every study describes who was in it.");
+    }
+    const surgical = /surg|operat|resection|excision/i.test(
+      [sap.title, (sap as { design?: string }).design].filter(Boolean).join(" "),
+    );
+    if (surgical && !filled.has("A7")) {
+      warn(
+        "TBL27",
+        "This is a surgical or procedural study with no A7 table of what was found and done in theatre, which is the part a reader turns to first.",
+      );
+    }
+
+    // An objective's intent decides whether it owes an adjusted estimate.
+    for (const objective of sap.objectives ?? []) {
+      if (objective.tier !== "secondary" || !objective.intent) continue;
+      const roles = new Set(
+        tables.filter((t) => (t.fills ?? []).includes(objective.id)).map((t) => t.role),
+      );
+      const analyses = (sap.analyses ?? []).filter((a) =>
+        (a.objective_ids ?? []).includes(objective.id),
+      );
+      const adjusts = analyses.some((a) => (a.adjust_for_ids ?? []).length);
+
+      if (objective.intent === "causal" && adjusts && !roles.has("effect_adjusted")) {
+        error(
+          "TBL28",
+          `${objective.id} asks what caused something and names confounders, but no table holds them constant. A causal question answered by a crude estimate is not answered.`,
+        );
+      }
+      if (objective.intent === "descriptive" && roles.has("effect_adjusted")) {
+        warn(
+          "TBL28",
+          `${objective.id} asks how much, not what caused it, and carries an adjusted estimate. An adjusted model beneath a descriptive question claims more than the question asked.`,
+        );
+      }
+    }
+
     if ((sap.subgroups ?? []).length && !tables.some((t) => t.role === "subgroup")) {
       error(
         "TBL23",

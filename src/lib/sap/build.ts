@@ -119,6 +119,12 @@ export const SAP_JSON_SCHEMA = obj({
     items: obj({
       id: { ...str, description: "P1, P2, S1, S2, E1..." },
       tier: { type: "string", enum: ["primary", "secondary", "exploratory"] },
+      intent: {
+        type: "string",
+        enum: ["descriptive", "causal"],
+        description:
+          "descriptive where the question is how much or how many, and the answer is a proportion, a mean or a rate reported as it stands. causal where the question is whether one thing brings another about, and the answer needs confounders held constant. 'What proportion developed sepsis' is descriptive; 'does the drug cause sepsis' is causal. Choose from the question the protocol actually asks, not from whether an adjusted model would be nice to have: a causal objective owes an adjusted estimate, and a descriptive one that carries one is claiming more than it asked.",
+      },
       question: { ...str, description: "Phrased as a question, so it names an outcome and a predictor." },
     }),
   },

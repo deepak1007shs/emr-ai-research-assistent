@@ -12,6 +12,7 @@ import {
 } from "docx";
 import { HOUSE_BORDER, HOUSE_STYLES, plain } from "./house-style.ts";
 import type { ShellTable, ShellTablesSpec, TableBlock } from "../tables/types.ts";
+import { slotTitle } from "../tables/slots.ts";
 
 /**
  * Draws every table the study will report, with the cells empty.
@@ -61,7 +62,11 @@ function cell(text: string, options: { bold?: boolean; centre?: boolean; span?: 
 
 function drawTable(table: ShellTable, labelOf: (id: string, fallback: string) => string): Block[] {
   const blocks: Block[] = [];
-  blocks.push(h(`Table ${table.number}: ${table.title}`, HeadingLevel.HEADING_2));
+  // The slot above the number. A reader cites "Table 7"; the slot tells them
+  // which part of the skeleton they are in, and lets a missing part be seen.
+  const slot = slotTitle(table.slot);
+  if (slot) blocks.push(h(`${table.slot} - ${slot}`, HeadingLevel.HEADING_2));
+  blocks.push(h(`Table ${table.number}: ${table.title}`, slot ? HeadingLevel.HEADING_3 : HeadingLevel.HEADING_2));
 
   const width = table.columns.length;
 
@@ -139,6 +144,16 @@ export async function buildTablesDocx(spec: ShellTablesSpec): Promise<Buffer> {
     if (!inBlock.length) continue;
 
     doc.push(h(BLOCK_HEADING[block], HeadingLevel.HEADING_1));
+
+    // Once, under the block they govern. A policy repeated beneath twenty
+    // tables is how a reader learns to skip what is beneath a table.
+    if ((block === "primary" || block === "secondary") && spec.multiplicity) {
+      doc.push(italic(`Multiplicity: ${spec.multiplicity}`));
+    }
+    if ((block === "primary" || block === "secondary") && spec.missing_data) {
+      doc.push(italic(`Missing data: ${spec.missing_data}`));
+    }
+
     if (block === "exploratory") {
       doc.push(
         italic(

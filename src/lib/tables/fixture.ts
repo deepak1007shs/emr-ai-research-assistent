@@ -1,5 +1,6 @@
 import { sapFixture } from "../sap/fixture.ts";
 import { buildAnalyticTables, mergeTables } from "./blocks.ts";
+import { assignSlots } from "./slots.ts";
 import type { ShellTable, ShellTablesSpec } from "./types.ts";
 
 /**
@@ -18,6 +19,7 @@ const described: ShellTable[] = [
     number: 1,
     block: "descriptive",
     role: "descriptive",
+    slot: "A1",
     title: "Demographic profile of adults undergoing TAPP repair by conversion status (n = 125)",
     columns: [
       "Variable",
@@ -46,6 +48,7 @@ const described: ShellTable[] = [
     number: 2,
     block: "descriptive",
     role: "descriptive",
+    slot: "A2",
     title: "Comorbidity and risk factors by conversion status (n = 125)",
     columns: [
       "Variable",
@@ -77,5 +80,12 @@ export const tablesFixture: ShellTablesSpec = {
     ...sapFixture.outcomes.map((o) => [o.id, o.what]),
   ]),
   groups,
-  tables: mergeTables(described, buildAnalyticTables(sapFixture, groups), sapFixture),
+  // Copied from the plan by code, exactly as a real build copies them, and
+  // printed once under the block they govern.
+  multiplicity: sapFixture.rules.multiplicity,
+  missing_data: sapFixture.rules.missing_data,
+  tables: assignSlots(
+    mergeTables(described, buildAnalyticTables(sapFixture, groups), sapFixture),
+    sapFixture.objectives.map((o) => o.id),
+  ),
 };

@@ -62,6 +62,15 @@ export type Objective = {
   tier: "primary" | "secondary" | "exploratory";
   /** Phrased as a question. */
   question: string;
+  /**
+   * Whether the question is about how much, or about what caused it.
+   *
+   * "What proportion developed sepsis" and "does the drug cause sepsis" need
+   * different tables and different wording, and an examiner asks which was
+   * meant. A descriptive objective is reported and not modelled; a causal one
+   * owes an adjusted estimate with the confounders named under it.
+   */
+  intent?: "descriptive" | "causal";
 };
 
 export type Variable = {

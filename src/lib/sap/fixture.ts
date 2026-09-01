@@ -41,9 +41,11 @@ export const sapFixture: SapSpec = {
     "Powered for precision rather than for a comparison: an assumed conversion rate of 8% with 5% absolute precision at 95% confidence gives 113, inflated to 125 for 10% incomplete records. TODO: confirm the assumed rate against the unit's own audit.",
   priority_confounder_ids: ["var_age", "var_bmi", "var_prev"],
   objectives: [
-    { id: "P1", tier: "primary", question: "What proportion of operations are converted intraoperatively to an alternative technique?" },
-    { id: "S1", tier: "secondary", question: "Which factors are associated with conversion?" },
-    { id: "S2", tier: "secondary", question: "Does operative duration differ between converted and completed cases?" },
+    // How much, against what caused it. The first is reported as it stands; the
+    // second holds confounders constant and owes an adjusted estimate.
+    { id: "P1", tier: "primary", intent: "descriptive", question: "What proportion of operations are converted intraoperatively to an alternative technique?" },
+    { id: "S1", tier: "secondary", intent: "causal", question: "Which factors are associated with conversion?" },
+    { id: "S2", tier: "secondary", intent: "descriptive", question: "Does operative duration differ between converted and completed cases?" },
   ],
   variables: [
     { id: "var_conversion", label: "Intraoperative conversion", data_type: "binary", unit_coding: "Yes / No", role: "outcome" },

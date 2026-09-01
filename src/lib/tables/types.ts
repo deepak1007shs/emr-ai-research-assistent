@@ -171,6 +171,14 @@ export type ShellTable = {
   number: number;
   block: TableBlock;
   role: TableRole;
+  /**
+   * Where it sits in the house skeleton: A4, B5, C1.2, D3.
+   *
+   * Not the table's number, which runs from 1 through the document because that
+   * is what a reader cites. The slot prints above the table as its sub-heading,
+   * so a missing part of the skeleton can be seen.
+   */
+  slot?: string;
   /** The outcome this table reports, by id. Absent on a descriptive table. */
   outcome_id?: string;
   /**
@@ -217,6 +225,15 @@ export type ShellTablesSpec = {
    * the exposure's effect across the levels of the outcome.
    */
   groups: string[];
+  /**
+   * The multiplicity rule and the missing-data rule, copied from the plan.
+   *
+   * Printed once under the block they govern rather than under every table. A
+   * policy repeated beneath twenty tables is how a reader learns to skip what
+   * is beneath a table.
+   */
+  multiplicity?: string;
+  missing_data?: string;
   tables: ShellTable[];
 };
 

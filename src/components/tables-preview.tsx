@@ -1,5 +1,6 @@
 import type { ShellTable, ShellTablesSpec, TableBlock } from "@/lib/tables/types";
 import { line, plain } from "@/lib/render/plain";
+import { slotTitle } from "@/lib/tables/slots";
 import { AlertTriangleIcon } from "./icons";
 import { DocTable, DocumentShell, Note, Td } from "./document-shell";
 
@@ -48,6 +49,15 @@ export function TablesPreview({
         return (
           <section key={block} className="mb-10">
             <h2 className="mb-4 text-base font-bold text-ink">{BLOCK_HEADING[block]}</h2>
+
+            {/* Once, under the block they govern: mirrors `tables-docx.ts`. */}
+            {(block === "primary" || block === "secondary") && spec.multiplicity && (
+              <Note>Multiplicity: {plain(spec.multiplicity)}</Note>
+            )}
+            {(block === "primary" || block === "secondary") && spec.missing_data && (
+              <Note>Missing data: {plain(spec.missing_data)}</Note>
+            )}
+
             {block === "exploratory" && (
               <Note>
                 Exploratory analyses are hypothesis-generating. They are not powered and must not
@@ -106,9 +116,14 @@ function ShellTableBlock({
         </p>
       )}
 
-      <h3 className="text-base font-bold text-ink">
+      {slotTitle(table.slot) && (
+        <h3 className="text-base font-bold text-ink">
+          {table.slot} - {slotTitle(table.slot)}
+        </h3>
+      )}
+      <h4 className={`font-bold text-ink ${slotTitle(table.slot) ? "mt-1 text-sm" : "text-base"}`}>
         Table {table.number}: {line(table.title)}
-      </h3>
+      </h4>
 
       <div className="mt-3">
         <DocTable headers={table.columns ?? []}>

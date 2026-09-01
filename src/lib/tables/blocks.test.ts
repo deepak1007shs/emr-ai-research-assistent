@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildAnalyticTables } from "./blocks.ts";
+import { buildAnalyticTables, mergeTables } from "./blocks.ts";
+import { assignSlots } from "./slots.ts";
 import { validateTables } from "./validate.ts";
 import type { SapRegistry } from "../sap/types.ts";
 import type { ShellTablesSpec, TableRole } from "./types.ts";
@@ -89,30 +90,54 @@ const build = () => buildAnalyticTables(peep(), groups);
 const roleOf = (role: TableRole) => build().find((t) => t.role === role)!;
 
 const spec = (): ShellTablesSpec => {
-  const tables = [
+  const sap = peep();
+  const described = [
     {
       number: 0,
       block: "descriptive" as const,
       role: "descriptive" as const,
+      slot: "A1",
       title: "Maternal and antenatal characteristics by allocated PEEP level (n = 100)",
       columns: ["Variable", ...groups, "Total", "P value"],
       rows: [{ variable_id: "var_ga", label: "Gestational age stratum", kind: "variable" as const }],
       test_applied: "Pearson chi-square test.",
     },
-    ...build(),
-  ].map((t, i) => ({ ...t, number: i + 1 }));
-  return { title: "PEEP", labels: {}, groups, tables };
+  ];
+  // Ordered, numbered and slotted the way the real pipeline does it, so a test
+  // cannot pass on a document nobody would ever be handed.
+  return {
+    title: "PEEP",
+    labels: {},
+    groups,
+    tables: assignSlots(
+      mergeTables(described, buildAnalyticTables(sap, groups), sap),
+      sap.objectives.map((o) => o.id),
+    ),
+  };
 };
 
 describe("the block a primary outcome gets", () => {
-  it("is five tables, not one", () => {
+  it("is a block of tables, not one", () => {
+    // The whole cohort first, then the comparison, then the effect crude and
+    // adjusted, then the sensitivity analysis. The subgroup table is built here
+    // too but prints among the exploratory ones, where a hypothesis-generating
+    // analysis belongs.
     expect(build().map((t) => t.role)).toEqual([
+      "distribution",
       "summary",
       "effect_unadjusted",
       "effect_adjusted",
       "subgroup",
       "sensitivity",
     ]);
+    expect(build().find((t) => t.role === "subgroup")!.block).toBe("exploratory");
+  });
+
+  it("opens with the outcome across everyone, before it is split", () => {
+    const table = roleOf("distribution");
+    expect(table.block).toBe("primary");
+    expect(table.title).toContain("in the whole cohort");
+    expect(table.footnote).toContain("before it is split by anything");
   });
 
   it("reports the incidence with its denominators, by arm", () => {
