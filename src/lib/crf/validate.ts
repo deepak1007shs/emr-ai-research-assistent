@@ -145,25 +145,13 @@ export function validateCrf(crf: CrfSpec, sap?: SapRegistry): { ok: boolean; fin
     }
   });
 
-  /* ---- derived values are never fields ----------------------------- */
+  /* ---- a calculated value can be recomputed ------------------------ */
 
-  // The wording every field carries, for the values the plan never declared.
-  // This is exact equality after trimming and case folding, not a substring
-  // test: two entries either say the same thing or they do not.
-  const key = (v: string) => v.trim().toLowerCase();
-  const fieldWordings = new Set<string>();
-  for (const f of crf.identifiers) fieldWordings.add(key(f.label));
-  for (const s of crf.sections) for (const f of s.fields) fieldWordings.add(key(f.label));
-
+  // It may have a field of its own, and should: what a person decided at the
+  // bedside is the variable. What must also be true is that everything it is
+  // worked out from is on the form, so the two can be checked against each
+  // other. That is the whole of it now, and CRF06 no longer objects.
   for (const d of crf.derived) {
-    const duplicated = d.variable_id
-      ? captured.has(d.variable_id)
-      : fieldWordings.has(key(d.name));
-    // A calculated value having a field of its own is expected now, not an
-    // error. What matters is that its ingredients are on the form as well, so
-    // the value can be recomputed and checked against what was written down,
-    // and that is CRF07 below.
-    void duplicated;
     for (const id of d.from_variable_ids) {
       if (!captured.has(id)) {
         error(

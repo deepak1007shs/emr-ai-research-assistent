@@ -101,7 +101,11 @@ export async function buildCrfDocx(
   const labelOf = (id: string, fallback = "") => spec.labels?.[id] ?? fallback ?? id;
   const nameOf = (f: CrfField) => (f.variable_id ? labelOf(f.variable_id, f.label) : f.label);
   const fieldLabels = new Map<string, string>();
-  for (const f of [...spec.identifiers, ...spec.sections.flatMap((s) => s.fields)]) {
+  const everyField = [
+    ...spec.identifiers,
+    ...spec.sections.flatMap((s) => [...s.fields, ...(s.sections ?? []).flatMap((p) => p.fields)]),
+  ];
+  for (const f of everyField) {
     if (f.variable_id) fieldLabels.set(f.variable_id, f.label);
   }
   const doc: Block[] = [];

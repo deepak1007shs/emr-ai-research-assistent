@@ -25,7 +25,11 @@ export function CrfPreview({ spec }: { spec: CrfSpec }) {
   const sections = spec.sections ?? [];
 
   const fieldLabels = new Map<string, string>();
-  for (const f of [...identifiers, ...sections.flatMap((s) => s.fields)]) {
+  const everyField = [
+    ...identifiers,
+    ...sections.flatMap((s) => [...s.fields, ...(s.sections ?? []).flatMap((p) => p.fields)]),
+  ];
+  for (const f of everyField) {
     if (f.variable_id) fieldLabels.set(f.variable_id, f.label);
   }
 
@@ -92,5 +96,12 @@ function FieldTable({
 
 /** Exported for the header count shown beside the preview. */
 export function fieldCount(spec: CrfSpec): number {
-  return (spec.identifiers ?? []).length + (spec.sections ?? []).reduce((n, s) => n + s.fields.length, 0);
+  return (
+    (spec.identifiers ?? []).length +
+    (spec.sections ?? []).reduce(
+      (n, s) =>
+        n + s.fields.length + (s.sections ?? []).reduce((m, p) => m + p.fields.length, 0),
+      0,
+    )
+  );
 }

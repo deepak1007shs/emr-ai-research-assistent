@@ -88,8 +88,15 @@ function neededIds(sap: SapRegistry): Map<string, string> {
   // describes who was in the study, and it can only describe what was
   // collected.
   for (const v of sap.variables ?? []) {
-    if (v.role === "descriptor" && !isDerived(v) && !why.has(v.id)) {
+    // Calculated ones included. An age band is worked out from the age, and the
+    // form records both: the age so the band can be checked, the band because
+    // it is what the table reports. This line excluded them, which was the last
+    // remnant of the rule that a calculated value is never a field.
+    if (v.role === "descriptor" && !why.has(v.id)) {
       why.set(v.id, "the baseline table describes it");
+    }
+    for (const input of v.role === "descriptor" ? (v.derived_from ?? []) : []) {
+      want(input, "the baseline table describes what it is worked out from");
     }
   }
 
