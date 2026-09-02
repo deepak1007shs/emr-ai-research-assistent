@@ -28,6 +28,23 @@ export const EFFORT = (process.env.REVIEW_EFFORT ?? "high") as
   | "xhigh"
   | "max";
 
+/**
+ * The output budget every call that writes a document is given.
+ *
+ * Thinking is drawn from this, not only the JSON, so the budget covers the
+ * reasoning as well as what it produces. One number, because the alternative
+ * has failed twice: the plan's first stage was left at half and crossed it once
+ * the variable registry grew a design family, a timepoint list and a derivation
+ * for each variable; the shell tables were left at half and crossed it on a
+ * plan with seventy-eight variables, where every one of them is a row in the
+ * descriptive tables. Both were found by a study that was merely large.
+ *
+ * A follow-up call is a different thing and sets its own. Placing finished
+ * fields on a form, or reading one document back against another, is a smaller
+ * question asked at a lower effort, and those calls say so where they are made.
+ */
+export const DOCUMENT_MAX_TOKENS = 64000;
+
 export type AnalysisResult = {
   /** The six-section narrative review. */
   spec: ReviewSpec;
@@ -119,7 +136,7 @@ export async function analyzeProtocol(
   try {
     const stream = client.messages.stream({
       model: MODEL,
-      max_tokens: 64000,
+      max_tokens: DOCUMENT_MAX_TOKENS,
       thinking: { type: "adaptive" },
       output_config: {
         effort: EFFORT,

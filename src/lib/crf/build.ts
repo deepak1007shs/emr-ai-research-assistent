@@ -3,7 +3,7 @@ import { loadKnowledge } from "../protocol/knowledge.ts";
 import { explainApiError } from "../protocol/api-error.ts";
 import { decisionsBlock, unresolvedBlock } from "../protocol/answers.ts";
 import type { Consequence } from "../protocol/schema.ts";
-import { EFFORT, MODEL } from "../protocol/analyze.ts";
+import { DOCUMENT_MAX_TOKENS, EFFORT, MODEL } from "../protocol/analyze.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { ExtractedProtocol } from "../protocol/extract.ts";
 import type { SapSpec } from "../sap/types.ts";
@@ -305,7 +305,7 @@ cannot be analysed.`,
 
   const stream = client.messages.stream({
     model: MODEL,
-    max_tokens: 64000,
+    max_tokens: DOCUMENT_MAX_TOKENS,
     thinking: { type: "adaptive" },
     output_config: { effort: EFFORT, format: { type: "json_schema", schema: CRF_JSON_SCHEMA } },
     system: [

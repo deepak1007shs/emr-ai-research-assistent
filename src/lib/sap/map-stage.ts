@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { EFFORT, MODEL } from "../protocol/analyze.ts";
+import { DOCUMENT_MAX_TOKENS, EFFORT, MODEL } from "../protocol/analyze.ts";
 import { decisionsBlock, unresolvedBlock } from "../protocol/answers.ts";
 import type { Consequence } from "../protocol/schema.ts";
 import { explainApiError } from "../protocol/api-error.ts";
@@ -191,7 +191,7 @@ export async function buildSapMap(
   // report form have run at 64000 on this model since they were written; the
   // plan was left at half that, and stage one crossed it once the registry
   // grew a design family, a timepoint list and a derivation for every variable.
-    max_tokens: 64000,
+    max_tokens: DOCUMENT_MAX_TOKENS,
     thinking: { type: "adaptive" },
     output_config: { effort: EFFORT, format: { type: "json_schema", schema: SAP_MAP_JSON_SCHEMA } },
     system: [{ type: "text", text: ROLE }],

@@ -4,7 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { explainApiError } from "../protocol/api-error.ts";
 import { decisionsBlock, unresolvedBlock } from "../protocol/answers.ts";
 import type { Consequence } from "../protocol/schema.ts";
-import { EFFORT, MODEL } from "../protocol/analyze.ts";
+import { DOCUMENT_MAX_TOKENS, EFFORT, MODEL } from "../protocol/analyze.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { SapSpec } from "../sap/types.ts";
 import type { CrfSpec } from "../crf/types.ts";
@@ -394,7 +394,7 @@ an outcome left out here is an outcome whose table has one unnamed row.`,
 
   const stream = client.messages.stream({
     model: MODEL,
-    max_tokens: 32000,
+    max_tokens: DOCUMENT_MAX_TOKENS,
     thinking: { type: "adaptive" },
     output_config: { effort: EFFORT, format: { type: "json_schema", schema: TABLES_JSON_SCHEMA } },
     system: [

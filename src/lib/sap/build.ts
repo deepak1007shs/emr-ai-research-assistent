@@ -3,7 +3,7 @@ import { loadKnowledge } from "../protocol/knowledge.ts";
 import { explainApiError } from "../protocol/api-error.ts";
 import { decisionsBlock, unresolvedBlock } from "../protocol/answers.ts";
 import type { Consequence } from "../protocol/schema.ts";
-import { EFFORT, MODEL } from "../protocol/analyze.ts";
+import { DOCUMENT_MAX_TOKENS, EFFORT, MODEL } from "../protocol/analyze.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { ExtractedProtocol } from "../protocol/extract.ts";
 import type { AnalysisRow, SapSpec } from "./types.ts";
@@ -294,12 +294,7 @@ analysis map is written next, from what you declare here.`,
 
   const stream = client.messages.stream({
     model: MODEL,
-  // Thinking counts against this, not only the JSON, so the budget covers the
-  // reasoning as well as the registry it produces. The review and the case
-  // report form have run at 64000 on this model since they were written; the
-  // plan was left at half that, and stage one crossed it once the registry
-  // grew a design family, a timepoint list and a derivation for every variable.
-    max_tokens: 64000,
+    max_tokens: DOCUMENT_MAX_TOKENS,
     thinking: { type: "adaptive" },
     output_config: { effort: EFFORT, format: { type: "json_schema", schema: SAP_JSON_SCHEMA } },
     system: [
