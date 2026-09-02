@@ -7,6 +7,7 @@ import { ReviewRail } from "@/components/review-rail";
 import { ChatDock } from "@/components/chat-dock";
 import { DocumentToolbar } from "@/components/document-toolbar";
 import { BuildButton } from "@/components/build-button";
+import { needsFirst } from "@/lib/jobs/plan";
 import { NotBuilt } from "@/components/not-built";
 import { VersionList } from "@/components/version-list";
 import { Breadcrumb } from "@/components/breadcrumb";
@@ -39,13 +40,26 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
 
   const filename = (protocol.data as { filename?: string } | null)?.filename ?? "Protocol";
 
+  // The plan is written against the review's findings and the investigator's
+  // answers to them, so it cannot be built before one exists. Nothing enforced
+  // that until now; it happened to hold because the only way to reach this page
+  // was through the review.
+  const blockedReason = review.data
+    ? null
+    : needsFirst("sap");
+
   if (!plan) {
     return (
       <>
         <Breadcrumb protocol={filename} page="Analysis plan" />
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
           <NotBuilt kind="Statistical Analysis Plan" description={DESCRIPTION}>
-            <BuildButton kind="sap" protocolId={id} reviewId={review.data?.id} exists={false} />
+            <BuildButton
+              kind="sap"
+              protocolId={id}
+              exists={false}
+              blockedReason={blockedReason}
+            />
           </NotBuilt>
         </div>
       </>
@@ -76,8 +90,8 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
         <BuildButton
           kind="sap"
           protocolId={id}
-          reviewId={review.data?.id}
           exists
+          blockedReason={blockedReason}
           rebuildLabel="Rebuild"
         />
       </DocumentToolbar>

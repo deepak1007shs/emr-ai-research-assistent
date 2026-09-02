@@ -7,6 +7,7 @@ import { ReviewRail } from "@/components/review-rail";
 import { ChatDock } from "@/components/chat-dock";
 import { DocumentToolbar } from "@/components/document-toolbar";
 import { BuildButton } from "@/components/build-button";
+import { needsFirst } from "@/lib/jobs/plan";
 import { NotBuilt } from "@/components/not-built";
 import { VersionList } from "@/components/version-list";
 import { Breadcrumb } from "@/components/breadcrumb";
@@ -30,9 +31,7 @@ export default async function TablesPage({ params }: PageProps<"/protocols/[id]/
   ]);
 
   const filename = (protocol.data as { filename?: string } | null)?.filename ?? "Protocol";
-  const blocked = plan
-    ? null
-    : "Build the Statistical Analysis Plan first. The tables report what the plan analyses.";
+  const blocked = plan ? null : needsFirst("tables");
 
   if (!tables) {
     return (

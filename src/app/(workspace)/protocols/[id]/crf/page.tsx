@@ -6,6 +6,7 @@ import { ReviewRail } from "@/components/review-rail";
 import { ChatDock } from "@/components/chat-dock";
 import { DocumentToolbar } from "@/components/document-toolbar";
 import { BuildButton } from "@/components/build-button";
+import { needsFirst } from "@/lib/jobs/plan";
 import { NotBuilt } from "@/components/not-built";
 import { VersionList } from "@/components/version-list";
 import { Breadcrumb } from "@/components/breadcrumb";
@@ -21,25 +22,15 @@ export default async function CrfPage({ params }: PageProps<"/protocols/[id]/crf
   const { id } = await params;
   const supabase = await createClient();
 
-  const [form, plan, review, versions, protocol] = await Promise.all([
+  const [form, plan, versions, protocol] = await Promise.all([
     loadCurrent<CrfSpec>(supabase, "crf_forms", id),
     loadCurrent<SapSpec>(supabase, "sap_plans", id),
-    supabase
-      .from("reviews")
-      .select("id")
-      .eq("protocol_id", id)
-      .eq("status", "complete")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
     loadVersions(supabase, "crf", id),
     supabase.from("protocols").select("filename").eq("id", id).maybeSingle(),
   ]);
 
   const filename = (protocol.data as { filename?: string } | null)?.filename ?? "Protocol";
-  const blocked = plan
-    ? null
-    : "Build the Statistical Analysis Plan first. The form collects what the plan analyses.";
+  const blocked = plan ? null : needsFirst("crf");
 
   if (!form) {
     return (
@@ -50,7 +41,6 @@ export default async function CrfPage({ params }: PageProps<"/protocols/[id]/crf
             <BuildButton
               kind="crf"
               protocolId={id}
-              reviewId={review.data?.id}
               exists={false}
               blockedReason={blocked}
             />
@@ -87,7 +77,6 @@ export default async function CrfPage({ params }: PageProps<"/protocols/[id]/crf
         <BuildButton
           kind="crf"
           protocolId={id}
-          reviewId={review.data?.id}
           exists
           blockedReason={blocked}
           rebuildLabel="Rebuild"

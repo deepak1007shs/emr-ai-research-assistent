@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { actionSpecSchema, reviewSpecSchema } from "@/lib/protocol/schema";
 import { ActionTable } from "@/components/action-table";
@@ -6,6 +5,8 @@ import { ReviewDocument } from "@/components/review-document";
 import { UsagePanel } from "@/components/usage-panel";
 import { IssueAnswers } from "@/components/issue-answers";
 import { NextStep } from "@/components/next-step";
+import { NotBuilt } from "@/components/not-built";
+import { BuildButton } from "@/components/build-button";
 import { DeleteReview } from "@/components/delete-review";
 import { parseIssueAnswers } from "@/lib/protocol/answers";
 import { Breadcrumb } from "@/components/breadcrumb";
@@ -14,9 +15,23 @@ import type { TokenUsage } from "@/lib/protocol/pricing";
 
 export const metadata = { title: "Protocol Review — EMR AI Research Assistant" };
 
+const REVIEW_DESCRIPTION =
+  "What the protocol settles, what it leaves open, and the issues an examiner would raise. It is the first of the four documents and the only one that reads the protocol critically; the analysis plan is written against your answers to it.";
+
 export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/review"> ) {
   const { id } = await params;
   const supabase = await createClient();
+
+  // Whether a plan exists decides only the wording of the chain button below:
+  // building the three again is a legitimate thing to want, but it should not
+  // read like building them for the first time.
+  const { data: existingPlan } = await supabase
+    .from("sap_plans")
+    .select("id")
+    .eq("protocol_id", id)
+    .eq("status", "ready")
+    .limit(1)
+    .maybeSingle();
 
   const { data: review } = await supabase
     .from("reviews")
@@ -28,18 +43,16 @@ export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/
     .limit(1)
     .maybeSingle();
 
+  // The review comes first: nothing below it can be built until it exists, so
+  // this page offers it rather than sending the user back to the upload form.
   if (!review) {
     return (
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
-      <section className="card mx-auto max-w-[var(--sheet-w)] p-6">
-        <h1 className="text-base font-semibold">No review yet</h1>
-        <p className="mt-1.5 text-sm text-muted">
-          This protocol was uploaded but never reviewed, or its review is still running.
-        </p>
-        <Link href="/" className="mt-4 inline-block text-sm text-brand hover:text-brand-ink">
-          Upload it again
-        </Link>
-      </section>
+        <div className="mx-auto max-w-[var(--sheet-w)]">
+          <NotBuilt kind="Protocol Review" description={REVIEW_DESCRIPTION}>
+            <BuildButton kind="review" protocolId={id} exists={false} />
+          </NotBuilt>
+        </div>
       </div>
     );
   }
@@ -52,6 +65,9 @@ export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/
         <p className="pill mt-3 bg-danger-soft text-danger">
           {review.error ?? "No reason was recorded."}
         </p>
+        <div className="mt-4">
+          <BuildButton kind="review" protocolId={id} exists={false} />
+        </div>
       </section>
       </div>
     );
@@ -70,7 +86,14 @@ export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
       <section className="card mx-auto max-w-[var(--sheet-w)] p-6">
         <h1 className="text-base font-semibold">This review is still running</h1>
-        <p className="mt-1.5 text-sm text-ink-3">Reload the page in a minute.</p>
+        <p className="mt-1.5 text-sm text-ink-3">
+          It runs on the server, so you can close this tab and come back to it.
+        </p>
+        {/* Picks the running build back up and shows where it has got to, even
+            in a tab that was not open when it started. */}
+        <div className="mt-4">
+          <BuildButton kind="review" protocolId={id} exists={false} />
+        </div>
       </section>
       </div>
     );
@@ -119,7 +142,7 @@ export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/
 
       {/* The review is the first of four documents, and answering the issues
           is only worth doing if the next step is obvious from here. */}
-      <NextStep protocolId={id} />
+      <NextStep protocolId={id} built={Boolean(existingPlan)} />
 
       <DeleteReview
         reviewId={review.id}
