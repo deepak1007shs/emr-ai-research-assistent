@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { EFFORT, MODEL } from "../protocol/analyze.ts";
-import { decisionsBlock } from "../protocol/answers.ts";
+import { decisionsBlock, unresolvedBlock } from "../protocol/answers.ts";
+import type { Consequence } from "../protocol/schema.ts";
 import { explainApiError } from "../protocol/api-error.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { AnalysisRow, SapSpec } from "./types.ts";
@@ -138,6 +139,12 @@ export async function buildSapMap(
   front: Omit<SapSpec, "analyses" | "rules" | "populations" | "baseline_comparison" | "intercurrent_events" | "testing_hierarchy" | "subgroups" | "interim" | "steps" | "assumption_checks">,
   options: {
     answers?: string | null;
+    /**
+     * The review's blockers that nobody answered. Carried whether or not they
+     * were, because answering was built as an optional step and has never once
+     * been taken.
+     */
+    unresolved?: Consequence[];
     onProgress?: (note: string) => void;
     onUsage?: (usage: TokenUsage) => void;
   } = {},
@@ -166,6 +173,9 @@ export async function buildSapMap(
 
   const decisions = decisionsBlock(options.answers, "plan");
   if (decisions) content.push({ type: "text", text: decisions });
+
+  const unresolved = unresolvedBlock(options.unresolved ?? [], "plan");
+  if (unresolved) content.push({ type: "text", text: unresolved });
 
   content.push({
     type: "text",

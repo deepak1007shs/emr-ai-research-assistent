@@ -110,17 +110,26 @@ export const fixtureActionSpec: ActionSpec = toActionSpec({
         "The study is powered with a prevalence formula although its aim is diagnostic accuracy.",
       change:
         "Recalculate using separate sensitivity and specificity formulas | divide each by prevalence and (1 − prevalence), and take the larger total.",
+      affects: "none" as const,
+      kind: "none" as const,
+      target: "",
     },
     {
       area: "Study design",
       issue: "The protocol calls itself cross-sectional while the aim is test accuracy.",
       change: "Relabel it a diagnostic accuracy study and report it to STARD.",
+      affects: "none" as const,
+      kind: "none" as const,
+      target: "",
     },
     {
       area: "Data collection",
       issue: "The proforma records \"comorbidities\" as a single free-text line.",
       change:
         "Pre-list each comorbidity as its own yes/no field before data collection starts.",
+      affects: "crf" as const,
+      kind: "variable_missing" as const,
+      target: "each comorbidity as its own yes/no field",
     },
   ],
 });

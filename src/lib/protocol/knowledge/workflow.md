@@ -152,6 +152,37 @@ anything phrased as *consider*.
   opinion. If it is worth an action row, it was worth a key issue.
 - **Order is the priority.** The most critical row is first; the rendered
   Priority column is simply its number. Do not write severity words.
+- **Say what each blocker means for the documents below this one.** The review
+  is not the last document: an analysis plan, a case record form and a table
+  plan are built from this protocol after it, and until now nothing carried a
+  blocker into any of them. Three fields do that, and they are checked
+  afterwards, so what you write here is tested rather than read.
+
+  `affects` — which document has to change. `sap` for anything about outcomes,
+  comparisons, confounders or the analysis; `crf` for anything that has to be
+  collected and is not; `tables` for anything about what is reported; `none`
+  for consent, timelines, ethics and administration, which change the protocol
+  and not the analysis. Most blockers are `none`, and that is the honest answer.
+
+  `kind` — what sort of consequence it has:
+
+  | kind | when |
+  |---|---|
+  | `variable_missing` | something the analysis needs is not being collected |
+  | `outcome_ambiguous` | the protocol names more than one primary outcome |
+  | `model_too_large` | more predictors than the expected events support |
+  | `definition_missing` | an exposure or outcome with no stated rule for deciding it |
+  | `timing_undefined` | a clock with no anchor date |
+  | `objective_unanswerable` | the data cannot answer the question as asked |
+  | `none` | everything else |
+
+  `target` — **the thing, not the problem**, named as an analysis plan would
+  name it. Write `illness-severity score (SOFA or qSOFA)`, not `severity is not
+  measured`. Write `30-day mortality and pathogen distribution` for two
+  candidate primary outcomes. Write `date of the index blood culture` for a
+  clock with no anchor. This string is matched against the plan's variables and
+  the form's fields, so a sentence there matches nothing and helps nobody.
+  Leave it empty where `kind` is `none`.
 - `area` — two or three words: `Sample size`, `Ethics`, `Randomisation`,
   `Primary outcome`, `Eligibility`, `Study design`, `Data collection`.
 - `issue` — the problem in **one sentence**, specific to this protocol.

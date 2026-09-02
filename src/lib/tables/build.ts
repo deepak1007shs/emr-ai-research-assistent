@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import { explainApiError } from "../protocol/api-error.ts";
-import { decisionsBlock } from "../protocol/answers.ts";
+import { decisionsBlock, unresolvedBlock } from "../protocol/answers.ts";
+import type { Consequence } from "../protocol/schema.ts";
 import { EFFORT, MODEL } from "../protocol/analyze.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { SapSpec } from "../sap/types.ts";
@@ -284,6 +285,12 @@ export async function buildTablesSpec(
   protocol: ExtractedProtocol | null = null,
   options: {
     answers?: string | null;
+    /**
+     * The review's blockers that nobody answered. Carried whether or not they
+     * were, because answering was built as an optional step and has never once
+     * been taken.
+     */
+    unresolved?: Consequence[];
     onProgress?: (note: string) => void;
     onUsage?: (usage: TokenUsage) => void;
   } = {},
@@ -341,6 +348,9 @@ ${JSON.stringify({
 
   const decisions = decisionsBlock(options.answers, "tables");
   if (decisions) content.push({ type: "text", text: decisions });
+
+  const unresolved = unresolvedBlock(options.unresolved ?? [], "tables");
+  if (unresolved) content.push({ type: "text", text: unresolved });
 
   // What the design owes, and what it forbids. A randomised trial's baseline
   // table carries no p value: the groups differ by chance alone, so a test

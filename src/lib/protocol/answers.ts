@@ -1,4 +1,4 @@
-import type { ActionSpec } from "./schema.ts";
+import type { ActionSpec, Consequence } from "./schema.ts";
 
 /**
  * The investigator's decisions, as one block of prose.
@@ -83,4 +83,46 @@ describe the study as decided rather than as written.
 <investigator_decisions>
 ${text}
 </investigator_decisions>`;
+}
+
+/**
+ * The blockers the review raised that nobody has answered.
+ *
+ * The decisions block above carries what the investigator typed, and until now
+ * that was the only way a review reached a builder. Nobody has ever typed
+ * anything: fifty-nine issues, forty-three of them blockers, none answered. So
+ * every plan, form and set of tables this application has produced was built
+ * from the protocol as written rather than as reviewed.
+ *
+ * These are not decisions and must not be presented as any. They are what the
+ * review found, unresolved, for the document to address or to say why it does
+ * not apply. Nothing is invented on the investigator's behalf.
+ */
+export function unresolvedBlock(
+  consequences: Consequence[],
+  /** What the document is: "plan", "form", "tables". */
+  document: string,
+): string | null {
+  const open = consequences.filter((c) => c.kind !== "none" && c.target.trim());
+  if (!open.length) return null;
+
+  return `The protocol was reviewed and these were raised. They have not been
+answered, so they are not decisions: they are what the review found. Address
+each one in the ${document}, or say in the ${document} why it does not apply.
+Do not invent a value, a variable or a definition the protocol does not carry;
+where something is missing, the ${document} says it is missing.
+
+<unresolved_from_the_review>
+${open
+  .map((c, i) => `${i + 1}. ${c.issue}\n   This concerns: ${c.target}`)
+  .join("\n\n")}
+</unresolved_from_the_review>`;
+}
+
+/** Which of the review's consequences bear on one document. */
+export function consequencesFor(
+  consequences: Consequence[] | undefined,
+  affects: "sap" | "crf" | "tables",
+): Consequence[] {
+  return (consequences ?? []).filter((c) => c.affects === affects && c.kind !== "none");
 }

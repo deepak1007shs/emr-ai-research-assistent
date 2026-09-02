@@ -9,6 +9,7 @@
  *   node --env-file-if-exists=.env.local --experimental-strip-types preflight.ts
  */
 import Anthropic from "@anthropic-ai/sdk";
+import { MODEL_REVIEW_JSON_SCHEMA } from "./src/lib/protocol/schema.ts";
 import { SAP_JSON_SCHEMA } from "./src/lib/sap/build.ts";
 import { SAP_MAP_JSON_SCHEMA } from "./src/lib/sap/map-stage.ts";
 import { SAP_RULES_JSON_SCHEMA } from "./src/lib/sap/rules-stage.ts";
@@ -49,6 +50,7 @@ async function check(name: string, schema: unknown) {
 }
 
 for (const [name, schema] of [
+  ["Protocol review", MODEL_REVIEW_JSON_SCHEMA],
   ["SAP 1 - frame and registries", SAP_JSON_SCHEMA],
   ["SAP 2 - analysis map", SAP_MAP_JSON_SCHEMA],
   ["SAP 3 - rules and assumptions", SAP_RULES_JSON_SCHEMA],
