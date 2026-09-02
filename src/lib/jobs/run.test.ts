@@ -25,8 +25,13 @@ const usage = {
 };
 
 function stub(name: string, spec: unknown) {
-  return async () => {
+  // The options are always the last argument, whatever the builder's shape.
+  // Metering before the throw is what really happens: a call that is cut off
+  // has already generated everything it is going to be billed for.
+  return async (...args: unknown[]) => {
     calls.push(name);
+    const options = args[args.length - 1] as { onUsage?: (u: typeof usage) => void } | undefined;
+    options?.onUsage?.(usage);
     if (fail.has(name)) throw new Error(`${name} blew up`);
     return { spec, findings: findings.get(name) ?? [], model: "claude-sonnet-5", usage };
   };
@@ -202,6 +207,23 @@ describe("a chain", () => {
     const rows = inserted.filter((i) => i.table === "sap_plans");
     expect(rows).toHaveLength(1);
     expect(rows[0].row).toMatchObject({ status: "failed", protocol_id: "p1" });
+  });
+
+  it("keeps what a failed stage spent", async () => {
+    // The bill is charged whether or not the document arrives. A failure that
+    // reports nothing spent is not free; it is unrecorded, and every estimate
+    // built on these numbers is short by the cost of every failure.
+    //
+    // The first stage fails, so nothing is banked and the only tokens in the
+    // run are the ones the failure itself burned. A later stage would pass this
+    // on the stages that succeeded before it while still losing its own.
+    has.review = true;
+    fail.add("sap");
+    await run("documents");
+
+    expect(finalPatch().status).toBe("failed");
+    expect(finalPatch().usage).toMatchObject({ output_tokens: usage.output_tokens });
+    expect(Number(finalPatch().cost)).toBeGreaterThan(0);
   });
 });
 

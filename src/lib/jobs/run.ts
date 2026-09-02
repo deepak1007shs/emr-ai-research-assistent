@@ -104,7 +104,13 @@ function progress(db: Db, jobId: string) {
       await write({ status: "done", stage: null, step: null, usage: banked, cost: costOf(MODEL, banked).total });
     },
     async failed(message: string) {
-      await write({ status: "failed", step: null, error: message, usage: banked, cost: costOf(MODEL, banked).total });
+      // The failing stage's own tokens are banked here, because a stage only
+      // banks its usage when it finishes and a failed one never does. Writing
+      // `banked` alone reported every failure as free: two runs of the shell
+      // tables were cut off after five minutes of generation each and both are
+      // recorded at zero, which is not what they cost.
+      const spent = add(banked, live);
+      await write({ status: "failed", step: null, error: message, usage: spent, cost: costOf(MODEL, spent).total });
     },
     produced: () => produced,
   };
