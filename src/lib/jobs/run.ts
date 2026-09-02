@@ -288,31 +288,46 @@ async function runCrf(db: Db, userId: string, protocolId: string, report: Report
   const protocol = await readProtocol(db, protocolId);
   const { answers } = await loadDecisions(db, protocolId);
 
-  const result = await buildCrfSpec(protocol, sap.spec as SapSpec, {
-    answers,
-    onProgress: (message) => void report.step(message),
-    onUsage: (usage) => report.meter(usage),
-  });
+  try {
+    const result = await buildCrfSpec(protocol, sap.spec as SapSpec, {
+      answers,
+      onProgress: (message) => void report.step(message),
+      onUsage: (usage) => report.meter(usage),
+    });
 
-  const { data: row, error } = await db
-    .from("crf_forms")
-    .insert({
+    const { data: row, error } = await db
+      .from("crf_forms")
+      .insert({
+        protocol_id: protocolId,
+        sap_id: sap.id,
+        owner: userId,
+        status: "ready",
+        spec: result.spec,
+        validation: { findings: result.findings },
+        model: result.model,
+        usage: result.usage,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+
+    const entry: Produced = { kind: "crf", id: row.id, ...counts(result.findings) };
+    await report.finished(entry, result.usage);
+    return entry;
+  } catch (error) {
+    // Recorded the way a failed plan is. Written after the plan was found, so a
+    // form refused for having no plan to build against still writes nothing:
+    // that is a run which never started, not a form that failed.
+    const message = error instanceof Error ? error.message : "Building the form failed.";
+    await db.from("crf_forms").insert({
       protocol_id: protocolId,
       sap_id: sap.id,
       owner: userId,
-      status: "ready",
-      spec: result.spec,
-      validation: { findings: result.findings },
-      model: result.model,
-      usage: result.usage,
-    })
-    .select("id")
-    .single();
-  if (error) throw new Error(error.message);
-
-  const entry: Produced = { kind: "crf", id: row.id, ...counts(result.findings) };
-  await report.finished(entry, result.usage);
-  return entry;
+      status: "failed",
+      error: message,
+    });
+    throw new Error(message);
+  }
 }
 
 async function runTables(db: Db, userId: string, protocolId: string, report: Reporter): Promise<Produced> {
@@ -339,37 +354,50 @@ async function runTables(db: Db, userId: string, protocolId: string, report: Rep
   await report.step("Reading the protocol");
   const protocol = await readProtocol(db, protocolId).catch(() => null);
 
-  const result = await buildTablesSpec(
-    sap.spec as SapSpec,
-    (crf?.spec as CrfSpec | undefined) ?? null,
-    protocol,
-    {
-      answers,
-      onProgress: (message) => void report.step(message),
-      onUsage: (usage) => report.meter(usage),
-    },
-  );
+  try {
+    const result = await buildTablesSpec(
+      sap.spec as SapSpec,
+      (crf?.spec as CrfSpec | undefined) ?? null,
+      protocol,
+      {
+        answers,
+        onProgress: (message) => void report.step(message),
+        onUsage: (usage) => report.meter(usage),
+      },
+    );
 
-  const { data: row, error } = await db
-    .from("shell_tables")
-    .insert({
+    const { data: row, error } = await db
+      .from("shell_tables")
+      .insert({
+        protocol_id: protocolId,
+        sap_id: sap.id,
+        crf_id: crf?.id ?? null,
+        owner: userId,
+        status: "ready",
+        spec: result.spec,
+        validation: { findings: result.findings },
+        model: result.model,
+        usage: result.usage,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+
+    const entry: Produced = { kind: "tables", id: row.id, ...counts(result.findings) };
+    await report.finished(entry, result.usage);
+    return entry;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Building the tables failed.";
+    await db.from("shell_tables").insert({
       protocol_id: protocolId,
       sap_id: sap.id,
       crf_id: crf?.id ?? null,
       owner: userId,
-      status: "ready",
-      spec: result.spec,
-      validation: { findings: result.findings },
-      model: result.model,
-      usage: result.usage,
-    })
-    .select("id")
-    .single();
-  if (error) throw new Error(error.message);
-
-  const entry: Produced = { kind: "tables", id: row.id, ...counts(result.findings) };
-  await report.finished(entry, result.usage);
-  return entry;
+      status: "failed",
+      error: message,
+    });
+    throw new Error(message);
+  }
 }
 
 const STAGE_FN: Record<Stage, (db: Db, userId: string, protocolId: string, report: Reporter) => Promise<Produced>> = {

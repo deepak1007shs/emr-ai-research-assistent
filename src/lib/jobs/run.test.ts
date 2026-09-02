@@ -209,6 +209,18 @@ describe("a chain", () => {
     expect(rows[0].row).toMatchObject({ status: "failed", protocol_id: "p1" });
   });
 
+  it("records a failed form and a failed set of tables too", async () => {
+    // The plan wrote a failed row from the day it was written and the two
+    // documents under it did not, so a form that failed left the workspace
+    // showing nothing rather than showing what went wrong.
+    fail.add("tables");
+    await run("all");
+    const rows = inserted.filter((i) => i.table === "shell_tables");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].row).toMatchObject({ status: "failed", protocol_id: "p1" });
+    expect(String(rows[0].row.error)).toContain("tables blew up");
+  });
+
   it("keeps what a failed stage spent", async () => {
     // The bill is charged whether or not the document arrives. A failure that
     // reports nothing spent is not free; it is unrecorded, and every estimate
