@@ -1,6 +1,6 @@
 import type { ShellTable, ShellTablesSpec } from "./types.ts";
 import { adjustedIds } from "./types.ts";
-import { hasContrast, planOf, unbuildableRoles } from "./blocks.ts";
+import { hasContrast, isToken, planOf, unbuildableRoles } from "./blocks.ts";
 import { designRule } from "./design-tables.ts";
 import type { SapRegistry } from "../sap/types.ts";
 import { outcomeIndex, variableIndex } from "../sap/types.ts";
@@ -403,6 +403,22 @@ export function validateTables(
           warn(
             "TBL30",
             `Table ${t.number} reports ${nameOf(t.outcome_id ?? "") || "an outcome"}, which the plan marks as skewed, and the plan names a mean for it (${planOf(a).measures.join("; ")}). A skewed distribution is described by a median and an interquartile range, and compared by a rank method.`,
+          );
+        }
+      }
+
+      // A machine token is not the name of an estimate. One plan named
+      // "descriptive_cross_tabulation_only" as its measure, meaning it had none
+      // to report; printed as a column it read "Crude
+      // descriptive_cross_tabulation_only (95% CI)". It is dropped before it
+      // reaches the page, and said here so the plan is fixed rather than the
+      // symptom hidden.
+      for (const a of filled) {
+        for (const measure of a.measures ?? []) {
+          if (!isToken(measure)) continue;
+          warn(
+            "TBL31",
+            `The plan names "${measure}" as an estimate for ${nameOf(t.outcome_id ?? "") || "this outcome"}, which is a code rather than the name of one. Table ${t.number} reports the outcome without it. Give the estimate its name, or say the analysis reports no estimate.`,
           );
         }
       }

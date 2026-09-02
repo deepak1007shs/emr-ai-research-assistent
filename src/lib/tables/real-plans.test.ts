@@ -146,3 +146,84 @@ describe("the five plans this application has produced", () => {
     });
   }
 });
+
+/**
+ * What the five plans caught that the fixtures could not.
+ *
+ * Each of these was found by rendering the real documents and reading them,
+ * after every fixture test passed.
+ */
+describe("defects the real documents showed", () => {
+  const layAll = () => Object.entries(STUDIES).map(([name, sap]) => [name, layOut(sap)] as const);
+
+  it("gives no two tables the same title", () => {
+    // "See Table 5" named two different tables in one document: a score
+    // reported as a median and again as the proportion above its threshold,
+    // and two predictor hunts over different variable sets.
+    for (const [name, spec] of layAll()) {
+      const titles = spec.tables.map((t) => t.title);
+      const duplicated = [...new Set(titles.filter((t, i) => titles.indexOf(t) !== i))];
+      expect(duplicated, `${name}`).toEqual([]);
+    }
+  });
+
+  it("prints no machine token where a reader expects English", () => {
+    // One plan set test_override to "descriptive_cross_tabulation_only",
+    // meaning it had no test to name, and chooseTest honoured it verbatim into
+    // a column header: "Crude descriptive_cross_tabulation_only (95% CI)".
+    for (const [name, spec] of layAll()) {
+      for (const table of spec.tables) {
+        const printed = [table.title, table.test_applied, table.footnote, table.reported_as]
+          .concat(table.columns)
+          .concat(table.rows.map((r) => r.label))
+          .join(" ");
+        expect(printed.match(/\b[a-z0-9]+(_[a-z0-9]+)+\b/g), `${name}: table ${table.number}`)
+          .toBeNull();
+      }
+    }
+  });
+
+  it("gives no two tables the same slot", () => {
+    // One study's primary objective covers eleven outcomes. All eleven were
+    // stamped B1, so the document carried eleven sections headed
+    // "B1 - Primary outcome" and none of them could be cited.
+    for (const [name, spec] of layAll()) {
+      const slots = spec.tables.map((t) => t.slot).filter(Boolean);
+      const duplicated = [...new Set(slots.filter((s, i) => slots.indexOf(s) !== i))];
+      expect(duplicated, `${name}`).toEqual([]);
+    }
+  });
+
+  it("numbers a primary block of many outcomes, and leaves one alone", () => {
+    const many = layOut(STUDIES.mahendra).tables.filter((t) => t.slot?.startsWith("B1"));
+    expect(many.length).toBeGreaterThan(1);
+    expect(many.map((t) => t.slot)).toEqual(many.map((_, i) => `B1.${i + 1}`));
+
+    // The ordinary study keeps the plain B1 a reader already knows.
+    expect(layOut(STUDIES.subhani).tables.some((t) => t.slot === "B1")).toBe(true);
+  });
+
+  it("closes the primary block with the sensitivity analysis, not the middle", () => {
+    // It carries the primary outcome's id, so ordering by outcome put it
+    // between the first and second of eleven primary outcome tables.
+    for (const [name, spec] of layAll()) {
+      const primary = spec.tables.filter((t) => t.block === "primary");
+      const sensitivity = primary.findIndex((t) => t.role === "sensitivity");
+      if (sensitivity === -1) continue;
+      const lastOutcome = primary.map((t) => t.role).lastIndexOf("outcome");
+      expect(sensitivity, `${name}`).toBeGreaterThan(lastOutcome);
+    }
+  });
+
+  it("says which analysis a plan could not name a test for", () => {
+    // A combination the rule table has no row for used to leave the line off
+    // the document, which reads as a table nobody thought about.
+    const mahendra = layOut(STUDIES.mahendra);
+    const todo = mahendra.tables.filter((t) => t.test_applied?.startsWith("TODO:"));
+    expect(todo.length).toBeGreaterThan(0);
+    for (const table of todo) {
+      // Said in words, not by printing the enum at a reader.
+      expect(table.test_applied).not.toMatch(/single_group|two_groups|time_to_event/);
+    }
+  });
+});

@@ -82,3 +82,36 @@ describe("a datasheet column name", () => {
     }
   });
 });
+
+describe("a derived value with no field of its own", () => {
+  it("never takes a column a field already has", () => {
+    // Two variables in one spreadsheet column is the failure this naming
+    // exists to prevent, and the derived path went round it: a derived value
+    // slugged straight from its name, with nothing checking what was taken.
+    const form = assignColumnNames({
+      ...crfFixture,
+      identifiers: [{ label: "Body mass index", type: "Number", variable_id: "var_bmi" }],
+      sections: [],
+      derived: [
+        {
+          variable_id: "var_bmi_recomputed",
+          name: "Body mass index",
+          how: "kg/m2",
+          from_variable_ids: [],
+        },
+      ],
+    } as CrfSpec);
+
+    const columns = columnsByVariable(form);
+    expect(columns.var_bmi).toBe("body_mass_index");
+    expect(columns.var_bmi_recomputed).toBe("body_mass_index_2");
+
+    const values = Object.values(columns);
+    expect(new Set(values).size).toBe(values.length);
+  });
+
+  it("keeps every variable unique across a whole real form", () => {
+    const columns = Object.values(columnsByVariable(assignColumnNames(crfFixture)));
+    expect(new Set(columns).size).toBe(columns.length);
+  });
+});

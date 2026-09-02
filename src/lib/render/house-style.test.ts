@@ -1,9 +1,10 @@
+import { readFileSync } from "node:fs";
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 import { buildSapDocx } from "./sap-docx.ts";
 import { buildCrfDocx } from "./crf-docx.ts";
 import { buildTablesDocx } from "./tables-docx.ts";
-import { AI_VOCABULARY, HOUSE_FONT } from "./house-style.ts";
+import { HOUSE_FONT, bannedWordsIn } from "./house-style.ts";
 import { sapFixture } from "../sap/fixture.ts";
 import { crfFixture } from "../crf/fixture.ts";
 import { tablesFixture } from "../tables/fixture.ts";
@@ -60,12 +61,10 @@ describe("every document the app hands over", () => {
     // block, every explanation of what a table is for. It is held to the same
     // list, which is what nothing was doing.
     for (const [name, { visible }] of await documents()) {
-      for (const word of AI_VOCABULARY) {
-        // "robust variance" and "robust standard errors" are the statistical
-        // terms and are not the failure this looks for.
-        const found = new RegExp(`\\b${word}\\b(?! (variance|standard error))`, "i").exec(visible);
-        expect(found?.[0], `${name} uses "${word}": ...${visible.slice(Math.max(0, (found?.index ?? 0) - 50), (found?.index ?? 0) + 40)}...`).toBeUndefined();
-      }
+      // Correct medical and statistical terms are excused by the one function
+      // the model's instruction is written from, so the check the documents are
+      // held to and the check the model is held to cannot drift apart.
+      expect(bannedWordsIn(visible), name).toEqual([]);
     }
   });
 
@@ -91,5 +90,46 @@ describe("every document the app hands over", () => {
     const [, full] = (await documents())[0];
     const [, short] = (await documents())[1];
     expect(short.visible.length).toBeLessThan(full.visible.length);
+  });
+});
+
+describe("the banned vocabulary knows medicine from filler", () => {
+  it("excuses the terms a clinician and a statistician actually write", () => {
+    // The application told the model to lay out "Vital signs" in slot A4 and,
+    // in another file, never to write "vital". Its own check would have failed
+    // the correct document.
+    for (const term of [
+      "Vital signs at admission",
+      "Vital status at 30 days",
+      "Forced vital capacity",
+      "modified Poisson with robust variance",
+      "robust standard errors",
+      "Comprehensive metabolic panel",
+      "Pivotal trial",
+    ]) {
+      expect(bannedWordsIn(term), term).toEqual([]);
+    }
+  });
+
+  it("still catches the filler those words were banned for", () => {
+    expect(bannedWordsIn("a robust and comprehensive approach")).toEqual(
+      expect.arrayContaining(["robust", "comprehensive"]),
+    );
+    expect(bannedWordsIn("It is vital to delve into this")).toEqual(
+      expect.arrayContaining(["delve", "vital"]),
+    );
+  });
+
+  it("is the same rule the model is given", () => {
+    // The two had already drifted: the check excused "robust variance" and the
+    // instruction to the model did not.
+    for (const path of [
+      "src/lib/tables/knowledge/shell-tables.md",
+      "src/lib/protocol/knowledge/workflow.md",
+    ]) {
+      const text = readFileSync(path, "utf8");
+      expect(text, path).toContain("vital signs");
+      expect(text, path).toContain("robust variance");
+    }
   });
 });

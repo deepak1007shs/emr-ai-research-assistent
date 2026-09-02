@@ -99,15 +99,29 @@ export function assignColumnNames(spec: CrfSpec): CrfSpec {
 export function columnsByVariable(spec: CrfSpec | null | undefined): Record<string, string> {
   const out: Record<string, string> = {};
   if (!spec) return out;
+
+  // The fields first, because those names were decided on the form and are what
+  // whoever fills it in will see.
+  const taken = new Set<string>();
   for (const field of allFields(spec)) {
-    if (field.variable_id && field.column_name && !out[field.variable_id]) {
-      out[field.variable_id] = field.column_name;
-    }
+    if (!field.variable_id || !field.column_name || out[field.variable_id]) continue;
+    out[field.variable_id] = field.column_name;
+    taken.add(field.column_name);
   }
+
+  // Then the derived values, which have no field of their own and so no name
+  // decided for them. Uniqueness has to hold here too: a derived value slugging
+  // to a name a field already has would put two variables in one spreadsheet
+  // column, which is the whole failure the naming exists to prevent, and it
+  // would do it silently.
   for (const derived of spec.derived ?? []) {
-    if (derived.variable_id && !out[derived.variable_id]) {
-      out[derived.variable_id] = slug(derived.name ?? derived.variable_id);
+    if (!derived.variable_id || out[derived.variable_id]) continue;
+    let name = slug(derived.name ?? derived.variable_id);
+    for (let n = 2; taken.has(name); n += 1) {
+      name = `${slug(derived.name ?? derived.variable_id)}_${n}`;
     }
+    out[derived.variable_id] = name;
+    taken.add(name);
   }
   return out;
 }

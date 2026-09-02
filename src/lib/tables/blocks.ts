@@ -1,5 +1,5 @@
 import type { AnalysisRow, Objective, SapRegistry } from "../sap/types.ts";
-import { chooseTest, degreesOfFreedomNote } from "../sap/choose-test.ts";
+import { chooseTest, degreesOfFreedomNote, isToken } from "../sap/choose-test.ts";
 import { outcomeIndex, variableIndex } from "../sap/types.ts";
 import type { ShellTable, TableModel, TableRole, TableRow } from "./types.ts";
 import { designRule } from "./design-tables.ts";
@@ -67,13 +67,18 @@ export function unbuildableRoles(sap: SapRegistry): TableRole[] {
  * decision back, which is the point: the table and the plan cannot disagree
  * about the estimate if only one of them ever chose it.
  */
+/** Re-exported so the guards read the same rule the layout does. */
+export { isToken };
+
 export function planOf(row: AnalysisRow) {
   if (row.measures?.length || row.test) {
+    const named = (value: string | undefined) =>
+      value && !isToken(value) ? value : undefined;
     return {
-      test: row.test,
-      test_adjusted: row.test_adjusted,
+      test: named(row.test),
+      test_adjusted: named(row.test_adjusted),
       avoid: row.avoid,
-      measures: row.measures ?? [],
+      measures: (row.measures ?? []).filter((m) => !isToken(m)),
     };
   }
   const plan = chooseTest(row);
@@ -457,10 +462,11 @@ function predictorTables(row: AnalysisRow, tier: Tier, ctx: BlockContext): Shell
       number: 0,
       block: BLOCK_OF[tier],
       role: "predictors",
-      // The predictors themselves as well as the split, for the same reason an
-      // outcome table carries its exposure: one objective can hunt predictors
-      // of one outcome in two different sets, and those are two tables.
-      job: `${(row.exposure_ids ?? []).join("+")}:${shape.job}`,
+      // What it hunts as well as the split, for the same reason an outcome
+      // table carries its exposure: one objective can hunt predictors of one
+      // outcome in two different sets, and those are two tables. Kept short,
+      // because this is a key nothing prints and it is stored on every table.
+      job: `${(row.exposure_ids ?? [])[0] ?? "none"}+${(row.exposure_ids ?? []).length}:${shape.job}`,
       outcome_id: (row.outcome_ids ?? []).length === 1 ? row.outcome_ids[0] : undefined,
       fills: row.objective_ids?.length ? [...row.objective_ids] : undefined,
       title: capitalise(shape.title),
@@ -534,7 +540,7 @@ function outcomeTable(row: AnalysisRow, tier: Tier, ctx: BlockContext): ShellTab
     test_applied:
       plan.test ??
       plan.test_adjusted ??
-      `TODO: the rule table has no entry for a ${row.data_type} outcome with comparison "${row.comparison}". Name the test here.`,
+      `TODO: the rule table has no entry for a ${row.data_type.replace(/_/g, " ")} outcome compared ${row.comparison.replace(/_/g, " ")}. Name the test here.`,
   };
 
   const footnote = (...parts: (string | undefined)[]) =>
@@ -863,9 +869,11 @@ export function buildAnalyticTables(
   const isCausal = (row: AnalysisRow) =>
     (row.objective_ids ?? []).some((id) => objectives.get(id)?.intent === "causal");
 
-  const out: ShellTable[] = [];
+  // Each table beside the analysis that produced it, so a title that collides
+  // with another can say what makes it different.
+  const out: { table: ShellTable; row: AnalysisRow | null }[] = [];
   if (required.has("flow")) {
-    out.push(flowTable(sap, ctx.groups, RANDOMISED.has(sap.design_family ?? "")));
+    out.push({ table: flowTable(sap, ctx.groups, RANDOMISED.has(sap.design_family ?? "")), row: null });
   }
 
   for (const row of ordered) {
@@ -902,9 +910,77 @@ export function buildAnalyticTables(
       block.push(sensitivityTable(row, tier, ctx, required.has("sensitivity")));
     }
 
-    out.push(...block.filter((t): t is ShellTable => Boolean(t)));
+    for (const table of block) {
+      if (table) out.push({ table, row });
+    }
   }
-  return out;
+  return disambiguate(out, sap);
+}
+
+/** How an analysis treats its outcome, for a title that must say. */
+const AS: Partial<Record<AnalysisRow["data_type"], string>> = {
+  binary: "as a proportion",
+  count: "as a rate over person-time",
+  continuous: "as a continuous measure",
+  ordinal: "as an ordinal score",
+  nominal: "by category",
+  time_to_event: "as time to event",
+};
+
+/**
+ * Two tables of one outcome must not carry the same title.
+ *
+ * A plan may report one score twice on purpose: as a median, and as the
+ * proportion above its threshold. Those are two tables and both are right, and
+ * one document had four such pairs with identical titles, so "see Table 5" named
+ * two different tables. What differs is how the outcome is treated, so that is
+ * what the title says.
+ */
+function disambiguate(
+  pairs: { table: ShellTable; row: AnalysisRow | null }[],
+  sap: SapRegistry,
+): ShellTable[] {
+  // Before the denominator, which always ends a title.
+  const qualify = (title: string, qualifier: string) => {
+    const match = title.match(/^(.*?)(\s*\(n = [^)]*\))$/);
+    return match ? `${match[1]}, ${qualifier}${match[2]}` : `${title}, ${qualifier}`;
+  };
+
+  const variables = variableIndex(sap);
+
+  /** What the analysis compares, said shortly. */
+  const byWhat = (row: AnalysisRow | null): string | null => {
+    const ids = row?.exposure_ids ?? [];
+    if (!ids.length) return null;
+    const first = midSentence(variables.get(ids[0])?.label ?? ids[0]);
+    return ids.length === 1 ? `by ${first}` : `by ${first} and ${ids.length - 1} other variables`;
+  };
+
+  // The data type first, because that is what usually differs: one score
+  // reported as a median and again as the proportion above its threshold. Where
+  // two tables share a data type as well, what they compare is what differs.
+  //
+  // The pairs are carried through both passes rather than a map keyed by the
+  // table, because each pass builds new tables and a map keyed by the old ones
+  // then answers nothing.
+  const discriminators = [
+    (row: AnalysisRow | null) => (row ? (AS[row.data_type] ?? null) : null),
+    byWhat,
+  ];
+
+  let out = pairs;
+  for (const discriminator of discriminators) {
+    const count = new Map<string, number>();
+    for (const p of out) count.set(p.table.title, (count.get(p.table.title) ?? 0) + 1);
+    out = out.map((p) => {
+      if ((count.get(p.table.title) ?? 0) < 2) return p;
+      const qualifier = discriminator(p.row);
+      return qualifier
+        ? { ...p, table: { ...p.table, title: qualify(p.table.title, qualifier) } }
+        : p;
+    });
+  }
+  return out.map((p) => p.table);
 }
 
 /* ---- merging the two halves --------------------------------------- */
@@ -955,8 +1031,13 @@ export function mergeTables(
     }
     return Number.MAX_SAFE_INTEGER;
   };
+  // The sensitivity and subgroup tables close their block: one for the study,
+  // repeating the primary analysis other ways. They carry the primary
+  // outcome's id, so ordering them by it put the sensitivity analysis between
+  // the first and second of eleven primary outcome tables.
+  const CLOSES_BLOCK = new Set(["sensitivity", "subgroup"]);
   const outcomeOf = (t: ShellTable) =>
-    t.outcome_id && outcomeRank.has(t.outcome_id)
+    !CLOSES_BLOCK.has(t.role) && t.outcome_id && outcomeRank.has(t.outcome_id)
       ? outcomeRank.get(t.outcome_id)!
       : Number.MAX_SAFE_INTEGER;
 

@@ -234,6 +234,16 @@ function composeAdjusted(rule: Rule, taken: Branch | null): string | null {
  *   A row nothing covers is a gap in the rules, and must be visible rather than
  *   silently given a plausible-looking default.
  */
+/**
+ * True where a value is a machine token rather than English.
+ *
+ * `descriptive_cross_tabulation_only` is a plan telling itself it has no
+ * estimate; it is not a phrase to print at a reader.
+ */
+export function isToken(value: string): boolean {
+  return /^[a-z0-9]+(_[a-z0-9]+)+$/.test(value.trim());
+}
+
 export function chooseTest(
   row: Pick<
     AnalysisRow,
@@ -242,7 +252,12 @@ export function chooseTest(
   >,
   rules: Rule[] = loadRules(),
 ): AnalysisPlan | null {
-  if (row.test_override) {
+  // A machine token is not the name of a test. One plan overrode its test with
+  // "descriptive_cross_tabulation_only", meaning it had no test to name, and
+  // honouring that put the token in a column header of a document handed to an
+  // examiner. Ignored here, so every consumer is fixed at once, and reported by
+  // TBL31 so the plan is corrected rather than the symptom hidden.
+  if (row.test_override && !isToken(row.test_override)) {
     const branch: Branch = {
       test: row.test_override,
       statistic: null,

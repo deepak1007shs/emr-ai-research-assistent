@@ -94,6 +94,16 @@ export function assignSlots(
   const counts = new Map<string, number>();
   let exploratory = 0;
 
+  // A primary objective usually has one outcome, and then B1 is the whole of
+  // it. One protocol's primary objective covers eleven: the clinical features,
+  // the diagnostic criteria, the cytopenia pattern, the marrow findings and so
+  // on. All eleven were stamped B1, so the document carried eleven sections
+  // headed "B1 - Primary outcome" and a reader could not cite any of them.
+  const primaryOutcomes = tables.filter(
+    (t) => t.block === "primary" && t.role === "outcome",
+  ).length;
+  let primarySeen = 0;
+
   return tables.map((table) => {
     if (table.block === "descriptive") {
       // The writer chose the A slot for a baseline table, but the flow table is
@@ -103,7 +113,14 @@ export function assignSlots(
     }
 
     if (table.block === "primary") {
-      return { ...table, slot: byRole.get(`primary:${table.role}`) ?? table.slot };
+      const slot = byRole.get(`primary:${table.role}`) ?? table.slot;
+      // Numbered only where there is more than one, so the ordinary study keeps
+      // the plain B1 a reader already knows.
+      if (table.role === "outcome" && primaryOutcomes > 1) {
+        primarySeen += 1;
+        return { ...table, slot: `${slot}.${primarySeen}` };
+      }
+      return { ...table, slot };
     }
 
     if (table.block === "secondary") {

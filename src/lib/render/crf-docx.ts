@@ -13,6 +13,7 @@ import {
 import { HOUSE_BORDER, HOUSE_STYLES, plain } from "./house-style.ts";
 import type { CrfField, CrfSpec } from "../crf/types.ts";
 import { responseFor } from "../crf/response.ts";
+import { columnsByVariable } from "../crf/columns.ts";
 
 /**
  * The case report form, and the data-collection plan it was expanded from.
@@ -99,6 +100,9 @@ export async function buildCrfDocx(
   // so a plan that has moved on since the form was built degrades to the old
   // wording rather than printing "var_age" on a form a patient is seen with.
   const labelOf = (id: string, fallback = "") => spec.labels?.[id] ?? fallback ?? id;
+  // Variable id to the column it becomes in the datasheet, from the form's own
+  // fields, so the roll-call and the form cannot name it differently.
+  const columns = columnsByVariable(spec);
   const nameOf = (f: CrfField) => (f.variable_id ? labelOf(f.variable_id, f.label) : f.label);
   const fieldLabels = new Map<string, string>();
   const everyField = [
@@ -149,11 +153,14 @@ export async function buildCrfDocx(
   );
   doc.push(
     table(
-      ["Role", "Variable", "Field", "Where captured"],
+      ["Role", "Variable", "Field", "Datasheet column", "Where captured"],
       spec.roll_call.map((r) => [
         r.role.replace(/_/g, " "),
         labelOf(r.ref_id, fieldLabels.get(r.ref_id) ?? r.ref_id),
         r.field_variable_id ? labelOf(r.field_variable_id, fieldLabels.get(r.field_variable_id) ?? r.field_variable_id) : "NOT CAPTURED",
+        // The roll-call is what an analyst reads to find a variable, so it is
+        // where the spreadsheet column belongs.
+        (r.field_variable_id ? columns[r.field_variable_id] : "") ?? "",
         r.where,
       ]),
     ),

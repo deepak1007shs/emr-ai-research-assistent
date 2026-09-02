@@ -186,6 +186,13 @@ unlock, elevate, harness, foster, embark, meticulous, intricate, nuanced,
 multifaceted, cutting-edge, game-changer, deep dive, "it is important to note",
 "it is worth noting", "when it comes to", "at the end of the day".
 
+Some of those words have a real clinical or statistical sense, and there they are
+correct and expected: **vital signs**, **vital status**, **vital capacity**,
+**robust variance**, **robust standard errors**, **comprehensive metabolic
+panel**, **pivotal trial**. Write those where they are what the thing is called.
+The rule is about filler, not about terminology.
+
+
 Write the plain clinical word instead: *important* rather than *pivotal*,
 *detailed* rather than *meticulous*, *also* rather than *furthermore*, *use*
 rather than *leverage*.

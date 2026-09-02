@@ -69,6 +69,53 @@ export const AI_VOCABULARY = [
 ] as const;
 
 /**
+ * Terms that contain a banned word and are correct medical or statistical
+ * English.
+ *
+ * Several of the words above have a real clinical sense, and the list was being
+ * applied to both. A form with a vitals section says "Vital signs"; a cohort
+ * study says "vital status at 30 days"; a modified Poisson model reports
+ * "robust variance". The application was telling the model to lay out vital
+ * signs in one file and never to write "vital" in another, and its own check
+ * would have failed the correct document.
+ *
+ * A phrase belongs here when a statistician or a clinician would write it.
+ * Nothing here is a way to smuggle filler past the check: "vital" alone is
+ * still filler, and still caught.
+ */
+export const ALLOWED_TERMS = [
+  "robust variance",
+  "robust standard error",
+  "robust standard errors",
+  "robust sandwich",
+  "robust estimator",
+  "robust regression",
+  "vital signs",
+  "vital status",
+  "vital capacity",
+  "comprehensive metabolic panel",
+  "comprehensive geriatric assessment",
+  "pivotal trial",
+  "pivotal study",
+  "foster care",
+] as const;
+
+/**
+ * The banned words a text actually uses, correct terminology excused.
+ *
+ * One function, so the check the model is held to and the check the documents
+ * are held to cannot drift apart. They already had: the test carried an
+ * exception for "robust variance" that the instruction to the model did not.
+ */
+export function bannedWordsIn(text: string): string[] {
+  let scrubbed = text;
+  for (const term of ALLOWED_TERMS) {
+    scrubbed = scrubbed.replace(new RegExp(term, "gi"), " ");
+  }
+  return AI_VOCABULARY.filter((word) => new RegExp(`\\b${word}\\b`, "i").test(scrubbed));
+}
+
+/**
  * Re-exported so every renderer keeps importing the house style from one
  * place. The implementation lives in plain.ts, which does not import `docx`.
  */
