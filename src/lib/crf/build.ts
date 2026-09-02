@@ -11,6 +11,7 @@ import type { CrfField, CrfSection, CrfSpec } from "./types.ts";
 import type { RequiredField } from "./required.ts";
 import { requiredDerived, requiredFields, requiredVisits } from "./required.ts";
 import { validateCrf } from "./validate.ts";
+import { assignColumnNames } from "./columns.ts";
 
 /**
  * Builds the case report form from the protocol and the analysis plan.
@@ -50,6 +51,11 @@ const FIELD = obj({
     ...str,
     description:
       "Always fill this in: it is what prints on the form. When variable_id names a variable in the plan, the plan's wording replaces it, so the two documents cannot disagree.",
+  },
+  column_name: {
+    ...str,
+    description:
+      "The column this field becomes in the datasheet: age_yrs, sex, dm, asa_grade, op_duration_min, hb_gdl. Lower case, no spaces, under twenty characters, carrying the unit where the unit matters (hb_gdl, not hb). Every field needs one and no two fields may share one, because this is what the analyst matches the spreadsheet against.",
   },
   type: {
     type: "string",
@@ -352,6 +358,7 @@ cannot be analysed.`,
       options: f.options?.length ? f.options : undefined,
       unit: f.unit?.trim() || undefined,
       note: f.note?.trim() || undefined,
+      column_name: f.column_name?.trim() || undefined,
       // An empty list means one respondent, which is the ordinary case, and the
       // field then prints exactly as it always has.
       respondents: f.respondents?.length ? f.respondents : undefined,
@@ -390,6 +397,12 @@ cannot be analysed.`,
   if (extra.sections.length) {
     spec.sections = mergeSections(spec.sections, extra.sections);
   }
+
+  // After the repair pass, so a field added there is named too, and so
+  // uniqueness holds across the finished form rather than across half of it.
+  const named = assignColumnNames(spec);
+  spec.identifiers = named.identifiers;
+  spec.sections = named.sections;
 
   const { findings } = validateCrf(spec, sap);
 

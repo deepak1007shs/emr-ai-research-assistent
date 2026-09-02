@@ -27,9 +27,35 @@ export type TableRole =
   /* ---- the tables every comparative study reports ---- */
   /** Who was in the study. The baseline table. */
   | "descriptive"
-  /** The outcome by group, with the denominators the effect is computed from. */
+  /**
+   * One outcome, whole. The groups across the top, the outcome down the side,
+   * and the estimates and the p value in the same row as the counts they were
+   * computed from.
+   *
+   * This replaced three tables. A study used to report its primary outcome as a
+   * whole-cohort count, then the same count split by group, then a third table
+   * of estimates - and a reader had to hold all three open to learn one thing.
+   * The whole-cohort count is now the Total column and the estimates are the
+   * right-hand columns.
+   */
+  | "outcome"
+  /**
+   * Candidate predictors down the side, the outcome's groups across the top.
+   *
+   * The other way round from `outcome`, and which way round is right is decided
+   * by the question. "Does acquisition group change mortality?" groups by the
+   * exposure and puts the outcome in the rows. "What predicts infection?"
+   * groups by the outcome and puts every candidate predictor in the rows, which
+   * is one table of twenty-six rows rather than twenty-six tables.
+   *
+   * Split by data type, because the cell and the test both differ: a
+   * categorical predictor is counted and tested by chi-square, a numerical one
+   * is summarised and tested by t-test or Mann-Whitney.
+   */
+  | "predictors"
+  /** The outcome by group. Superseded by `outcome`; kept for stored documents. */
   | "summary"
-  /** The effect before adjustment. Rows are estimates. */
+  /** The effect before adjustment. Superseded by `outcome`. */
   | "effect_unadjusted"
   /** The effect with confounders held constant. */
   | "effect_adjusted"
@@ -197,11 +223,39 @@ export type ShellTable = {
    * declared.
    */
   models?: TableModel[];
+  /**
+   * What separates this table from another of the same role under the same
+   * objective, where the role is too coarse to say.
+   *
+   * Two predictor tables report the same outcome for the same objective and are
+   * not the same job: one counts categorical variables and tests them by
+   * chi-square, the other summarises numerical ones and tests them by t-test or
+   * Mann-Whitney. The guard against reporting one thing twice reads this rather
+   * than being loosened to let them both through.
+   */
+  job?: string;
   /** The full title, including the denominator: "... by CR-POPF status (n = 30)". */
   title: string;
   /** The column headers, exactly as they will print. */
   columns: string[];
   rows: TableRow[];
+  /**
+   * How each cell is filled: "n (%) of each group", "mean +/- SD".
+   *
+   * The document says what belongs in a table rather than drawing an empty
+   * grid, and a grid carries this in its column headers where prose cannot. A
+   * table that says its columns are the two arms has still not said whether
+   * they hold a count, a percentage or a mean.
+   */
+  reported_as?: string;
+  /**
+   * What is done when a value is not there, decided now.
+   *
+   * The house blueprint puts this under every table, and the reason it gives is
+   * the right one: fixed before the data are looked at, the handling of missing
+   * values is a planning decision rather than a reaction to the results.
+   */
+  if_missing?: string;
   /** "Footnote: test used = Pearson chi-square test." Printed under the table. */
   test_applied?: string;
   footnote?: string;
@@ -234,6 +288,24 @@ export type ShellTablesSpec = {
    */
   multiplicity?: string;
   missing_data?: string;
+  /**
+   * The conventions that hold for every table, printed once at the front.
+   *
+   * Copied from the analysis plan by code, so the blueprint cannot state a rule
+   * the plan does not, together with the house rules about what a table may and
+   * may not carry. A convention repeated beneath twenty tables is how a reader
+   * learns to skip what is beneath a table.
+   */
+  rules?: string[];
+  /**
+   * Variable id to the column it becomes in the datasheet, copied from the case
+   * record form.
+   *
+   * Printed beside the label in each table's Rows line, so the analyst does not
+   * have to guess which spreadsheet column a row means. Absent where the form
+   * was not built, and then the rows read as labels alone.
+   */
+  columns?: Record<string, string>;
   tables: ShellTable[];
 };
 

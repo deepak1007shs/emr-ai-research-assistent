@@ -81,6 +81,11 @@ function FieldTable({
             {field.primary_outcome && (
               <span className="font-normal text-muted"> (primary outcome)</span>
             )}
+            {/* The datasheet column, matching what the blueprint calls this
+                row and what the spreadsheet header will say. */}
+            {field.column_name && (
+              <span className="font-mono font-normal text-muted"> [{field.column_name}]</span>
+            )}
             {field.note && <span className="block font-normal text-muted">{plain(field.note)}</span>}
           </Td>
           <Td>{field.type}</Td>

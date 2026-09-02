@@ -75,8 +75,8 @@ describe("the catalogue", () => {
   it("falls back to the generic row for a plan that never classified itself", () => {
     const rule = designRule(undefined);
     expect(rule.design).toBe("any");
-    expect(rule.roles).toContain("summary");
-    expect(rule.roles).toContain("effect_unadjusted");
+    expect(rule.roles).toContain("outcome");
+    expect(rule.roles).toContain("effect_adjusted");
   });
 
   it("forbids a p value on the baseline table of every randomised design", () => {

@@ -1,16 +1,16 @@
 import type { ShellTable, ShellTablesSpec, TableBlock } from "@/lib/tables/types";
 import { line, plain } from "@/lib/render/plain";
 import { slotTitle } from "@/lib/tables/slots";
+import { contents, describe } from "@/lib/tables/describe";
 import { AlertTriangleIcon } from "./icons";
-import { DocTable, DocumentShell, Note, Td } from "./document-shell";
+import { DocumentShell, Note } from "./document-shell";
 
 /**
- * The shell tables, on screen.
+ * The table plan, on screen.
  *
- * Mirrors tables-docx.ts: the four blocks in order, each table with the columns
- * and the row order the filled table will carry, and the cells empty. The empty
- * cells are the point, so they are drawn rather than collapsed away, and set
- * faint so a reader can see at a glance that nothing has been filled in.
+ * Mirrors tables-docx.ts: the contents list, then the four blocks in order,
+ * each table said in words rather than drawn. It used to draw the grids with
+ * their cells empty, which said nothing about what belonged in them.
  *
  * Each table carries an anchor, so a finding in the review rail can send you to
  * the table it is about.
@@ -34,14 +34,16 @@ export function TablesPreview({
   flagged?: Set<number>;
 }) {
   const labelOf = (id: string, fallback: string) => spec.labels?.[id] ?? fallback ?? id;
+  const columnOf = (id: string) => spec.columns?.[id];
   const ordered = [...(spec.tables ?? [])].sort((a, b) => a.number - b.number);
 
   return (
     <DocumentShell
-      kind="Section 6 - Shell Tables"
+      kind="Section 6 - Analysis Blueprint"
       title={plain(spec.title)}
-      subtitle="Every table the study will report, with the cells empty. The columns and the row order are what the filled tables will carry, so nothing is left to decide once the data arrive."
+      subtitle="Every table the study will report: what each one is called, what is on each axis, and what will be reported in it. Fixed before the data arrive, so nothing about the layout is decided once they have."
     >
+      <Contents spec={spec} />
       {BLOCK_ORDER.map((block) => {
         const inBlock = ordered.filter((t) => t.block === block);
         if (!inBlock.length) return null;
@@ -69,6 +71,7 @@ export function TablesPreview({
                 key={table.number}
                 table={table}
                 labelOf={labelOf}
+                columnOf={columnOf}
                 flagged={flagged.has(table.number)}
               />
             ))}
@@ -79,34 +82,52 @@ export function TablesPreview({
   );
 }
 
-/**
- * Everything printed under a table, in one voice.
- *
- * Mirrors `tables-docx.ts`: the test is part of the footnote rather than a line
- * of its own, which is how the reference plans print it.
- */
-function footnote(table: ShellTable): string {
-  return [
-    table.test_applied ? `test used = ${table.test_applied.replace(/\.$/, "")}` : "",
-    table.footnote,
-  ]
-    .filter(Boolean)
-    .join(". ");
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="mt-1.5 flex gap-3 text-sm">
+      <dt className="w-36 shrink-0 font-semibold text-ink">{label}</dt>
+      <dd className="min-w-0 text-ink">{children}</dd>
+    </div>
+  );
+}
+
+/** "This study reports 14 tables", before any of them. */
+function Contents({ spec }: { spec: ShellTablesSpec }) {
+  const list = contents(spec);
+  return (
+    <section className="mb-10">
+      <h2 className="mb-3 text-base font-bold text-ink">
+        Contents: {list.length} table{list.length === 1 ? "" : "s"}
+      </h2>
+      <ol className="space-y-1 text-sm">
+        {list.map((entry) => (
+          <li key={entry.number}>
+            <a href={`#table-${entry.number}`} className="hover:text-brand">
+              <span className="font-semibold">Table {entry.number}.</span> {line(entry.title)}
+              {entry.slot && <span className="text-muted"> [{entry.slot}]</span>}
+            </a>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
 }
 
 function ShellTableBlock({
   table,
   labelOf,
+  columnOf,
   flagged,
 }: {
   table: ShellTable;
   labelOf: (id: string, fallback: string) => string;
+  columnOf: (id: string) => string | undefined;
   flagged: boolean;
 }) {
-  const width = (table.columns ?? []).length;
+  const said = describe(table, labelOf, columnOf);
 
   return (
-    <div id={`table-${table.number}`} className="mb-10 scroll-mt-5">
+    <div id={`table-${table.number}`} className="mb-8 scroll-mt-5">
       {/* Review chrome, not part of the document: it marks a table the rail
           has something to say about, and does not print. */}
       {flagged && (
@@ -125,37 +146,13 @@ function ShellTableBlock({
         Table {table.number}: {line(table.title)}
       </h4>
 
-      <div className="mt-3">
-        <DocTable headers={table.columns ?? []}>
-          {(table.rows ?? []).map((row, i) => {
-            const label = row.variable_id ? labelOf(row.variable_id, row.label) : row.label;
-
-            if (row.heading) {
-              // A variable heading spans the table; its categories carry the numbers.
-              return (
-                <tr key={i}>
-                  <Td bold span={width}>
-                    {line(label)}
-                  </Td>
-                </tr>
-              );
-            }
-
-            return (
-              <tr key={i}>
-                <Td indent={row.indent}>{line(label)}</Td>
-                {/* Empty on purpose. This is a shell, not a result. */}
-                {/* Empty on purpose. This is a shell, not a result. */}
-                {Array.from({ length: width - 1 }, (_, c) => (
-                  <Td key={c} centre />
-                ))}
-              </tr>
-            );
-          })}
-        </DocTable>
-      </div>
-
-      {footnote(table) && <Note>Footnote: {plain(footnote(table))}</Note>}
+      <dl className="mt-2">
+        <Field label="Rows (X)">{line(said.rows)}</Field>
+        <Field label="Columns (Y)">{line(said.columns)}</Field>
+        {said.reported && <Field label="Cell shows">{line(said.reported)}</Field>}
+        {said.analysis && <Field label="Test applied">{plain(said.analysis)}</Field>}
+        {said.missing && <Field label="If data are missing">{plain(said.missing)}</Field>}
+      </dl>
     </div>
   );
 }

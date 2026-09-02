@@ -12,9 +12,8 @@ in, and so a missing slot can be noticed.
 **Columns.**
 
 - `slot` - the label. `A0` is the participant-flow table and `A1` to `A7` the
-  descriptive ones, `B1` to `B6` the
-  primary outcome's block, `C` and `D` the patterns for the secondary and
-  exploratory blocks, which are numbered to their objective at build time:
+  descriptive ones, `B1` to `B3` the primary outcome's block, `C` and `D` the
+  patterns for the secondary and exploratory blocks, which are numbered to their objective at build time:
   `C1.1` is the first table of the first secondary objective, `D2` the second
   exploratory table.
 - `block` - which of the four sections it belongs to.
@@ -36,10 +35,8 @@ in, and so a missing slot can be noticed.
 | A5 | descriptive | - | Baseline investigations | Haematology, biochemistry, microbiology, imaging and any other test result recorded at entry. |
 | A6 | descriptive | - | Preoperative and pre-intervention data | What was decided or given before the intervention: preparation, prophylaxis, staging, planned procedure, ASA grade. |
 | A7 | descriptive | - | Intraoperative and procedural data | Operative findings, what was done, duration, blood loss, and anything recorded in theatre. Surgical and procedural studies only. |
-| B1 | primary | distribution | Primary outcome in the whole cohort | How often it happened, or what it measured, before the cohort is split by anything. |
-| B2 | primary | summary | Primary outcome by group | The outcome in each group, with the denominators the effect is computed from. |
-| B4 | primary | effect_unadjusted | Crude effect estimate | The effect before adjustment, with its 95% confidence interval. |
-| B5 | primary | effect_adjusted | Adjusted effect estimate | The same effect with the confounders held constant, which are named under the table. |
-| B6 | primary | sensitivity | Sensitivity analysis for the primary outcome | The primary analysis repeated every other defensible way. |
-| C | secondary | - | Secondary outcome | One block per secondary objective, numbered to it. Each gets its own descriptive and comparative table, and an adjusted one only where the objective is causal. |
+| B1 | primary | outcome | Primary outcome | The outcome itself: the groups across the top, the outcome down the side, and the estimates and the p value beside the counts they were computed from. The Total column is the whole cohort, before it is split. |
+| B2 | primary | effect_adjusted | Adjusted analysis of the primary outcome | The same effect with the confounders held constant. Its own table because its rows are the predictors, not the outcome, and it reports the crude and adjusted estimate side by side. |
+| B3 | primary | sensitivity | Sensitivity analysis for the primary outcome | The primary analysis repeated every other defensible way. Its own table because its rows are the analysis populations. |
+| C | secondary | - | Secondary outcome | One block per secondary objective, numbered to it. Each gets one outcome table, and an adjusted one only where the objective is causal. |
 | D | exploratory | subgroup | Exploratory analysis | Subgroup, interaction and correlation. Hypothesis-generating, not corrected for multiplicity, and never a confirmatory claim. |

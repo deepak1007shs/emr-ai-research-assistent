@@ -7,6 +7,9 @@ import { EFFORT, MODEL } from "../protocol/analyze.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { SapSpec } from "../sap/types.ts";
 import type { CrfSpec } from "../crf/types.ts";
+import { columnsByVariable } from "../crf/columns.ts";
+import type { ExtractedProtocol } from "../protocol/extract.ts";
+import { checkTableCoverage } from "./coverage.ts";
 import type { Finding } from "../sap/validate.ts";
 import type { ShellTable, ShellTablesSpec } from "./types.ts";
 import { buildAnalyticTables, mergeTables } from "./blocks.ts";
@@ -75,6 +78,32 @@ function obj<T extends Record<string, unknown>>(properties: T, description?: str
 }
 
 export const TABLES_JSON_SCHEMA = obj({
+  outcome_categories: {
+    type: "array",
+    description:
+      "The categories of every categorical outcome in the analysis plan, in the order they should print. A binary outcome needs no entry unless its two levels are worth naming. Leave the array empty where no outcome is categorical. These become the rows of that outcome's table; you do not draw that table.",
+    items: obj({
+      outcome_id: { ...str, description: "The outcome's id, from the analysis plan." },
+      categories: {
+        ...strArray,
+        description:
+          "Every level the outcome can take, e.g. E. coli, K. pneumoniae, P. aeruginosa, Other. Clinical wording, not codes.",
+      },
+    }),
+  },
+  outcome_timepoints: {
+    type: "array",
+    description:
+      "The time points every repeated measure was recorded at, in order. These become the rows of that outcome's table, with the groups across the top, which is the table a mixed model is read from. Leave the array empty where nothing is measured more than once. The plan records the timing as prose, so this is the only place the points exist as a list.",
+    items: obj({
+      outcome_id: { ...str, description: "The outcome's id, from the analysis plan." },
+      timepoints: {
+        ...strArray,
+        description:
+          "Each point as it will print: Baseline, 5 minutes, 10 minutes, 15 minutes. Where the protocol gives a rule rather than a list, write the points the rule produces.",
+      },
+    }),
+  },
   groups: {
     ...strArray,
     description:
@@ -83,15 +112,15 @@ export const TABLES_JSON_SCHEMA = obj({
   tables: {
     type: "array",
     description:
-      "Only the descriptive, distribution and repeated-measure tables. The analytic tables are built from the plan and are not yours to write. Number yours from 1 in the order you print them; they are renumbered once both halves are merged.",
+      "Only the descriptive and repeated-measure tables. Every table that reports an outcome is built from the plan and is not yours to write. Number yours from 1 in the order you print them; they are renumbered once both halves are merged.",
     items: obj({
       number: { type: "integer" },
       block: { type: "string", enum: ["descriptive", "primary", "secondary", "exploratory"] },
       role: {
         type: "string",
-        enum: ["descriptive", "distribution", "repeated"],
+        enum: ["descriptive", "repeated"],
         description:
-          "descriptive for a baseline table, distribution for one outcome's categories, repeated for a measure recorded at several time points.",
+          "descriptive for a baseline table, repeated for a measure recorded at several time points.",
       },
       slot: {
         type: "string",
@@ -107,7 +136,7 @@ export const TABLES_JSON_SCHEMA = obj({
       fills: {
         ...strArray,
         description:
-          "The objective ids this table reports. Set it on a distribution or repeated table so the plan knows where its analysis is printed. Empty for a descriptive table.",
+          "The objective ids this table reports. Set it on a repeated table so the plan knows where its analysis is printed. Empty for a descriptive table.",
       },
       title: {
         ...str,
@@ -149,25 +178,36 @@ export const TABLES_JSON_SCHEMA = obj({
           "The test, copied from the analysis plan. Required wherever the table carries a p-value column. Never choose one yourself. Empty for a purely descriptive one.",
       },
       footnote: { ...str, description: "Reference categories, or what the denominator is. Empty when not needed." },
+      if_missing: {
+        ...str,
+        description:
+          "What is done for THIS table when a value is not there, decided now rather than when the data arrive. Be specific to the variables in this table: which are structural blanks that leave the denominator rather than counting as missing, which are derived and left missing when an input is, which are expected to exceed 20% missing and are therefore described but not modelled. Where nothing particular applies, say the reduced n is written next to the variable name.",
+      },
     }),
   },
 });
 
 const ROLE = `You are a senior medical statistician laying out the tables a thesis will report.
 
-You are writing shell tables: the same tables the results will fill, but with the
-cells empty. Everything a filled table carries must be decided now - the columns,
-the row order, the denominator in the title, the test named underneath - so that
-when the data arrive nothing is left to choose.
+You are writing the table plan: what every table the study reports is called,
+what is on each of its axes, and what will be reported in it. Everything a
+filled table carries must be decided now - the columns, the row order, the
+denominator in the title, the test named underneath - so that when the data
+arrive nothing is left to choose.
 
-You lay out one half of the document. The analytic tables, which report each
-outcome's incidence, its crude and adjusted effect, its subgroups and its
-sensitivity analyses, are built from the analysis plan by rule and are already
-written. Do not write them, do not number against them, and do not duplicate
-them. Your half is the descriptive tables, the category distributions, and any
-measure recorded at several time points, because those need what the plan cannot
-supply: a judgement about which baseline variables matter and what the time
-points were.
+You lay out one half of the document. Every table that reports an outcome is
+built from the analysis plan by rule and is already written: one table per
+outcome, with the groups across the top, the outcome down the side, and the
+estimates and the p value beside the counts they were computed from. Do not
+write them, do not number against them, and do not duplicate them. Your half is
+the descriptive tables and any measure recorded at several time points, because
+those need what the plan cannot supply: a judgement about which baseline
+variables matter and what the time points were.
+
+You also supply the categories of each categorical outcome. Those become the
+rows of that outcome's table, which code then builds. The plan records them only
+as prose - "Binary (dead/alive), reported as a percentage per group" - which
+cannot be read as a list, so this is the one place they exist properly.
 
 The baseline table comes first and describes who was in the study, by group, with
 no significance testing implied beyond the p-value column.
@@ -181,8 +221,51 @@ every analysis row, together with what it ruled out and why; copy it.
 
 Every title ends with its denominator in brackets.
 
+Every table also says what will be done when a value is not there. Decide it now,
+for the variables in that table, and be specific: a field that only applies to
+some patients is a structural blank and leaves the denominator rather than
+counting as missing; a derived value is left missing when an input is missing
+rather than estimated from the other; a variable expected to exceed twenty per
+cent missing is described but not modelled. Handling decided after the data are
+seen is a reaction to the results, and reads as one.
+
+Name every table the same way: the statistic, then what is being described, then
+the population or the grouping variable. "Distribution of comorbid conditions
+among the study population (n = 120)". Never name a table after a statistical
+test, and never begin one with "Table showing".
+
 Keep the tables simple to read. A table a supervisor cannot follow at a glance
 will be redrawn by hand, and then it no longer matches the plan.`;
+
+/**
+ * The conventions that hold for every table in the document.
+ *
+ * The first four are the plan's own, copied rather than restated, so the
+ * blueprint cannot fix a convention the plan did not. The rest are the house
+ * rules about what a table may carry, which are the same in every study and
+ * which an examiner checks: a p value where nothing is being compared, or a
+ * "Test" column inside a table, are both marks against a thesis.
+ */
+function houseRules(sap: SapSpec): string[] {
+  const rules = [
+    sap.rules?.normality,
+    sap.rules?.continuous_summary,
+    sap.rules?.categorical_summary,
+    sap.rules?.significance,
+    sap.rules?.effect_estimates,
+  ]
+    .map((r) => r?.trim())
+    .filter((r): r is string => Boolean(r));
+
+  rules.push(
+    "The denominator is written next to the variable name, not as a separate column and not as a footnote.",
+    "Descriptive tables carry no p value. A p value appears only where two or more groups are being compared.",
+    "There is no Test column inside any table. The test is stated once, under the table.",
+    "Category order is fixed through the document: Yes before No, Male before Female.",
+    "Where an expected cell count falls below 5, Fisher exact replaces the chi-square test, or adjacent categories are merged and the merge is stated under the table.",
+  );
+  return rules;
+}
 
 export type TablesResult = {
   spec: ShellTablesSpec;
@@ -194,6 +277,11 @@ export type TablesResult = {
 export async function buildTablesSpec(
   sap: SapSpec,
   crf: CrfSpec | null,
+  /**
+   * The protocol, for the read back at the end. Optional so a caller with no
+   * stored file still gets its tables, one check short.
+   */
+  protocol: ExtractedProtocol | null = null,
   options: {
     answers?: string | null;
     onProgress?: (note: string) => void;
@@ -281,10 +369,15 @@ ${descriptiveSlots()
       .map((slot) => `- ${slot.slot} ${slot.title}: ${slot.holds}`)
       .join("\n")}
 
-Then a distribution table wherever one outcome's categories deserve a table of
-their own, and a repeated table wherever a measure was recorded at several time
-points, with the time points as rows. Nothing else: the incidence, effect,
-subgroup and sensitivity tables are already built from the plan.`,
+Then a repeated table wherever a measure was recorded at several time points,
+with the time points as rows. Nothing else: every table that reports an outcome
+is already built from the plan.
+
+Separately, list the categories of every categorical outcome under
+outcome_categories, and the time points of every repeated measure under
+outcome_timepoints. Those become the rows of that outcome's table. This is the
+only place either exists as a list, because the plan records both as prose, so
+an outcome left out here is an outcome whose table has one unnamed row.`,
   });
 
   options.onProgress?.("Laying out the tables");
@@ -330,12 +423,37 @@ subgroup and sensitivity tables are already built from the plan.`,
     .map((b) => b.text)
     .join("");
 
-  const raw = JSON.parse(text) as ShellTablesSpec;
+  const raw = JSON.parse(text) as ShellTablesSpec & {
+    outcome_categories?: { outcome_id: string; categories: string[] }[];
+    outcome_timepoints?: { outcome_id: string; timepoints: string[] }[];
+  };
+
+  // The categories of each categorical outcome, which become the rows of its
+  // table. Code builds the table; the model only says what the levels are.
+  const categories = new Map<string, string[]>();
+  for (const entry of raw.outcome_categories ?? []) {
+    const id = entry.outcome_id?.trim();
+    const levels = (entry.categories ?? []).map((c) => c.trim()).filter(Boolean);
+    if (id && levels.length > 1) categories.set(id, levels);
+  }
+
+  // The rows of a repeated measure's table. Same reason as the categories: the
+  // plan records the timing as prose, and "every 5 minutes during each phase of
+  // each session" is not a list of rows.
+  const timepoints = new Map<string, string[]>();
+  for (const entry of raw.outcome_timepoints ?? []) {
+    const id = entry.outcome_id?.trim();
+    const points = (entry.timepoints ?? []).map((t) => t.trim()).filter(Boolean);
+    if (id && points.length > 1) timepoints.set(id, points);
+  }
 
   // The wording is copied from the plan's registry rather than retyped.
   const labels: Record<string, string> = {};
   for (const v of sap.variables ?? []) labels[v.id] = v.label;
   for (const o of sap.outcomes ?? []) labels[o.id] = o.what;
+  // The objectives too, so the coverage check at the end of the document can
+  // name what each table answers instead of printing "P1" at a reader.
+  for (const o of sap.objectives ?? []) labels[o.id] = o.question;
 
   const described: ShellTable[] = (raw.tables ?? []).map((t) => ({
     ...t,
@@ -344,6 +462,7 @@ subgroup and sensitivity tables are already built from the plan.`,
     fills: t.fills?.length ? t.fills : undefined,
     test_applied: t.test_applied?.trim() || undefined,
     footnote: t.footnote?.trim() || undefined,
+    if_missing: t.if_missing?.trim() || undefined,
     rows: (t.rows ?? []).map((r) => ({
       variable_id: r.variable_id?.trim() || undefined,
       label: r.label,
@@ -353,31 +472,62 @@ subgroup and sensitivity tables are already built from the plan.`,
     })),
   }));
 
+  // Absorbed into the outcome tables above; it is not part of the document.
+  const rest = { ...raw };
+  delete (rest as Record<string, unknown>).outcome_categories;
+  delete (rest as Record<string, unknown>).outcome_timepoints;
   const spec: ShellTablesSpec = {
-    ...raw,
+    ...rest,
     title: sap.title,
     labels,
     // Printed once under the block they govern. Copied by code, like the
     // labels, so the tables cannot state a rule the plan does not.
     multiplicity: sap.rules?.multiplicity?.trim() || undefined,
     missing_data: sap.rules?.missing_data?.trim() || undefined,
+    rules: houseRules(sap),
+    // The names the form gave them, so a row of this document and a column of
+    // the spreadsheet are matched by name rather than by eye.
+    columns: crf ? columnsByVariable(crf) : undefined,
     tables: assignSlots(
-      mergeTables(described, buildAnalyticTables(sap, raw.groups ?? []), sap),
+      mergeTables(described, buildAnalyticTables(sap, raw.groups ?? [], categories, timepoints), sap),
       (sap.objectives ?? []).map((o) => o.id),
     ),
   };
 
   const { findings } = validateTables(spec, sap);
 
+  // The document's own coverage check runs both directions between objectives
+  // and tables, and code does that in full. This is the direction code cannot
+  // do: what the protocol promised to report that never became an objective at
+  // all. Caught, so a failure here never loses the tables.
+  let coverage: Awaited<ReturnType<typeof checkTableCoverage>> | null = null;
+  if (protocol) {
+    try {
+      coverage = await checkTableCoverage(protocol, spec, {
+        onProgress: options.onProgress,
+        onUsage: options.onUsage,
+      });
+    } catch {
+      options.onProgress?.(
+        "The tables are laid out. The protocol could not be read back against them.",
+      );
+    }
+  }
+
+  const usage = {
+    input_tokens: message.usage.input_tokens + (coverage?.usage.input_tokens ?? 0),
+    output_tokens: message.usage.output_tokens + (coverage?.usage.output_tokens ?? 0),
+    cache_creation_input_tokens:
+      (message.usage.cache_creation_input_tokens ?? 0) +
+      (coverage?.usage.cache_creation_input_tokens ?? 0),
+    cache_read_input_tokens:
+      (message.usage.cache_read_input_tokens ?? 0) + (coverage?.usage.cache_read_input_tokens ?? 0),
+  };
+
   return {
     spec,
-    findings,
+    findings: [...findings, ...(coverage?.findings ?? [])],
     model: message.model,
-    usage: {
-      input_tokens: message.usage.input_tokens,
-      output_tokens: message.usage.output_tokens,
-      cache_creation_input_tokens: message.usage.cache_creation_input_tokens ?? 0,
-      cache_read_input_tokens: message.usage.cache_read_input_tokens ?? 0,
-    },
+    usage,
   };
 }

@@ -7,14 +7,15 @@ import { designRule } from "./design-tables.ts";
 /**
  * The analytic tables, laid out from the plan rather than asked for.
  *
- * One outcome is not one table. A primary outcome is reported by a block: the
- * incidence with its denominators, the crude effect, the same effect with
- * confounders held constant, the effect within subgroups, and the same question
- * analysed other defensible ways. Every one of those shapes is a consequence of
- * the analysis row, and every ingredient is already in the plan, so none of it
- * is a judgement a model should be making. It used to be, and the result was a
- * single one-row table naming an odds ratio for a common outcome, which is the
- * one estimate the rule table says to avoid.
+ * One outcome is one table: the groups across the top, the outcome down the
+ * side, and the estimates and the p value beside the counts they were computed
+ * from. Beside it sit the tables whose rows are something else entirely - the
+ * adjusted model, whose rows are the confounders; the subgroup table, whose
+ * rows are the subgroups; the sensitivity table, whose rows are the analysis
+ * populations. Every one of those shapes is a consequence of the analysis row
+ * and not a judgement a model should be making. It used to be, and the result
+ * was a single one-row table naming an odds ratio for a common outcome, which
+ * is the one estimate the rule table says to avoid.
  *
  * What is left to the model is what genuinely needs judgement: which baseline
  * variables belong in the descriptive table, which time points a repeated
@@ -22,7 +23,7 @@ import { designRule } from "./design-tables.ts";
  */
 
 /** The roles this file owns. Everything else is the model's to lay out. */
-const ANALYTIC = new Set(["summary", "effect_unadjusted", "effect_adjusted", "subgroup", "sensitivity"]);
+const ANALYTIC = new Set(["outcome", "predictors", "effect_adjusted", "subgroup", "sensitivity"]);
 
 export function isAnalyticRole(role: string): boolean {
   return ANALYTIC.has(role);
@@ -38,10 +39,15 @@ export function isAnalyticRole(role: string): boolean {
  */
 export const BUILDABLE: ReadonlySet<TableRole> = ANALYTIC as ReadonlySet<TableRole>;
 
-/** The roles the model lays out, because they need judgement code has not got. */
+/**
+ * The roles the model lays out, because they need judgement code has not got.
+ *
+ * `distribution` left this list when the outcome table absorbed it. The model
+ * still says what a categorical outcome's categories are - that is a fact only
+ * a reader of the protocol has - but it no longer builds a table out of them.
+ */
 const MODEL_AUTHORED: ReadonlySet<TableRole> = new Set<TableRole>([
   "descriptive",
-  "distribution",
   "repeated",
 ]);
 
@@ -152,9 +158,45 @@ function summaryColumns(row: AnalysisRow): string[] {
   }
 }
 
+/**
+ * What is done for this shape of table when a value is not there.
+ *
+ * Fixed before the data are looked at, which is the whole reason the house
+ * blueprint puts it under every table: handling decided afterwards is a
+ * reaction to the results, and reads as one.
+ */
+const IF_MISSING: Partial<Record<TableRole, string>> = {
+  outcome:
+    "A patient in whom the outcome could not be assessed is not counted as not having had it. Such patients are excluded from the denominator, and the reduced denominator is written next to the variable name.",
+  effect_adjusted:
+    "The model is fitted on the population the plan names. Where the plan imputes, the complete case estimate is reported beside the imputed one so the two can be compared.",
+  sensitivity:
+    "This table is where missing data are tested rather than handled. The best case and worst case rows exist to show how far the conclusion could move if every patient lost to follow-up had, or had not, had the outcome.",
+  subgroup:
+    "A subgroup with fewer than five events is described without an estimate, and the cell is left blank rather than filled with an unstable one.",
+  flow: "This table is the account of where everyone went, so nothing in it is missing by definition. A number that cannot be given is a number the study cannot claim.",
+};
+
 export type BlockContext = {
   sap: SapRegistry;
   groups: string[];
+  /**
+   * The categories of each categorical outcome, by outcome id.
+   *
+   * Supplied by the model, because nothing in the plan lists them reliably:
+   * the outcome registry records them as prose, and "Binary (dead/alive),
+   * reported as a percentage per group" split on its slash gave two rows of
+   * nonsense for years.
+   */
+  categories: Map<string, string[]>;
+  /**
+   * The time points each repeated measure was recorded at, by outcome id.
+   *
+   * From the model for the same reason the categories are: the plan records
+   * them as prose, and "every 5 minutes during each phase of each session"
+   * cannot be read as a list of rows.
+   */
+  timepoints: Map<string, string[]>;
 };
 
 function subjectOf(row: AnalysisRow, sap: SapRegistry): string {
@@ -279,6 +321,7 @@ function flowTable(sap: SapRegistry, groups: string[], randomised: boolean): She
     number: 0,
     block: "descriptive",
     role: "flow",
+    if_missing: IF_MISSING.flow,
     title: `Participant flow through the study${denominator(sap)}`,
     columns,
     rows,
@@ -287,163 +330,312 @@ function flowTable(sap: SapRegistry, groups: string[], randomised: boolean): She
   };
 }
 
-/* ---- the five tables ---------------------------------------------- */
+/* ---- the outcome table, and the ones beside it ---------------------- */
 
-function summaryTable(row: AnalysisRow, tier: Tier, ctx: BlockContext): ShellTable | null {
-  // A repeated measure is summarised per time point, and only the plan's author
-  // knows what the time points are. That table is left to the model.
-  if (row.pairing === "repeated") return null;
-  if (row.comparison === "descriptive") return null;
-  if (row.comparison === "correlation" || row.comparison === "agreement") return null;
+/**
+ * What each cell of a group column holds.
+ *
+ * A grid says this in its column headers. This document does not draw grids, so
+ * a table that says its columns are the two arms has still not said whether
+ * they carry a count, a percentage or a mean, and this is the sentence that
+ * does.
+ */
+function reportedAs(row: AnalysisRow): string {
+  // The rule table's own summary line where it has one, so the cell statistic
+  // and the test come from one source rather than being guessed twice. It
+  // states the rule ("mean +/- SD where the distribution allows it, median
+  // (IQR) where it does not") rather than pre-judging, which is what a plan
+  // written before the data arrive can honestly say.
+  const summary = chooseTest(row)?.summary;
+  if (summary) return summary;
 
-  const { sap, groups } = ctx;
-  const outcomes = outcomeIndex(sap);
-  const ids = row.outcome_ids ?? [];
-  const measures = summaryColumns(row);
-  const by = exposurePhrase(row, sap);
-  const subject = subjectOf(row, sap);
-
-  let columns: string[];
-  let rows: TableRow[];
-
-  if (ids.length > 1) {
-    // Several outcomes compared the same way share one table: the outcomes are
-    // the rows, and each group is a column.
-    columns = ["Outcome", ...contrastLevels(row, sap, groups), "P value"];
-    rows = ids.map((id) => ({
-      label: outcomes.get(id)?.what ?? id,
-      kind: "variable" as const,
-    }));
-  } else if (hasContrast(row)) {
-    const levels = contrastLevels(row, sap, groups);
-    columns = ["Group", ...measures];
-    rows = levels.map((level) => ({ label: level, kind: "category" as const }));
-  } else if (groups.length > 1 && row.comparison !== "single_group") {
-    columns = ["Group", ...measures];
-    rows = groups.map((group) => ({ label: group, kind: "category" as const }));
-  } else {
-    columns = ["Measure", ...measures];
-    rows = [{ label: subject, kind: "category" as const }];
+  switch (row.data_type) {
+    case "binary":
+      return "n (%), with the denominator analysed";
+    case "count":
+      return "events over person-time, with the rate";
+    case "time_to_event":
+      return "events / N, with median survival";
+    case "ordinal":
+      return "median (IQR)";
+    case "nominal":
+      return "n (%)";
+    default:
+      return row.skewed ? "median (IQR)" : "mean +/- SD";
   }
+}
 
-  return {
-    number: 0,
-    block: BLOCK_OF[tier],
-    role: "summary",
-    outcome_id: ids.length === 1 ? ids[0] : undefined,
-    fills: row.objective_ids?.length ? [...row.objective_ids] : undefined,
-    title: capitalise(`${subject}${by ? ` by ${by}` : ""}${denominator(sap)}`),
-    columns,
-    rows,
-    test_applied: planOf(row).test,
-    footnote:
-      "The denominator is every patient in the analysis population who had the outcome assessed.",
-  };
+/** True where the outcome can be laid out across group columns. */
+function comparable(row: AnalysisRow): boolean {
+  if (!hasContrast(row)) return false;
+  // A correlation and an agreement have no groups to put across the top. A
+  // repeated measure has: the groups go across and the time points come down,
+  // which is the table a mixed model is read from. It used to be excluded here
+  // and fell out as an estimate with no numbers beside it, which is the shape
+  // this whole change exists to remove.
+  return row.comparison !== "correlation" && row.comparison !== "agreement";
 }
 
 /**
- * The primary outcome before the cohort is split by anything.
+ * A study hunting predictors, rather than comparing two arms.
  *
- * The first thing a reader wants and the last thing a plan remembers: how often
- * it happened, or what it measured, across everyone. Every comparison after it
- * is read against this number, and a document that opens with a group
- * difference has asked the reader to judge a difference before knowing the
- * quantity it is a difference in.
+ * "Does acquisition group change mortality?" and "what predicts infection?" are
+ * both comparisons and they are laid out the other way round from each other.
+ * The first groups by the exposure, so the outcome is the row. The second groups
+ * by the outcome, so every candidate predictor is a row - one table of
+ * twenty-six rows, and not twenty-six tables, which is what this code produced
+ * before it could tell the two apart.
  */
-function distributionTable(row: AnalysisRow, tier: Tier, ctx: BlockContext): ShellTable | null {
-  if (row.comparison === "descriptive") return null;
-  const { sap } = ctx;
-  const ids = row.outcome_ids ?? [];
-  if (ids.length !== 1) return null;
-
-  const outcome = outcomeIndex(sap).get(ids[0]);
-  const subject = subjectOf(row, sap);
-
-  // The outcome's own levels where its coding names them, one row otherwise.
-  const levels = (outcome?.units ?? "")
-    .split("/")
-    .map((level) => level.trim())
-    .filter(Boolean);
-  const categorical = row.data_type === "binary" || row.data_type === "nominal" || row.data_type === "ordinal";
-  const rows: TableRow[] =
-    categorical && levels.length > 1
-      ? levels.map((level) => ({ label: level, kind: "category" as const }))
-      : [{ label: subject, kind: "category" as const }];
-
-  return {
-    number: 0,
-    block: BLOCK_OF[tier],
-    role: "distribution",
-    outcome_id: ids[0],
-    fills: row.objective_ids?.length ? [...row.objective_ids] : undefined,
-    title: capitalise(`${subject} in the whole cohort${denominator(sap)}`),
-    columns: ["Category", ...summaryColumns(row)],
-    rows,
-    test_applied: planOf(row).test,
-    footnote:
-      "The whole cohort, before it is split by anything. Every comparison that follows is read against this.",
-  };
+function isPredictorHunt(row: AnalysisRow): boolean {
+  return row.comparison === "association" || (row.exposure_ids ?? []).length > 1;
 }
 
-function unadjustedTable(row: AnalysisRow, tier: Tier, ctx: BlockContext): ShellTable | null {
-  const plan = planOf(row);
-  const measures = plan.measures;
-  if (!measures.length) return null;
-  if (row.comparison === "descriptive") return null;
-  // A single proportion or a single mean is estimated by the summary table
-  // itself. A second table repeating one number is padding.
-  if (!hasContrast(row)) return null;
+/** The groups a predictor table compares across: the outcome's own levels. */
+function outcomeLevels(row: AnalysisRow, ctx: BlockContext): string[] {
+  const ids = row.outcome_ids ?? [];
+  if (ids.length !== 1) return [];
+  const named = ctx.categories.get(ids[0]) ?? [];
+  if (named.length > 1) return named;
+  // A binary outcome the model did not name the levels of. The outcome itself
+  // is in the title, so the columns need only say which side of it they are.
+  return row.data_type === "binary" ? ["Present", "Absent"] : [];
+}
 
-  const { sap, groups } = ctx;
+/**
+ * Candidate predictors down the side, split by what kind of thing they are.
+ *
+ * Two tables and not one, because the cell and the test both differ: a
+ * categorical predictor is counted and tested by chi-square, a numerical one is
+ * summarised and tested by t-test or Mann-Whitney. Putting them in one table
+ * would mean one column meaning two things and one footnote naming two tests.
+ */
+function predictorTables(row: AnalysisRow, tier: Tier, ctx: BlockContext): ShellTable[] {
+  const { sap } = ctx;
+  const variables = variableIndex(sap);
+  const subject = subjectOf(row, sap);
+  const levels = outcomeLevels(row, ctx);
+  const plan = planOf(row);
+  const crude = plan.measures[0] ?? "Effect estimate";
+
+  const CATEGORICAL = new Set(["binary", "nominal", "ordinal"]);
+  const split = {
+    categorical: [] as string[],
+    numerical: [] as string[],
+  };
+  for (const id of row.exposure_ids ?? []) {
+    const type = variables.get(id)?.data_type;
+    if (!type) continue;
+    (CATEGORICAL.has(type) ? split.categorical : split.numerical).push(id);
+  }
+
+  const out: ShellTable[] = [];
+  const shapes = [
+    {
+      job: "categorical",
+      ids: split.categorical,
+      // The rule table decides the test, from a row describing what this table
+      // actually compares rather than what the whole analysis does.
+      probe: { ...row, data_type: "binary" as const, comparison: "two_groups" as const },
+      title: `Association between categorical variables and ${midSentence(subject)}${denominator(sap)}`,
+      cell: "n (%) within each outcome group, the percentage taken out of that group's total",
+    },
+    {
+      job: "numerical",
+      ids: split.numerical,
+      probe: { ...row, data_type: "continuous" as const, comparison: "two_groups" as const },
+      title: `Comparison of numerical variables between patients with and without ${midSentence(subject)}${denominator(sap)}`,
+      cell: row.skewed
+        ? "median (IQR), the same statistic used for both groups within a row"
+        : "mean +/- SD where the distribution allows it, median (IQR) where it does not, the same statistic used for both groups within a row",
+    },
+  ];
+
+  for (const shape of shapes) {
+    if (!shape.ids.length) continue;
+    const chosen = chooseTest(shape.probe);
+    out.push({
+      number: 0,
+      block: BLOCK_OF[tier],
+      role: "predictors",
+      // The predictors themselves as well as the split, for the same reason an
+      // outcome table carries its exposure: one objective can hunt predictors
+      // of one outcome in two different sets, and those are two tables.
+      job: `${(row.exposure_ids ?? []).join("+")}:${shape.job}`,
+      outcome_id: (row.outcome_ids ?? []).length === 1 ? row.outcome_ids[0] : undefined,
+      fills: row.objective_ids?.length ? [...row.objective_ids] : undefined,
+      title: capitalise(shape.title),
+      columns: ["Variable", ...levels, `Crude ${lower(crude)} (95% CI)`, "P value"],
+      rows: shape.ids.map((id) => ({
+        variable_id: variables.has(id) ? id : undefined,
+        label: variables.get(id)?.label ?? id,
+        kind: "variable" as const,
+      })),
+      reported_as: shape.cell,
+      test_applied: chosen?.unadjusted ?? plan.test,
+      if_missing:
+        "Complete case for this table, with the reduced n written next to each variable name. A variable exceeding twenty per cent missing is described in Section A only and is not carried into the adjusted model.",
+      footnote: [
+        "One crude estimate per row, from a model containing that variable alone. No variable is dropped here on the strength of its p value.",
+        plan.avoid ? `Not to be reported here: ${lower(plan.avoid)}.` : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
+    });
+  }
+
+  return out;
+}
+
+/**
+ * One outcome, whole.
+ *
+ * This replaced three tables. A study used to report its primary outcome as a
+ * whole-cohort count, then the same count split by group, then a third table of
+ * estimates - so a reader had to hold three tables open to learn one thing, and
+ * the estimates sat a page away from the counts they were computed from. The
+ * whole-cohort count is now the Total column, the estimates are the right-hand
+ * columns, and the outcome is the row.
+ */
+function outcomeTable(row: AnalysisRow, tier: Tier, ctx: BlockContext): ShellTable {
+  // A descriptive analysis has nothing to compare and still has something to
+  // report. It used to return null here, inherited from the days when a
+  // separate distribution table covered it; nothing covered it afterwards, and
+  // the objective simply went unreported.
+  const { sap, groups, categories, timepoints } = ctx;
   const outcomes = outcomeIndex(sap);
   const ids = row.outcome_ids ?? [];
+  const plan = planOf(row);
+  const measures = plan.measures;
   const by = exposurePhrase(row, sap);
   const subject = subjectOf(row, sap);
   const withP = row.comparison !== "agreement";
 
-  // Naming the contrast on the row is what makes the sign of the estimate
-  // readable: a risk ratio of 0.6 means nothing until it says which way round.
-  const levels = contrastLevels(row, sap, groups);
-  const contrast = levels.length === 2 ? ` (${levels[0]} vs ${levels[1]})` : "";
+  const estimates = measures.map((m) => `${m} (95% CI)`);
+  const title = capitalise(`${subject}${by ? ` by ${by}` : ""}${denominator(sap)}`);
 
-  let columns: string[];
-  let rows: TableRow[];
-
-  if (ids.length > 1) {
-    columns = [
-      "Outcome",
-      ...measures.map((m) => `${m} (95% CI)`),
-      ...(withP ? ["P value"] : []),
-    ];
-    rows = ids.map((id) => ({
-      label: outcomes.get(id)?.what ?? id,
-      kind: "variable" as const,
-    }));
-  } else {
-    columns = ["Measure", "Estimate", "95% CI", ...(withP ? ["P value"] : [])];
-    rows = measures.map((measure) => ({
-      label: `${measure}${contrast}`,
-      kind: "measure" as const,
-    }));
-  }
-
-  const title = by
-    ? `Effect of ${by} on ${subject}, unadjusted${denominator(sap)}`
-    : `${capitalise(subject)}, estimated${denominator(sap)}`;
-
-  return {
+  const base = {
     number: 0,
     block: BLOCK_OF[tier],
-    role: "effect_unadjusted",
+    role: "outcome" as const,
+    // What this table compares by, and what it treats the outcome as. Two
+    // analyses of one outcome under one objective are a duplicate only when
+    // both match: Naveen reports hyperthermia by growth restriction and again
+    // by thermal care phase, and Mahendra reports one score as a median and
+    // again as the proportion above its threshold. Three tables, no mistakes.
+    job: `${(row.exposure_ids ?? []).join("+") || "overall"}:${row.data_type}`,
+    if_missing: IF_MISSING.outcome,
     outcome_id: ids.length === 1 ? ids[0] : undefined,
     fills: row.objective_ids?.length ? [...row.objective_ids] : undefined,
-    title: capitalise(title),
-    columns,
-    rows,
+    title,
     // A repeated measure has no unadjusted test: the mixed model is the
-    // analysis, so that is what is named under its effect table.
-    test_applied: plan.test ?? plan.test_adjusted,
-    footnote: plan.avoid ? `Not to be reported here: ${lower(plan.avoid)}.` : undefined,
+    // analysis, so that is what is named under it. Where neither the plan nor
+    // the rule table has one, the gap is printed rather than left blank: a
+    // missing line reads as a table nobody thought about.
+    test_applied:
+      plan.test ??
+      plan.test_adjusted ??
+      `TODO: the rule table has no entry for a ${row.data_type} outcome with comparison "${row.comparison}". Name the test here.`,
+  };
+
+  const footnote = (...parts: (string | undefined)[]) =>
+    parts.filter(Boolean).join(" ") || undefined;
+  const avoided = plan.avoid ? `Not to be reported here: ${lower(plan.avoid)}.` : undefined;
+
+  // Several outcomes compared the same way share one table: the outcomes are
+  // the rows, and every group and every estimate is a column.
+  if (ids.length > 1 && comparable(row)) {
+    return {
+      ...base,
+      columns: [
+        "Outcome",
+        ...contrastLevels(row, sap, groups),
+        "Total",
+        ...estimates,
+        ...(withP ? ["P value"] : []),
+      ],
+      rows: ids.map((id) => ({
+        label: outcomes.get(id)?.what ?? id,
+        kind: "variable" as const,
+      })),
+      reported_as: reportedAs(row),
+      footnote: footnote(
+        "The denominator is every patient in the analysis population who had the outcome assessed.",
+        avoided,
+      ),
+    };
+  }
+
+  if (comparable(row)) {
+    // A repeated measure comes down the side by time point: that is the table a
+    // mixed model is read from, and the one thing a reader wants from it is
+    // whether the two arms diverge as time passes.
+    //
+    // Otherwise the outcome's own categories where it has them, one row
+    // otherwise. Both lists come from the model, because the plan records them
+    // as prose: "every 5 minutes during each phase of each session" and
+    // "Binary (dead/alive), reported as a percentage per group" are neither of
+    // them a list, and splitting them produced rows of nonsense for years.
+    const repeated = row.pairing === "repeated" && ids.length === 1;
+    const times: string[] = repeated ? (timepoints.get(ids[0]) ?? []) : [];
+    const levels: string[] = times.length > 1
+      ? times
+      : ids.length === 1
+        ? (categories.get(ids[0]) ?? [])
+        : [];
+    const header = levels.length > 1 ? (times.length > 1 ? "Time point" : subject) : "Outcome";
+    return {
+      ...base,
+      columns: [
+        header,
+        ...contrastLevels(row, sap, groups),
+        "Total",
+        ...estimates,
+        ...(withP ? ["P value"] : []),
+      ],
+      rows:
+        levels.length > 1
+          ? levels.map((level) => ({ label: level, kind: "category" as const }))
+          : [{ label: subject, kind: "category" as const }],
+      reported_as: reportedAs(row),
+      footnote: footnote(
+        "The denominator is every patient in the analysis population who had the outcome assessed. The Total column is the whole cohort, before it is split.",
+        avoided,
+      ),
+    };
+  }
+
+  // No groups to put across the top: a correlation, an agreement, a repeated
+  // measure, or a single arm. The estimates become the rows instead.
+  if (measures.length && hasContrast(row)) {
+    const levels = contrastLevels(row, sap, groups);
+    const contrast = levels.length === 2 ? ` (${levels[0]} vs ${levels[1]})` : "";
+    return {
+      ...base,
+      title: capitalise(
+        by ? `Effect of ${by} on ${subject}${denominator(sap)}` : `${subject}, estimated${denominator(sap)}`,
+      ),
+      columns: ["Measure", "Estimate", "95% CI", ...(withP ? ["P value"] : [])],
+      rows: measures.map((measure) => ({
+        label: `${measure}${contrast}`,
+        kind: "measure" as const,
+      })),
+      footnote: footnote(avoided),
+    };
+  }
+
+  // A single group, described. There is nothing to compare it with, so there
+  // is nothing to estimate either.
+  const levels: string[] = ids.length === 1 ? (categories.get(ids[0]) ?? []) : [];
+  return {
+    ...base,
+    columns: [levels.length > 1 ? subject : "Outcome", ...summaryColumns(row)],
+    rows:
+      levels.length > 1
+        ? levels.map((level) => ({ label: level, kind: "category" as const }))
+        : [{ label: subject, kind: "category" as const }],
+    reported_as: reportedAs(row),
+    footnote:
+      "The denominator is every patient in the analysis population who had the outcome assessed.",
   };
 }
 
@@ -480,6 +672,7 @@ function adjustedTable(
     number: 0,
     block: BLOCK_OF[tier],
     role: "effect_adjusted",
+    if_missing: IF_MISSING.effect_adjusted,
     outcome_id: ids.length === 1 ? ids[0] : undefined,
     fills: row.objective_ids?.length ? [...row.objective_ids] : undefined,
     models,
@@ -530,6 +723,7 @@ function subgroupTable(row: AnalysisRow, tier: Tier, ctx: BlockContext): ShellTa
     // beside the primary result invited it to be read as one.
     block: "exploratory",
     role: "subgroup",
+    if_missing: IF_MISSING.subgroup,
     outcome_id: ids.length === 1 ? ids[0] : undefined,
     fills: row.objective_ids?.length ? [...row.objective_ids] : undefined,
     title: capitalise(
@@ -597,6 +791,7 @@ function sensitivityTable(
     number: 0,
     block: BLOCK_OF[tier],
     role: "sensitivity",
+    if_missing: IF_MISSING.sensitivity,
     outcome_id: ids.length === 1 ? ids[0] : undefined,
     fills: row.objective_ids?.length ? [...row.objective_ids] : undefined,
     title: capitalise(`Sensitivity analyses for ${subject}${denominator(sap)}`),
@@ -619,9 +814,19 @@ function sensitivityTable(
  * numbers the result, because numbering cannot be settled until both halves
  * exist.
  */
-export function buildAnalyticTables(sap: SapRegistry, groups: string[]): ShellTable[] {
+export function buildAnalyticTables(
+  sap: SapRegistry,
+  groups: string[],
+  categories: Map<string, string[]> = new Map(),
+  timepoints: Map<string, string[]> = new Map(),
+): ShellTable[] {
   const objectives = new Map((sap.objectives ?? []).map((o) => [o.id, o]));
-  const ctx: BlockContext = { sap, groups: groups.length ? groups : ["All patients"] };
+  const ctx: BlockContext = {
+    sap,
+    groups: groups.length ? groups : ["All patients"],
+    categories,
+    timepoints,
+  };
 
   const ordered = [...(sap.analyses ?? [])].sort(
     (a, b) => TIER_RANK[tierOf(a, objectives)] - TIER_RANK[tierOf(b, objectives)],
@@ -633,6 +838,12 @@ export function buildAnalyticTables(sap: SapRegistry, groups: string[]): ShellTa
   // subgroup table off the proportion would ask which subgroup modified a
   // number that nothing is being compared against.
   const headline = ordered.find(hasContrast);
+
+  // The sensitivity table repeats the study's primary analysis every other
+  // defensible way. One for the study, like the subgroup table beside it: the
+  // rule was written in a comment and enforced only for the subgroup, so a
+  // study with seven primary-tier rows printed seven of them.
+  const sensitivityRow = ordered.find((r) => tierOf(r, objectives) === "primary");
 
   // What the design owes. A trial owes a subgroup table and a sensitivity
   // table; a cohort owes person-time and an attrition table instead. The plan
@@ -659,13 +870,20 @@ export function buildAnalyticTables(sap: SapRegistry, groups: string[]): ShellTa
 
   for (const row of ordered) {
     const tier = tierOf(row, objectives);
-    // The primary outcome opens with itself, across everyone, before anything
-    // is compared. A reader cannot judge a difference without the quantity it
-    // is a difference in.
+    // Which way round the table goes is decided by the question, not by the
+    // design: a study hunting predictors groups by its outcome.
+    // Never gated on the design catalogue. The catalogue is a floor of what a
+    // design owes and was being read as a licence: descriptive epidemiology
+    // does not list `outcome`, so a study with sixteen analyses got no outcome
+    // table at all and a document of seven sensitivity analyses.
+    const laidOut: (ShellTable | null)[] = isPredictorHunt(row)
+      ? predictorTables(row, tier, ctx)
+      : // One table, not three. The whole-cohort count is its Total column and
+        // the estimates are its right-hand columns.
+        [outcomeTable(row, tier, ctx)];
+
     const block: (ShellTable | null)[] = [
-      tier === "primary" ? distributionTable(row, tier, ctx) : null,
-      wants("summary") ? summaryTable(row, tier, ctx) : null,
-      wants("effect_unadjusted") ? unadjustedTable(row, tier, ctx) : null,
+      ...laidOut,
       // The primary question is the study's reason for existing, so it carries
       // its adjusted estimate wherever the plan names confounders. A secondary
       // one carries it only where the objective says it is causal.
@@ -680,7 +898,7 @@ export function buildAnalyticTables(sap: SapRegistry, groups: string[]): ShellTa
     if (row === headline && wants("subgroup", (sap.subgroups ?? []).length > 0)) {
       block.push(subgroupTable(row, tier, ctx));
     }
-    if (tier === "primary" && wants("sensitivity", (sap.populations ?? []).length > 1)) {
+    if (row === sensitivityRow && wants("sensitivity", (sap.populations ?? []).length > 1)) {
       block.push(sensitivityTable(row, tier, ctx, required.has("sensitivity")));
     }
 

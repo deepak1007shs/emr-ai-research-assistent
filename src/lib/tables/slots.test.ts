@@ -28,13 +28,13 @@ describe("the skeleton", () => {
   });
 
   it("gives every analytic role a slot code can work out", () => {
-    for (const role of ["distribution", "summary", "effect_unadjusted", "effect_adjusted", "sensitivity"]) {
+    for (const role of ["outcome", "effect_adjusted", "sensitivity", "subgroup"]) {
       expect(loadSlots().some((s) => s.role === role), role).toBe(true);
     }
   });
 
   it("reads a title for a numbered slot from its pattern", () => {
-    expect(slotTitle("B4")).toBe("Crude effect estimate");
+    expect(slotTitle("B1")).toBe("Primary outcome");
     expect(slotTitle("C2.1")).toBe("Secondary outcome");
     expect(slotTitle("D3")).toBe("Exploratory analysis");
     expect(slotTitle(undefined)).toBeNull();

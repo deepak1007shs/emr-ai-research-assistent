@@ -19,7 +19,19 @@ import type { Finding } from "../sap/validate.ts";
  */
 
 const CI = /95%\s*ci/i;
-const EFFECT = /\b(or|rr|hr|odds ratio|risk ratio|hazard ratio|difference|mean difference)\b/i;
+/**
+ * A column that names an effect estimate.
+ *
+ * The acronyms are matched case-sensitively and the words are not, because "or"
+ * is an English word and "OR" is an odds ratio. Written as one case-insensitive
+ * alternation, this called every column containing "or" an effect estimate -
+ * harmless while the only columns were "Measure" and "Estimate", and not
+ * harmless now that a group name is a column of a table carrying estimates.
+ */
+const EFFECT_ACRONYM = /\b(OR|RR|HR|NNT|NNH)\b/;
+const EFFECT_WORD =
+  /\b(odds ratio|risk ratio|hazard ratio|rate ratio|risk difference|mean difference|difference|number needed)\b/i;
+const isEffect = (text: string) => EFFECT_ACRONYM.test(text) || EFFECT_WORD.test(text);
 const P_VALUE = /p[- ]?value/i;
 const INTERACTION = /interaction\s*p/i;
 
@@ -54,8 +66,21 @@ function families(texts: string[]): Set<string> {
   return found;
 }
 
-/** A table whose cells are an effect estimate rather than a count. */
-const EFFECT_ROLES = new Set(["effect_unadjusted", "effect_adjusted", "subgroup", "sensitivity"]);
+/**
+ * A table that carries an effect estimate.
+ *
+ * `outcome` is here because it carries the estimates as its right-hand columns,
+ * beside the counts they were computed from. It used to be two tables and only
+ * the second was checked.
+ */
+const EFFECT_ROLES = new Set([
+  "outcome",
+  "predictors",
+  "effect_unadjusted",
+  "effect_adjusted",
+  "subgroup",
+  "sensitivity",
+]);
 /** A table that reports a comparison, and must therefore name its test. */
 const TESTED_ROLES = new Set([...EFFECT_ROLES, "summary", "accuracy"]);
 
@@ -133,7 +158,7 @@ export function validateTables(
           `Table ${t.number} has a column called "${column}". A model column says what it holds constant, not what number it is.`,
         );
       }
-      if (EFFECT.test(column) && !CI.test(column) && !P_VALUE.test(column)) {
+      if (isEffect(column) && !CI.test(column) && !P_VALUE.test(column)) {
         error(
           "TBL12",
           `Table ${t.number} reports "${column}" without a 95% CI. An effect size without an interval says nothing about precision.`,
@@ -177,7 +202,7 @@ export function validateTables(
         joined.includes("unadjusted") ||
         tables.some(
           (o) =>
-            o.role === "effect_unadjusted" &&
+            (o.role === "outcome" || o.role === "predictors" || o.role === "effect_unadjusted") &&
             (o.fills ?? []).some((id) => (t.fills ?? []).includes(id)),
         );
       if (!beside) {
@@ -240,7 +265,7 @@ export function validateTables(
         // Two tables may do the same job under one objective when they report
         // different outcomes, which is how three secondary outcomes answered
         // the same way are printed.
-        const key = `${objectiveId}:${t.role}:${t.outcome_id ?? t.title}`;
+        const key = `${objectiveId}:${t.role}:${t.job ?? ""}:${t.outcome_id ?? t.title}`;
         const already = byRole.get(key);
         if (already) {
           error(
@@ -326,6 +351,62 @@ export function validateTables(
         }
       }
 
+      // The whole point of merging three tables into one was that a reader
+      // sees the counts and the estimate computed from them side by side. A
+      // merged table missing either half has undone the merge without saying
+      // so, and reads like a complete table.
+      // A table whose job is "overall" reports one group and compares nothing,
+      // so there is no estimate for it to be missing. Without this it was
+      // judged against a contrast analysis of the same outcome that a different
+      // table reports.
+      if (t.role === "outcome" && !t.job?.startsWith("overall")) {
+        const comparisons = filled.filter((a) => hasContrast(a) && planOf(a).measures.length);
+        if (comparisons.length) {
+          // An estimate may be a column, in the grouped layout, or a row, where
+          // there are no groups to put across the top: a correlation, an
+          // agreement, a post-hoc across many groups. Reading only the columns
+          // reported those tables as carrying no estimate at all.
+          const inColumns = families(t.columns);
+          const inRows = families(
+            t.rows.filter((r) => r.kind === "measure").map((r) => r.label),
+          );
+          if (!inColumns.size && !inRows.size) {
+            error(
+              "TBL29",
+              `Table ${t.number} reports ${nameOf(t.outcome_id ?? "") || "an outcome"} but none of the estimates the plan chose (${comparisons.flatMap((a) => planOf(a).measures).join("; ")}). The counts and the effect computed from them belong in the same table.`,
+            );
+          }
+          // Only where the estimates are columns: that is the grouped layout,
+          // and the groups are what the estimate was computed from.
+          if (inColumns.size) {
+            const counts = t.columns
+              .slice(1)
+              .filter((c) => !isEffect(c) && !CI.test(c) && !P_VALUE.test(c));
+            if (!counts.length) {
+              error(
+                "TBL29",
+                `Table ${t.number} reports estimates but has no column holding the counts they were computed from. A reader cannot check a risk ratio against nothing.`,
+              );
+            }
+          }
+        }
+      }
+
+      // A plan that marks an outcome skewed and then reports a mean has
+      // disagreed with itself, and the table is where it shows: the cell says
+      // median and the line under it says mean difference. Naveen's length of
+      // stay is marked skewed and carries a mean difference.
+      for (const a of filled) {
+        if (!a.skewed) continue;
+        const parametric = [...planOf(a).measures, planOf(a).test ?? ""].join(" ");
+        if (/\bmean (difference|\(SD\))/i.test(parametric)) {
+          warn(
+            "TBL30",
+            `Table ${t.number} reports ${nameOf(t.outcome_id ?? "") || "an outcome"}, which the plan marks as skewed, and the plan names a mean for it (${planOf(a).measures.join("; ")}). A skewed distribution is described by a median and an interquartile range, and compared by a rank method.`,
+          );
+        }
+      }
+
       // An adjusted column must hold constant what the plan said it would.
       const adjusted = adjustedIds(t);
       if (adjusted.length) {
@@ -378,20 +459,17 @@ export function validateTables(
       const owed = new Set(designRule(sap.design_family).roles);
       const wanted: [string, boolean, string][] = [
         [
-          "summary",
-          !owed.has("summary") ||
-            roles.has("summary") ||
+          "outcome",
+          !owed.has("outcome") ||
+            roles.has("outcome") ||
+            // The other way round: predictors down the side, the outcome's
+            // groups across the top. It reports the same thing.
+            roles.has("predictors") ||
             roles.has("repeated") ||
+            // Documents built before the three tables were merged into one.
+            roles.has("summary") ||
             roles.has("distribution"),
-          "how many patients in each group had the outcome, with the denominators the effect is computed from",
-        ],
-        [
-          "effect_unadjusted",
-          !owed.has("effect_unadjusted") ||
-            roles.has("effect_unadjusted") ||
-            !hasContrast(analysis) ||
-            !planOf(analysis).measures.length,
-          "the crude effect, with its confidence interval",
+          "how many patients in each group had the outcome, with the denominators the effect is computed from, and the crude effect beside them",
         ],
         [
           "effect_adjusted",

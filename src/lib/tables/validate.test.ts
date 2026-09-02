@@ -32,22 +32,20 @@ describe("validateTables", () => {
     expect(codes(s)).toContain("TBL01");
   });
 
-  it("the primary outcome gets a block of tables, not one table", () => {
+  it("the primary outcome gets one table for itself, and others beside it", () => {
     const roles = clean()
       .tables.filter((t) => (t.fills ?? []).includes("P1"))
       .map((t) => t.role);
-    expect(roles).toContain("summary");
+    // One table for the outcome, carrying the groups and the estimates
+    // together; the tables beside it have different rows, not fragments of it.
+    expect(roles.filter((r) => r === "outcome")).toHaveLength(1);
     expect(roles).toContain("sensitivity");
-    expect(roles.length).toBeGreaterThan(1);
   });
 
   it("TBL21 - the primary outcome has no table showing what happened", () => {
     const s = clean();
-    // Both of the tables that could show it: the whole cohort and the split by
-    // group. Either alone satisfies the requirement, which is the point.
     s.tables = s.tables.filter(
-      (t) =>
-        !((t.fills ?? []).includes("P1") && (t.role === "summary" || t.role === "distribution")),
+      (t) => !((t.fills ?? []).includes("P1") && t.role === "outcome"),
     );
     renumber(s);
     expect(codes(s, sap())).toContain("TBL21");
@@ -64,7 +62,7 @@ describe("validateTables", () => {
 
   it("TBL22 - a subgroup table read from within-subgroup p values", () => {
     const s = clean();
-    const t = roled(s, "effect_unadjusted");
+    const t = roled(s, "outcome");
     t.role = "subgroup";
     t.columns = ["Subgroup", "Estimate", "95% CI", "P value"];
     expect(codes(s, sap())).toContain("TBL22");
@@ -72,7 +70,7 @@ describe("validateTables", () => {
 
   it("TBL20 - the table names an estimate the plan did not choose", () => {
     const s = clean();
-    const t = roled(s, "effect_unadjusted");
+    const t = roled(s, "outcome");
     // The plan chose a median difference for this skewed outcome.
     t.rows = [{ label: "Risk ratio", kind: "measure" }];
     const findings = validateTables(s, sap()).findings;
@@ -102,7 +100,7 @@ describe("validateTables", () => {
 
   it("TBL09 - a comparison with no named test", () => {
     const s = clean();
-    delete roled(s, "effect_unadjusted").test_applied;
+    delete roled(s, "outcome").test_applied;
     expect(codes(s)).toContain("TBL09");
   });
 
@@ -134,14 +132,17 @@ describe("validateTables", () => {
 
   it("TBL12 - estimates as rows with no interval column", () => {
     const s = clean();
-    const t = roled(s, "effect_unadjusted");
+    // The shape where the estimates are the rows: a correlation or an
+    // agreement, which has no groups to put across the top.
+    const t = roled(s, "outcome");
     t.columns = ["Measure", "Estimate", "P value"];
+    t.rows = [{ label: "Spearman rho", kind: "measure" }];
     expect(codes(s)).toContain("TBL12");
   });
 
   it("TBL13 - adjusted reported with no unadjusted beside it", () => {
     const s = clean();
-    s.tables = s.tables.filter((t) => t.role !== "effect_unadjusted");
+    s.tables = s.tables.filter((t) => t.role !== "outcome");
     // Nor an unadjusted column on the table itself.
     roled(s, "effect_adjusted").columns = ["Predictor", "Adjusted OR (95% CI)", "P value"];
     renumber(s);

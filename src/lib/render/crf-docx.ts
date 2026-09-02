@@ -218,7 +218,18 @@ export async function buildCrfDocx(
       // The note under the label, where whoever is filling the form is already
       // looking. It carries the rule a calculated value is worked out from, and
       // it had been in the spec and printed nowhere.
-      [f.primary_outcome ? `${nameOf(f)} (primary outcome)` : nameOf(f), f.note]
+      [
+        // The datasheet column beside the label. Whoever types the filled form
+        // into a spreadsheet reads this to know which column the answer goes
+        // in, and the analysis blueprint names its rows by the same word.
+        [
+          f.primary_outcome ? `${nameOf(f)} (primary outcome)` : nameOf(f),
+          f.column_name ? `[${f.column_name}]` : "",
+        ]
+          .filter(Boolean)
+          .join("  "),
+        f.note,
+      ]
         .filter(Boolean)
         .join("\n"),
       f.type,

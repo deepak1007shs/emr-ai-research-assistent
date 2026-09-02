@@ -12,6 +12,11 @@ import type { ShellTablesSpec, TableRole } from "./types.ts";
  * the model produced one table with one row reporting an odds ratio, which is
  * the estimate the rule table names as the thing to avoid for a common outcome.
  * Everything needed to lay it out correctly was already in the plan.
+ *
+ * It later showed the code up too. The plan produced the right estimates and
+ * put them three tables away from the counts they were computed from: the
+ * whole-cohort count, then the same count by arm, then the estimates. Those
+ * three are now one table, which is what the rest of this file checks.
  */
 function peep(): SapRegistry {
   return {
@@ -116,16 +121,14 @@ const spec = (): ShellTablesSpec => {
   };
 };
 
-describe("the block a primary outcome gets", () => {
-  it("is a block of tables, not one", () => {
-    // The whole cohort first, then the comparison, then the effect crude and
-    // adjusted, then the sensitivity analysis. The subgroup table is built here
-    // too but prints among the exploratory ones, where a hypothesis-generating
-    // analysis belongs.
+describe("the tables a primary outcome gets", () => {
+  it("is one table for the outcome, and one each for the other shapes", () => {
+    // The outcome whole, then the adjusted model whose rows are the
+    // confounders, then the subgroup table whose rows are the subgroups, then
+    // the sensitivity table whose rows are the analysis populations. Nothing
+    // here is a fragment of anything else.
     expect(build().map((t) => t.role)).toEqual([
-      "distribution",
-      "summary",
-      "effect_unadjusted",
+      "outcome",
       "effect_adjusted",
       "subgroup",
       "sensitivity",
@@ -133,37 +136,60 @@ describe("the block a primary outcome gets", () => {
     expect(build().find((t) => t.role === "subgroup")!.block).toBe("exploratory");
   });
 
-  it("opens with the outcome across everyone, before it is split", () => {
-    const table = roleOf("distribution");
+  it("puts the arms across the top and the outcome down the side", () => {
+    const table = roleOf("outcome");
     expect(table.block).toBe("primary");
-    expect(table.title).toContain("in the whole cohort");
-    expect(table.footnote).toContain("before it is split by anything");
+    expect(table.columns.slice(0, 4)).toEqual([
+      "Outcome",
+      "PEEP 7 cm H2O",
+      "PEEP 5 cm H2O",
+      "Total",
+    ]);
+    expect(table.rows.map((r) => r.label)).toEqual([
+      "Delivery room intubation within the first 20 minutes of life",
+    ]);
   });
 
-  it("reports the incidence with its denominators, by arm", () => {
-    const table = roleOf("summary");
-    expect(table.columns).toEqual(["Group", "n / N", "% (95% CI)"]);
-    // The arms come from the exposure's own coding, not from the group list.
-    expect(table.rows.map((r) => r.label)).toEqual(["PEEP 7 cm H2O", "PEEP 5 cm H2O"]);
+  it("carries the estimates in the same table as the counts", () => {
+    // This is the whole point. The estimates used to be a table of their own,
+    // a page away from the numbers they were computed from.
+    const table = roleOf("outcome");
+    expect(table.columns).toEqual([
+      "Outcome",
+      "PEEP 7 cm H2O",
+      "PEEP 5 cm H2O",
+      "Total",
+      "Risk ratio (95% CI)",
+      "Risk difference (95% CI)",
+      "Number needed to treat (95% CI)",
+      "P value",
+    ]);
+  });
+
+  it("says what fills a cell, which a column header no longer can", () => {
+    // The wording is the rule table's, so the cell statistic and the test under
+    // it come from one source and cannot contradict each other.
+    const table = roleOf("outcome");
+    expect(table.reported_as).toBeTruthy();
+    expect(table.reported_as).toMatch(/n\s*\(%\)/i);
   });
 
   it("prints the estimates the rule table chose, and never an odds ratio", () => {
-    const table = roleOf("effect_unadjusted");
-    expect(table.rows.map((r) => r.label)).toEqual([
-      "Risk ratio (PEEP 7 cm H2O vs PEEP 5 cm H2O)",
-      "Risk difference (PEEP 7 cm H2O vs PEEP 5 cm H2O)",
-      "Number needed to treat (PEEP 7 cm H2O vs PEEP 5 cm H2O)",
-    ]);
-    expect(table.rows.every((r) => r.kind === "measure")).toBe(true);
-    expect(table.columns).toContain("95% CI");
-    // Only the footnote may mention one, and only to rule it out.
+    const table = roleOf("outcome");
     expect([...table.columns, ...table.rows.map((r) => r.label)].join(" ")).not.toMatch(
       /odds ratio/i,
     );
+    // Only the footnote may mention one, and only to rule it out.
+    expect(table.footnote).toContain("odds ratio");
   });
 
-  it("says what the plan ruled out, under the table", () => {
-    expect(roleOf("effect_unadjusted").footnote).toContain("odds ratio");
+  it("keeps the whole-cohort count, as a column rather than a table", () => {
+    // It used to open the block as a table of its own. A reader still needs it,
+    // because a difference cannot be judged without the quantity it is a
+    // difference in, but it does not need a page.
+    expect(roleOf("outcome").columns).toContain("Total");
+    expect(roleOf("outcome").footnote).toContain("before it is split");
+    expect(build().some((t) => t.role === "distribution")).toBe(false);
   });
 
   it("puts the crude and the adjusted estimate on one row, per predictor", () => {
@@ -218,10 +244,220 @@ describe("the block a primary outcome gets", () => {
 
   it("TBL20 - an odds ratio planted on a common outcome is caught", () => {
     const s = spec();
-    const table = s.tables.find((t) => t.role === "effect_unadjusted")!;
-    table.rows = [{ label: "Odds ratio", kind: "measure" }];
+    const table = s.tables.find((t) => t.role === "outcome")!;
+    table.columns = [...table.columns, "Odds ratio (95% CI)"];
     const findings = validateTables(s, peep()).findings;
     expect(findings.map((f) => f.code)).toContain("TBL20");
     expect(findings.find((f) => f.code === "TBL20")?.message).toContain("overstates the effect");
+  });
+
+  it("TBL29 - a merged table that lost its estimates is caught", () => {
+    // The merge is only worth anything if both halves are there.
+    const s = spec();
+    const table = s.tables.find((t) => t.role === "outcome")!;
+    table.columns = ["Outcome", ...groups, "Total"];
+    const findings = validateTables(s, peep()).findings;
+    expect(findings.map((f) => f.code)).toContain("TBL29");
+  });
+
+  it("TBL29 - a merged table that lost its counts is caught", () => {
+    const s = spec();
+    const table = s.tables.find((t) => t.role === "outcome")!;
+    table.columns = ["Outcome", "Risk ratio (95% CI)", "P value"];
+    const findings = validateTables(s, peep()).findings;
+    expect(findings.find((f) => f.code === "TBL29")?.message).toContain("computed from");
+  });
+});
+
+/**
+ * The other way round.
+ *
+ * "What predicts surgical site infection?" is still a comparison, but it groups
+ * by the outcome rather than by an exposure, so every candidate predictor is a
+ * row. Laid out the first way, this study got one table per predictor.
+ */
+function predictorHunt(): SapRegistry {
+  const variable = (id: string, label: string, data_type: SapRegistry["variables"][number]["data_type"]) => ({
+    id,
+    label,
+    data_type,
+    unit_coding: data_type === "continuous" ? "Years" : "Yes / No",
+    role: "predictor" as const,
+  });
+
+  return {
+    title: "Predictors of surgical site infection following emergency laparotomy",
+    design_family: "cohort",
+    sample_size: 120,
+    expected_events: 30,
+    objectives: [
+      { id: "P1", tier: "primary", intent: "causal", question: "Which factors independently predict surgical site infection within 30 days?" },
+    ],
+    variables: [
+      variable("var_sex", "Sex", "binary"),
+      variable("var_dm", "Diabetes mellitus", "binary"),
+      variable("var_asa", "ASA physical status grade", "ordinal"),
+      variable("var_age", "Age", "continuous"),
+      variable("var_albumin", "Serum albumin", "continuous"),
+    ],
+    outcomes: [
+      {
+        id: "out_ssi",
+        what: "Surgical site infection within 30 days of surgery",
+        how: "wound assessment",
+        instrument: "proforma",
+        when: "30 days",
+        units: "Binary (Yes/No)",
+        domain: "clinical",
+        source_variable_ids: ["var_sex"],
+      },
+    ],
+    analyses: [
+      {
+        objective_ids: ["P1"],
+        label: "P1 - predictors of infection",
+        outcome_ids: ["out_ssi"],
+        exposure_ids: ["var_sex", "var_dm", "var_asa", "var_age", "var_albumin"],
+        adjust_for_ids: ["var_age", "var_sex", "var_asa"],
+        data_type: "binary",
+        comparison: "association",
+        pairing: "none",
+        frequency: "common",
+        table_ids: ["T1"],
+      },
+    ],
+    populations: [{ name: "Full analysis set", definition: "Every patient operated on." }],
+    subgroups: [],
+    rules: {
+      software: "SPSS",
+      normality: "Shapiro-Wilk.",
+      continuous_summary: "Mean (SD).",
+      categorical_summary: "n (%).",
+      significance: "Two sided, p < 0.05.",
+      effect_estimates: "Every estimate with a 95% confidence interval.",
+      missing_data: "Complete case under 5%, multiple imputation otherwise.",
+      multiplicity: "The primary outcome is confirmatory.",
+      reproducibility: "A fixed seed.",
+    },
+  };
+}
+
+describe("a study hunting predictors", () => {
+  const built = () => buildAnalyticTables(predictorHunt(), ["Infected", "Not infected"]);
+
+  it("puts every candidate predictor in a row, not in a table of its own", () => {
+    const tables = built().filter((t) => t.role === "predictors");
+    expect(tables).toHaveLength(2);
+    const rows = tables.flatMap((t) => t.rows.map((r) => r.variable_id));
+    expect(rows).toEqual([
+      "var_sex",
+      "var_dm",
+      "var_asa",
+      "var_age",
+      "var_albumin",
+    ]);
+  });
+
+  it("splits categorical from numerical, because the cell and the test differ", () => {
+    const [categorical, numerical] = built().filter((t) => t.role === "predictors");
+
+    expect(categorical.rows.map((r) => r.variable_id)).toEqual(["var_sex", "var_dm", "var_asa"]);
+    expect(categorical.reported_as).toContain("n (%)");
+
+    expect(numerical.rows.map((r) => r.variable_id)).toEqual(["var_age", "var_albumin"]);
+    expect(numerical.reported_as).toMatch(/mean|median/i);
+
+    // Each test is the rule table's own choice for what that table compares,
+    // and the two must not be the same: it is the reason there are two tables.
+    expect(categorical.test_applied).toBeTruthy();
+    expect(numerical.test_applied).toBeTruthy();
+    expect(categorical.test_applied).not.toBe(numerical.test_applied);
+    expect(numerical.test_applied).toMatch(/t-test|Mann-Whitney/i);
+  });
+
+  it("groups by the outcome, and carries the crude estimate beside the counts", () => {
+    const [categorical] = built().filter((t) => t.role === "predictors");
+    expect(categorical.columns).toEqual([
+      "Variable",
+      "Present",
+      "Absent",
+      "Crude risk ratio per unit (95% CI)",
+      "P value",
+    ]);
+  });
+
+  it("says no variable is dropped on its p value alone", () => {
+    const [categorical] = built().filter((t) => t.role === "predictors");
+    expect(categorical.footnote).toContain("No variable is dropped here");
+  });
+
+  it("still gets its adjusted model, whose rows are the confounders", () => {
+    const adjusted = built().find((t) => t.role === "effect_adjusted")!;
+    expect(adjusted.models).toEqual([{ name: "Adjusted", adds: ["var_age", "var_sex", "var_asa"] }]);
+  });
+
+  it("passes its own guards", () => {
+    const sap = predictorHunt();
+    const groups = ["Infected", "Not infected"];
+    const spec: ShellTablesSpec = {
+      title: sap.title,
+      labels: Object.fromEntries([
+        ...sap.variables.map((v) => [v.id, v.label]),
+        ...sap.outcomes.map((o) => [o.id, o.what]),
+      ]),
+      groups,
+      tables: assignSlots(
+        mergeTables(
+          [
+            {
+              number: 0,
+              block: "descriptive" as const,
+              role: "descriptive" as const,
+              slot: "A1",
+              title: "Demographic characteristics of the study population (n = 120)",
+              columns: ["Variable", "n", "%"],
+              rows: [{ variable_id: "var_sex", label: "Sex", kind: "variable" as const }],
+            },
+          ],
+          buildAnalyticTables(sap, groups),
+          sap,
+        ),
+        sap.objectives.map((o) => o.id),
+      ),
+    };
+    const { findings } = validateTables(spec, sap);
+    expect(
+      findings.filter((f) => f.severity === "ERROR"),
+      JSON.stringify(findings, null, 2),
+    ).toEqual([]);
+  });
+});
+
+describe("a plan that disagrees with itself", () => {
+  it("TBL30 - the outcome is marked skewed and the plan names a mean", () => {
+    // Naveen's length of stay carries skewed: true and a mean difference. The
+    // table is where it becomes visible, because the cell says median and the
+    // line under it says mean.
+    const sap = peep();
+    const analysis = sap.analyses[0];
+    analysis.data_type = "continuous";
+    analysis.skewed = true;
+    analysis.measures = ["Mean difference"];
+    analysis.test = "Group means (SD) and the crude mean difference";
+
+    const groups = ["PEEP 7 cm H2O", "PEEP 5 cm H2O"];
+    const spec: ShellTablesSpec = {
+      title: sap.title,
+      labels: {},
+      groups,
+      tables: assignSlots(
+        mergeTables([], buildAnalyticTables(sap, groups), sap),
+        sap.objectives.map((o) => o.id),
+      ),
+    };
+    const findings = validateTables(spec, sap).findings;
+    const flagged = findings.find((f) => f.code === "TBL30");
+    expect(flagged?.severity).toBe("WARN");
+    expect(flagged?.message).toContain("median");
   });
 });

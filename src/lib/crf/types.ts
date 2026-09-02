@@ -22,6 +22,17 @@ export type CrfField = {
    */
   label: string;
   type: FieldType;
+  /**
+   * The column this field becomes in the datasheet: `age_yrs`, `dm`,
+   * `asa_grade`.
+   *
+   * One short name, decided once, so the form, the analysis blueprint and the
+   * spreadsheet the data are typed into all call the same thing by the same
+   * name. Without it the analyst matches a column called "Age (years)" to a
+   * blueprint row called "Age" by eye, and a study with sixty variables gets
+   * that wrong somewhere.
+   */
+  column_name?: string;
   /** The answer space: options, a unit, or a blank. Composed by the renderer. */
   options?: string[];
   unit?: string;

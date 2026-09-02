@@ -15,6 +15,7 @@ import { SAP_RULES_JSON_SCHEMA } from "./src/lib/sap/rules-stage.ts";
 import { COVERAGE_JSON_SCHEMA } from "./src/lib/sap/coverage.ts";
 import { CRF_COMPLETION_SCHEMA, CRF_JSON_SCHEMA } from "./src/lib/crf/build.ts";
 import { TABLES_JSON_SCHEMA } from "./src/lib/tables/build.ts";
+import { TABLE_COVERAGE_JSON_SCHEMA } from "./src/lib/tables/coverage.ts";
 import {
   SAP_REVISION_SCHEMA,
   CRF_REVISION_SCHEMA,
@@ -54,7 +55,8 @@ for (const [name, schema] of [
   ["SAP 4 - protocol read back", COVERAGE_JSON_SCHEMA],
   ["CRF", CRF_JSON_SCHEMA],
   ["CRF completion", CRF_COMPLETION_SCHEMA],
-  ["Shell tables", TABLES_JSON_SCHEMA],
+  ["Analysis blueprint", TABLES_JSON_SCHEMA],
+  ["Blueprint protocol read back", TABLE_COVERAGE_JSON_SCHEMA],
   ["Revise SAP", SAP_REVISION_SCHEMA],
   ["Revise CRF", CRF_REVISION_SCHEMA],
   ["Revise tables", TABLES_REVISION_SCHEMA],

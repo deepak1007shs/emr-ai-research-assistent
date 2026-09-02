@@ -15,7 +15,7 @@ async function read() {
   return { document, styles, visible };
 }
 
-describe("the shell tables document", () => {
+describe("the table plan document", () => {
   it("puts the blocks in order", async () => {
     const { visible } = await read();
     const order = [
@@ -38,13 +38,45 @@ describe("the shell tables document", () => {
     expect(printed).toBeGreaterThanOrEqual(3);
   });
 
-  it("reports the primary outcome with a block of tables, not one table", async () => {
-    const forPrimary = tablesFixture.tables.filter((t) => t.block === "primary");
-    expect(forPrimary.length).toBeGreaterThan(1);
+  it("opens by saying how many tables there are, and naming them", async () => {
+    // The count is the first thing asked of this document, and nothing computed
+    // it before: neither half of the pipeline knows the total until they merge.
     const { visible } = await read();
-    for (const table of forPrimary) {
+    expect(visible).toContain(`Contents: ${tablesFixture.tables.length} tables`);
+    for (const table of tablesFixture.tables) {
+      expect(visible).toContain(`Table ${table.number}.`);
+    }
+  });
+
+  it("prints every table, in its block", async () => {
+    const { visible } = await read();
+    for (const table of tablesFixture.tables) {
       expect(visible).toContain(`Table ${table.number}: ${table.title}`);
     }
+  });
+
+  it("says what is on each axis instead of drawing an empty grid", async () => {
+    const { document, visible } = await read();
+    // The complaint this document was rewritten for: a grid does not say what
+    // belongs in it, and one baseline table ran to 28 rows labelled "" and
+    // "Mean +/- SD", readable only by resolving ids the reader cannot see.
+    expect(document).not.toContain("<w:tbl>");
+    // The house blueprint's own labels, including its naming of the axes.
+    expect(visible).toContain("Rows (X)");
+    expect(visible).toContain("Columns (Y)");
+    expect(visible).toContain("Cell shows");
+    expect(visible).toContain("Test applied");
+  });
+
+  it("reports one outcome in one table, with the groups and the estimates in it", async () => {
+    const { visible } = await read();
+    const table = tablesFixture.tables.find((t) => t.role === "outcome" && t.columns.length > 3)!;
+    const at = visible.indexOf(`Table ${table.number}: ${table.title}`);
+    expect(at).toBeGreaterThan(-1);
+    const entry = visible.slice(at, at + 600);
+    // The arms and the estimate computed from them, in the same entry.
+    for (const column of table.columns.slice(1)) expect(entry).toContain(column);
+    expect(entry).toContain("Cell shows");
   });
 
   it("numbers and titles each table with its denominator", async () => {
@@ -62,8 +94,8 @@ describe("the shell tables document", () => {
 
   it("names the estimate the plan chose, and rules out the one it did not", async () => {
     const { visible } = await read();
-    expect(visible).toContain("Odds ratio (Yes vs No)");
-    expect(visible).toContain("Risk difference (Yes vs No)");
+    expect(visible).toContain("Odds ratio (95% CI)");
+    expect(visible).toContain("Risk difference (95% CI)");
     expect(visible).toContain("Not to be reported here:");
   });
 
@@ -73,17 +105,25 @@ describe("the shell tables document", () => {
     expect(visible).toContain("not from the p value within each subgroup");
   });
 
-  it("uses a heading row for a variable and indents its parts", async () => {
+  it("folds a variable and its parts into one phrase", async () => {
     const { visible } = await read();
-    expect(visible).toContain("Age group");
-    expect(visible).toContain("Mean ± SD");
-    expect(visible).toContain("40 to 60 years");
+    // "Age (years)" as a heading row and "Mean +/- SD" indented under it are
+    // one thing to a reader and two rows to the data.
+    expect(visible).toContain("Age (mean ± SD)");
+    expect(visible).toContain("Age group (< 40 years, 40 to 60 years, > 60 years)");
+    // The wording is the plan's, resolved by id, not the wording the row typed.
+    expect(visible).toContain("Sex (male, female)");
   });
 
-  it("names the test under every analytical table", async () => {
+  it("names the test on every table that reports a comparison", async () => {
     const { visible } = await read();
-    expect(visible).toContain("Footnote: test used = Proportion with exact (Clopper-Pearson) 95% CI");
-    expect(visible).toContain("Footnote: test used = Mann-Whitney U");
+    expect(visible).toContain("Proportion with exact (Clopper-Pearson) 95% CI");
+    expect(visible).toContain("Mann-Whitney U");
+    for (const table of tablesFixture.tables) {
+      if (!table.test_applied) continue;
+      const at = visible.indexOf(`Table ${table.number}: ${table.title}`);
+      expect(visible.slice(at, at + 900), `Table ${table.number}`).toContain("Test applied");
+    }
   });
 
   it("marks exploratory analyses as not confirmatory", async () => {
@@ -91,7 +131,7 @@ describe("the shell tables document", () => {
     expect(visible).toContain("hypothesis-generating");
   });
 
-  it("leaves the cells empty, because a shell is not a result", async () => {
+  it("carries no results, because the data do not exist yet", async () => {
     const { visible } = await read();
     // No figure from the worked results document should have leaked in.
     expect(visible).not.toMatch(/\d+\.\d+\s*±\s*\d+\.\d+/);

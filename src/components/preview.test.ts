@@ -157,13 +157,16 @@ describe("the shell tables preview", () => {
     expect(printed).toBeGreaterThanOrEqual(3);
   });
 
-  it("keeps the cells empty: a shell is not a result", () => {
+  it("says what belongs in a table rather than drawing it empty", () => {
     const screen = screenText(TablesPreview({ spec: tablesFixture }));
     expect(screen).toContain("Table 1:");
-    // Every column header the document prints.
-    for (const column of tablesFixture.tables[0].columns) {
+    // The first column heads the row labels rather than holding data, so it is
+    // described by the Rows line and not repeated as a column.
+    for (const column of tablesFixture.tables[0].columns.slice(1)) {
       expect(screen).toContain(column);
     }
+    expect(screen).toContain("Rows (X)");
+    expect(screen).toContain("Columns (Y)");
   });
 
   it("titles every table the document titles", async () => {
@@ -321,27 +324,26 @@ describe("a table on screen is the table in the document", () => {
       expect(screen, `caption on screen`).toContain(caption);
       expect(page, `caption in the document`).toContain(caption);
 
-      for (const column of table.columns) {
+      for (const column of table.columns.slice(1)) {
         expect(screen, `${column} on screen`).toContain(column);
         expect(page, `${column} in the document`).toContain(column);
       }
 
       if (table.test_applied) {
-        // The test is printed as part of the footnote, in both renderers.
-        const note = `test used = ${table.test_applied.replace(/\.$/, "")}`;
+        const note = table.test_applied.replace(/\.$/, "");
         expect(screen, `${note} on screen`).toContain(note);
         expect(page, `${note} in the document`).toContain(note);
       }
     }
   });
 
-  it("leaves the cells empty on screen, as the document leaves them", () => {
+  it("draws no grid on screen, as the document draws none", () => {
     const markup = renderToStaticMarkup(TablesPreview({ spec: tablesFixture }));
-    // A shell table is a grid of empty boxes. A placeholder character in the
-    // cells would read as data that is not there.
+    // An empty grid says nothing about what belongs in it, which is why both
+    // renderers stopped drawing one. A placeholder character would be worse:
+    // it reads as data that is not there.
     expect(markup).not.toContain("__");
-    // The boxes are drawn, not implied: every cell carries the document's rule.
-    expect(markup).toContain("border border-ink");
+    expect(markup).not.toContain("<table");
   });
 
   it("carries none of the review chrome into what prints", () => {

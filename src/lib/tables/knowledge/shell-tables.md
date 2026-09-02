@@ -1,9 +1,15 @@
-# Shell tables
+# The analysis blueprint
 
-A shell table is the table the results will fill, with the cells empty. Everything
-a filled table carries is decided now, so that when the data arrive nothing is
-left to choose: the columns, the row order, the denominator in the title, the
-test named underneath.
+The blueprint is not the results chapter. It is the plan for the results
+chapter: every table that will appear, in order, and for each one what runs down
+the left side, what runs across the top, the statistic inside each cell, the
+test applied, and what will be done when a value is missing.
+
+It is not drawn as a grid. An empty grid does not say what belongs in it, and
+the one this replaced was unreadable: twenty-eight rows labelled "" and
+"Mean +/- SD", meaningful only to someone who could resolve ids they could not
+see. Everything a filled table carries is still decided now, but it is said in
+words.
 
 ## What you lay out, and what is laid out for you
 
@@ -13,18 +19,30 @@ the adjusted model ladder, the subgroup table and the sensitivity table, because
 each of those is a consequence of the row rather than a judgement. You will not
 see them, you do not number them, and you must not write them.
 
-**You lay out three kinds of table**, which need judgement code cannot supply:
+**You lay out two kinds of table**, which need judgement code cannot supply, and
+you supply one list:
 
 - `descriptive` - who was in the study. Age, age group where it helps, sex,
   comorbidity, risk factors, and any baseline value the protocol singles out,
   described by group. This is the table a reader checks before believing
   anything else, and it is yours alone.
-- `distribution` - one outcome's categories and how many fall in each, where a
-  category breakdown is worth a table of its own: a severity grade, a stage, a
-  cause of death.
 - `repeated` - a measure recorded at several time points, with the time points
   as rows. Only the protocol says what the time points are, which is why this
   one is yours.
+
+And separately, two lists, because the plan records both as prose and neither
+can be read as rows:
+
+- `outcome_categories` - the categories of every categorical outcome: the
+  organisms, the severity grades, the causes of death. The plan says
+  "Binary (dead/alive), reported as a percentage per group", which splits into
+  nonsense.
+- `outcome_timepoints` - the points every repeated measure was recorded at, in
+  order. The plan says "every 5 minutes during each phase of each session",
+  which is a rule and not a list. Write the points the rule produces.
+
+Both become the rows of that outcome's table, which code builds. An outcome left
+out of either is an outcome whose table has one unnamed row.
 
 ## How a table is built
 
@@ -55,6 +73,19 @@ chose on every analysis row, and the reason it chose it.
 them from 1 in the order you print them; they are renumbered once your tables
 and the generated ones are merged.
 
+**Missing data.** Every table says what will be done when a value is not there,
+decided now and specific to the variables in that table: which are structural
+blanks that leave the denominator rather than counting as missing, which are
+derived and left missing when an input is missing rather than estimated from the
+other, which are expected to exceed twenty per cent missing and are therefore
+described but not modelled. Handling decided after the data are seen is a
+reaction to the results, and reads as one.
+
+**Naming.** The statistic, then what is being described, then the population or
+the grouping variable: "Distribution of comorbid conditions among the study
+population (n = 120)". Never name a table after a statistical test, and never
+begin one with "Table showing".
+
 ## What a finished primary block looks like
 
 This is what the analytic half produces, so that you can see what your
@@ -63,11 +94,20 @@ PEEP levels with a binary primary outcome:
 
 | Table | Job | Rows | Columns |
 |---|---|---|---|
-| Incidence | the outcome by arm, with denominators | the arms | `n / N`, `% (95% CI)` |
-| Unadjusted effect | the crude estimate | Risk ratio, Risk difference, Number needed to treat | Estimate, 95% CI, P value |
+| Outcome | the outcome, whole | the outcome, or its categories | the arms, `Total`, then Risk ratio (95% CI), Risk difference (95% CI), Number needed to treat (95% CI), P value |
 | Adjusted effect | what the adjustment did | the predictors | Unadjusted risk ratio (95% CI), P value, Adjusted risk ratio (95% CI), P value |
 | Subgroups | effect modification | the prespecified subgroups | per-arm n/N (%), risk ratio (95% CI), **Interaction p** |
 | Sensitivity | the same question, analysed other ways | each analysis population, then the missing-data best and worst case | risk ratio (95% CI), risk difference (95% CI) |
+
+One outcome is one table. The whole-cohort count is the `Total` column and the
+estimates are the right-hand columns, so a reader sees the effect beside the
+numbers it was computed from rather than three pages away.
+
+A study asking what predicts something is laid out the other way round: the
+candidate predictors are the rows and the outcome's groups are the columns, split
+into a categorical table and a numerical one because the cell and the test both
+differ. That is one table of twenty-six rows, not twenty-six tables. Code decides
+which way round from the question; you do not write either of them.
 
 Note what the effect measure is. For a common binary outcome it is a risk ratio
 and a risk difference, never an odds ratio: an odds ratio is not a risk ratio and

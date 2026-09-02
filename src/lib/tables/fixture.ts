@@ -78,6 +78,8 @@ export const tablesFixture: ShellTablesSpec = {
   labels: Object.fromEntries([
     ...sapFixture.variables.map((v) => [v.id, v.label]),
     ...sapFixture.outcomes.map((o) => [o.id, o.what]),
+    // The objectives too, which is what the coverage check names.
+    ...sapFixture.objectives.map((o) => [o.id, o.question]),
   ]),
   groups,
   // Copied from the plan by code, exactly as a real build copies them, and
