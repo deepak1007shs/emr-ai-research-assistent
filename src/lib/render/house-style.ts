@@ -1,5 +1,5 @@
 import { BorderStyle, type IStylesOptions } from "docx";
-import { plain } from "./plain.ts";
+import { plain, spaced } from "./plain.ts";
 
 /**
  * The house style every generated .docx obeys.
@@ -119,4 +119,4 @@ export function bannedWordsIn(text: string): string[] {
  * Re-exported so every renderer keeps importing the house style from one
  * place. The implementation lives in plain.ts, which does not import `docx`.
  */
-export { plain };
+export { plain, spaced };

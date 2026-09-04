@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
-import { buildCrfDocx, responseFor } from "./crf-docx.ts";
+import { buildCrfDocx, labelNoteFor, responseFor } from "./crf-docx.ts";
 import { HOUSE_FONT } from "./house-style.ts";
 import { crfFixture } from "../crf/fixture.ts";
 
@@ -26,7 +26,56 @@ describe("responseFor", () => {
   });
 
   it("gives a date its mask", () => {
-    expect(responseFor({ label: "DOB", type: "Date" })).toBe("___ / ___ / ______");
+    // The blanks alone do not say which number goes where, and a form filled in
+    // one order and read in another is the commonest error on paper.
+    expect(responseFor({ label: "DOB", type: "Date" })).toBe(
+      "___ / ___ / ______  (DD/MM/YYYY)",
+    );
+  });
+
+  it("prints the mask the plan supplies rather than the usual one", () => {
+    expect(responseFor({ label: "Month of surgery", type: "Date", mask: "MM/YYYY" })).toBe(
+      "___ / ___ / ______  (MM/YYYY)",
+    );
+  });
+
+  it("masks the date half of a version-and-date field too", () => {
+    expect(responseFor({ label: "CRF version", type: "Text / Date" })).toContain("(DD/MM/YYYY)");
+  });
+
+  it("says on a multi-select that more than one box may be ticked", () => {
+    // Nothing else on the page distinguishes it from a single-select, and a
+    // collector who ticks one box has answered a different question.
+    expect(labelNoteFor({ label: "Comorbidities", type: "Multi-select" })).toBe(
+      "(tick all that apply)",
+    );
+    expect(labelNoteFor({ label: "Sex", type: "Single-select" })).toBe("");
+  });
+});
+
+/**
+ * The rows of the field-type table in the skill's CRF_FORMAT_SPEC.md, which the
+ * reference document was built from. Checked rather than remembered: the spec
+ * lives outside this repository and cannot fail a build on its own.
+ */
+describe("the format spec's field-type table", () => {
+  it.each([
+    ["Text", { label: "Name", type: "Text" as const }, /^_{16,}$/],
+    ["Number with a unit", { label: "Age", type: "Number" as const, unit: "years" }, /^_{8} years$/],
+    ["Number with none", { label: "Count", type: "Number" as const }, /^_{8}$/],
+    [
+      "Single-select",
+      { label: "Sex", type: "Single-select" as const, options: ["Male", "Female"] },
+      /^☐ Male {3}☐ Female$/,
+    ],
+    [
+      "Multi-select",
+      { label: "Sites", type: "Multi-select" as const, options: ["Gastric", "Ileal"] },
+      /^☐ Gastric {3}☐ Ileal$/,
+    ],
+    ["Date", { label: "DOB", type: "Date" as const }, /^_{3} \/ _{3} \/ _{6} {2}\(DD\/MM\/YYYY\)$/],
+  ])("renders %s as the spec says", (_name, field, shape) => {
+    expect(responseFor(field)).toMatch(shape);
   });
 });
 
@@ -86,6 +135,19 @@ describe("the CRF document", () => {
     expect(visible).toContain("Intraoperative conversion (primary outcome)");
   });
 
+  it("tells the collector where more than one box may be ticked", async () => {
+    // Cloned rather than added to the shared fixture: eight other test files
+    // read it, and a field the plan does not declare is what CRF11 exists to
+    // object to.
+    const spec = structuredClone(crfFixture);
+    const field = spec.sections[0].fields.find((f) => f.type === "Single-select")!;
+    field.type = "Multi-select";
+
+    const zip = await JSZip.loadAsync(await buildCrfDocx(spec, "form"));
+    const visible = (await zip.file("word/document.xml")!.async("string")).replace(/<[^>]+>/g, "");
+    expect(visible).toContain(`${field.label} (tick all that apply)`);
+  });
+
   it("offers a calculated value as a field, and its ingredients too", async () => {
     // It used to offer neither, on the rule that a computed value entered by
     // hand cannot be audited. The ingredients are what make it auditable, and a
@@ -142,5 +204,15 @@ describe("the CRF document", () => {
   it("keeps the ballot box, which the house forms use", async () => {
     const { visible } = await read();
     expect(visible).toContain("☐");
+  });
+
+  it("keeps the spacing an answer space is drawn with", async () => {
+    // The gaps are the layout, not prose. responseFor has always returned three
+    // spaces between the boxes and the reference form has always printed three,
+    // and until this test nothing compared the two: the house-style cleaner
+    // collapses runs of spaces, so every form ever downloaded printed one.
+    const { visible } = await read();
+    expect(visible).toContain("☐ Male   ☐ Female");
+    expect(visible).toContain("___ / ___ / ______  (DD/MM/YYYY)");
   });
 });

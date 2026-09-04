@@ -1,5 +1,5 @@
 import type { CrfField, CrfSpec } from "@/lib/crf/types";
-import { responseFor } from "@/lib/crf/response";
+import { labelNoteFor, responseFor } from "@/lib/crf/response";
 import { line, plain } from "@/lib/render/plain";
 import { DocSection, DocTable, DocumentShell, Note, Td } from "./document-shell";
 
@@ -80,6 +80,11 @@ function FieldTable({
             {line(nameOf(field))}
             {field.primary_outcome && (
               <span className="font-normal text-muted"> (primary outcome)</span>
+            )}
+            {/* The printed form says this beside the label; the screen says it
+                too, so the two forms ask the same question. */}
+            {labelNoteFor(field) && (
+              <span className="font-normal text-muted"> {labelNoteFor(field)}</span>
             )}
             {/* The datasheet column, matching what the blueprint calls this
                 row and what the spreadsheet header will say. */}

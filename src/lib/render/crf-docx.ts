@@ -10,9 +10,9 @@ import {
   TextRun,
   WidthType,
 } from "docx";
-import { HOUSE_BORDER, HOUSE_STYLES, plain } from "./house-style.ts";
+import { HOUSE_BORDER, HOUSE_STYLES, plain, spaced } from "./house-style.ts";
 import type { CrfField, CrfSpec } from "../crf/types.ts";
-import { responseFor } from "../crf/response.ts";
+import { labelNoteFor, responseFor } from "../crf/response.ts";
 import { columnsByVariable } from "../crf/columns.ts";
 
 /**
@@ -52,7 +52,9 @@ function cell(text: string, bold = false, centre = false) {
       (part) =>
         new Paragraph({
           alignment: centre ? AlignmentType.CENTER : AlignmentType.LEFT,
-          children: [new TextRun({ text: line(part), bold })],
+          // spaced, not line: in a form the gaps between the boxes are the
+          // layout, and the house cleaner would collapse them to one.
+          children: [new TextRun({ text: spaced(part), bold })],
         }),
     ),
     margins: { top: 60, bottom: 60, left: 100, right: 100 },
@@ -230,7 +232,12 @@ export async function buildCrfDocx(
         // into a spreadsheet reads this to know which column the answer goes
         // in, and the analysis blueprint names its rows by the same word.
         [
-          f.primary_outcome ? `${nameOf(f)} (primary outcome)` : nameOf(f),
+          [
+            f.primary_outcome ? `${nameOf(f)} (primary outcome)` : nameOf(f),
+            labelNoteFor(f),
+          ]
+            .filter(Boolean)
+            .join(" "),
           f.column_name ? `[${f.column_name}]` : "",
         ]
           .filter(Boolean)
@@ -271,4 +278,4 @@ export async function buildCrfDocx(
 }
 
 /** Re-exported so the renderer stays the one import a caller needs. */
-export { responseFor };
+export { labelNoteFor, responseFor };

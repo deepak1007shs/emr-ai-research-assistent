@@ -39,3 +39,22 @@ export function plain(value: string | null | undefined): string {
 export function line(value: string | null | undefined): string {
   return plain(String(value ?? "").replace(/\s*\n\s*/g, " "));
 }
+
+/**
+ * House style for text whose spacing is its layout.
+ *
+ * The punctuation is normalised as everywhere else, and runs of spaces are
+ * left alone. A pre-printed answer space is not prose: the three spaces
+ * between two ballot boxes are what stop them reading as one choice, and the
+ * two before a date's mask are what set it apart from the blanks. `plain`
+ * collapses both, which is right for a sentence and wrong for a form, and for
+ * as long as it was applied to the answer column every form printed a single
+ * space where the house form prints three.
+ */
+export function spaced(value: string | null | undefined): string {
+  let text = String(value ?? "");
+  for (const [pattern, replacement] of SUBSTITUTIONS) {
+    text = text.replace(pattern, replacement);
+  }
+  return text.trim();
+}

@@ -123,7 +123,7 @@ export const CRF_JSON_SCHEMA = obj({
   sections: {
     type: "array",
     description:
-      "Lettered A onward and named by topic. One section per visit for anything collected repeatedly, so each visit's section stands alone.",
+      "Lettered A onward, grouped by what the field is rather than by when you thought of it. The usual order, keeping only the ones this study has: demographics; the history blocks it takes, each its own section; presenting symptoms; comorbidity and treatment history, where the adjustment covariates live; clinical examination and pre-operative findings; the index test or the study's own measurements, split into parts where one heading covers blocks that share nothing else; and the reference standard or outcome source, which is where the primary outcome is recorded. One section per visit for anything collected repeatedly, so each visit's section stands alone. A collector works down the page in the order the patient is seen, so a form grouped this way is filled in one pass.",
     items: obj({
       letter: {
         ...str,
