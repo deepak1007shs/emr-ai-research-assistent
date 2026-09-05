@@ -72,7 +72,7 @@ function isPlanId(id: string): boolean {
  * The parts were added and this was not, so a field inside one was invisible to
  * every check that asks what the form collects.
  */
-function capturedIds(crf: CrfSpec): Set<string> {
+export function capturedIds(crf: CrfSpec): Set<string> {
   const ids = new Set<string>();
   const take = (fields: CrfField[] | undefined) => {
     for (const f of fields ?? []) if (f.variable_id) ids.add(f.variable_id);
@@ -85,7 +85,7 @@ function capturedIds(crf: CrfSpec): Set<string> {
   return ids;
 }
 
-function derivedIds(crf: CrfSpec): Set<string> {
+export function derivedIds(crf: CrfSpec): Set<string> {
   return new Set(crf.derived.map((d) => d.variable_id).filter((id): id is string => Boolean(id)));
 }
 

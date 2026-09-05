@@ -12,6 +12,7 @@ import type { CrfField, CrfSection, CrfSpec } from "./types.ts";
 import type { RequiredField } from "./required.ts";
 import { requiredDerived, requiredFields, requiredVisits } from "./required.ts";
 import { validateCrf } from "./validate.ts";
+import { resolveRollCall } from "./roll-call.ts";
 import { assignColumnNames } from "./columns.ts";
 
 /**
@@ -101,11 +102,6 @@ export const CRF_JSON_SCHEMA = obj({
     items: obj({
       role: { type: "string", enum: ["exposure", "primary_outcome", "secondary_outcome", "confounder"] },
       ref_id: { ...str, description: "The id of the variable or outcome, from the plan." },
-      field_variable_id: {
-        ...str,
-        description:
-          "The variable_id of the field on this form that captures it, or a calculated value's variable_id. Empty only when nothing on the form captures it.",
-      },
       where: { ...str, description: "The visit at which it is captured." },
     }),
   },
@@ -413,6 +409,10 @@ cannot be analysed.`,
   const named = assignColumnNames(spec);
   spec.identifiers = named.identifiers;
   spec.sections = named.sections;
+
+  // Which field captures each role is read off the finished form, not asked of
+  // the model. After the repair pass, so a field added there is counted.
+  spec.roll_call = resolveRollCall(spec, sap);
 
   const { findings } = validateCrf(spec, sap);
 
