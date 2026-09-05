@@ -56,25 +56,3 @@ export function withoutSectionSubject(label: string, heading: string): string {
 export function formLabel(label: string, heading: string): string {
   return withoutSectionSubject(withoutSupervision(label), heading);
 }
-
-/**
- * The note the form prints under a field, or nothing.
- *
- * A TODO is a task for whoever is correcting the protocol: add a definition,
- * decide a threshold, say how a finding will be confirmed. The collector cannot
- * act on any of it and should not have to read past it to reach the question.
- * It stays in the data-collection plan, where the person it is addressed to
- * will see it.
- *
- * A NOTE is usually a real capture rule wearing a label meant for the same
- * reader. The label comes off and the rule stays.
- */
-export function formNote(note: string | undefined): string | undefined {
-  const text = (note ?? "").trim();
-  if (!text) return undefined;
-  if (/^TODO\b/i.test(text)) return undefined;
-
-  const stripped = text.replace(/^NOTE:\s*/i, "");
-  if (stripped === text) return text;
-  return stripped.charAt(0).toUpperCase() + stripped.slice(1);
-}

@@ -1,7 +1,7 @@
 import type { CrfField, CrfSpec } from "@/lib/crf/types";
 import { labelNoteFor, responseFor } from "@/lib/crf/response";
 import { HEADING_DASH, IDENTIFIERS_HEADING, partLabel, printedLetter } from "@/lib/crf/letters";
-import { formLabel, formNote } from "@/lib/crf/form-text";
+import { formLabel } from "@/lib/crf/form-text";
 import { line, plain } from "@/lib/render/plain";
 import { DocSection, DocTable, DocumentShell, Note, Td } from "./document-shell";
 
@@ -36,9 +36,11 @@ export function CrfPreview({ spec }: { spec: CrfSpec }) {
   }
 
   return (
-    // Mirrors `crf-docx.ts`: what is on screen is what the download contains,
-    // and the download is the form. The collection plan is the other document,
-    // downloaded beside it, because the two have different readers.
+    // Mirrors `crf-docx.ts` in everything but one thing, deliberately: the
+    // capture rules are here and not in the download. The .docx is headings,
+    // tables and answer spaces for whoever is holding the pen; this screen is
+    // where an investigator reads the rules and the outstanding TODOs before
+    // handing the form out. The collection plan is the other document.
     <DocumentShell kind="Case Record Form" title={plain(spec.title)}>
       <DocSection title={IDENTIFIERS_HEADING}>
         <FieldTable fields={identifiers} nameOf={nameOf} heading={IDENTIFIERS_HEADING} />
@@ -92,9 +94,7 @@ function FieldTable({
             {labelNoteFor(field) && (
               <span className="font-normal text-muted"> {labelNoteFor(field)}</span>
             )}
-            {formNote(field.note) && (
-              <span className="block font-normal text-muted">{plain(formNote(field.note))}</span>
-            )}
+            {field.note && <span className="block font-normal text-muted">{plain(field.note)}</span>}
           </Td>
           <Td>{field.type}</Td>
           {/* The answer space, drawn as it prints. */}

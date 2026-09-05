@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formLabel, formNote, withoutSectionSubject, withoutSupervision } from "./form-text.ts";
+import { formLabel, withoutSectionSubject, withoutSupervision } from "./form-text.ts";
 
 /**
  * What the printed form says, as against what the plan says.
@@ -69,30 +69,5 @@ describe("the label as the form prints it", () => {
         "HRUSG Index Test - Associated Findings",
       ),
     ).toBe("Tendon sheath thickening");
-  });
-});
-
-describe("the note under a field", () => {
-  it("drops a task addressed to the investigator", () => {
-    // A TODO is work for whoever is fixing the protocol. The collector cannot
-    // act on it and should not be asked to read past it.
-    expect(
-      formNote("TODO: the original proforma recorded free text; itemised here into pre-specified categories."),
-    ).toBeUndefined();
-  });
-
-  it("keeps the instruction inside a NOTE, without the word", () => {
-    expect(
-      formNote("NOTE: the MRI protocol described is static. Record the positional method actually used."),
-    ).toBe("The MRI protocol described is static. Record the positional method actually used.");
-  });
-
-  it("leaves an ordinary capture rule alone", () => {
-    expect(formNote("Complete only if retraction present.")).toBe("Complete only if retraction present.");
-  });
-
-  it("treats an empty note as none", () => {
-    expect(formNote("   ")).toBeUndefined();
-    expect(formNote(undefined)).toBeUndefined();
   });
 });

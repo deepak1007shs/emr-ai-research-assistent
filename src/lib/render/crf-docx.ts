@@ -15,10 +15,17 @@ import type { CrfField, CrfSpec } from "../crf/types.ts";
 import { labelNoteFor, responseFor } from "../crf/response.ts";
 import { columnsByVariable } from "../crf/columns.ts";
 import { HEADING_DASH, IDENTIFIERS_HEADING, partLabel, printedLetter } from "../crf/letters.ts";
-import { formLabel, formNote } from "../crf/form-text.ts";
+import { formLabel } from "../crf/form-text.ts";
 
 /**
  * The case report form, and the data-collection plan it was expanded from.
+ *
+ * The printed form carries no notes at all - not under a field, not under a
+ * section. Every note in the spec is written for somebody other than the person
+ * holding the pen, and telling a capture rule from an explanation by reading the
+ * sentence was tried twice and failed twice. The rule is about the surface
+ * instead: the screen carries them, where an investigator reviews before handing
+ * the form out, and the document is headings, tables and answer spaces.
  *
  * The plan comes first because it is what a guide checks in thirty seconds: a
  * tick means collect it here, an empty cell means do not, and that is what
@@ -62,11 +69,6 @@ function h(text: string, level: (typeof HeadingLevel)[keyof typeof HeadingLevel]
 
 function para(text: string) {
   return new Paragraph({ text: plain(text), spacing: { after: 130 } });
-}
-
-/** A capture rule under a table: bold and small, as the reference form has it. */
-function noteParagraph(text: string) {
-  return formHeading(line(text), 22);
 }
 
 function italic(text: string) {
@@ -269,7 +271,6 @@ export async function buildCrfDocx(
         ]
           .filter(Boolean)
           .join(" "),
-        formNote(f.note),
       ]
         .filter(Boolean)
         .join("\n"),
@@ -285,14 +286,12 @@ export async function buildCrfDocx(
   spec.sections.forEach((section, index) => {
     doc.push(sectionHeading(`Section ${printedLetter(index)}`, section.title));
     if (section.fields.length) doc.push(table(HEAD, fieldRows(section.fields, section.title)));
-    if (section.note) doc.push(noteParagraph(section.note));
 
     // A section's parts each get their own table under its heading, numbered
     // from the section's letter: H1, H2, H3. One level and no deeper.
     (section.sections ?? []).forEach((part, i) => {
       doc.push(sectionHeading(partLabel(index, i), part.title));
       doc.push(table(HEAD, fieldRows(part.fields, `${section.title} ${part.title}`)));
-      if (part.note) doc.push(noteParagraph(part.note));
     });
   });
 

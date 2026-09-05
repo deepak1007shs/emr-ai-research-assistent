@@ -100,6 +100,17 @@ describe("the CRF preview", () => {
     expect(screen).toContain("years");
   });
 
+  it("keeps every note, where the downloaded form has none", () => {
+    // The other half of a deliberate split. The .docx is headings, tables and
+    // answer spaces; the capture rules live here, where an investigator reviews
+    // before handing the form out. Pinned from this side too, so a later change
+    // cannot drop them from both and leave them readable nowhere.
+    const screen = screenText(CrfPreview({ spec: crfFixture }));
+    expect(screen).toContain("Calculated from height and weight");
+    expect(screen).toContain("worked out from the values above");
+    expect(screen).toContain("Each surgeon grades without seeing");
+  });
+
   it("shows the form, which is what the download contains", () => {
     const screen = screenText(CrfPreview({ spec: crfFixture }));
     expect(screen).toContain("Case Record Form");

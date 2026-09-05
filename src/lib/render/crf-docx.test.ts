@@ -99,12 +99,18 @@ describe("the CRF document", () => {
     expect(visible).not.toContain("CASE RECORD FORM");
   });
 
-  it("says beside a calculated value what it is worked out from", async () => {
-    // The value and its ingredients both, so the two can be checked against
-    // each other. Said where the field is, not in a policy somewhere else.
+  it("carries no note of any kind", async () => {
+    // The printed form is headings, tables and answer spaces. Every note in the
+    // spec is written for somebody other than the person holding the pen, and
+    // telling a capture rule from an explanation by reading the sentence failed
+    // twice before this became a rule about the surface instead: the screen
+    // carries the notes, the download does not.
     const { visible } = await read();
-    expect(visible).toContain("Calculated from height and weight");
-    expect(visible).toContain("Counted from the two dates above");
+    expect(visible).not.toContain("Calculated from height and weight");
+    expect(visible).not.toContain("Counted from the two dates above");
+    expect(visible).not.toContain("Skin incision to skin closure");
+    // A note under a whole section goes with them.
+    expect(visible).not.toContain("worked out from the values above");
   });
 
   it("ticks the grid where an element is collected, and nowhere else", async () => {
@@ -183,8 +189,11 @@ describe("the CRF document", () => {
     const { visible } = await read();
     expect(visible).toContain("R1:");
     expect(visible).toContain("R2:");
-    expect(visible).toContain("Each surgeon grades without seeing");
+    // The part's note explaining the blinding is not on the form; the two
+    // response lines are what the collector needs and they are there.
+    expect(visible).not.toContain("Each surgeon grades without seeing");
   });
+
 
   it("has no investigator sign-off", async () => {
     const { visible } = await read();
