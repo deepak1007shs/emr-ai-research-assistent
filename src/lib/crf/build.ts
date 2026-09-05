@@ -52,7 +52,7 @@ const FIELD = obj({
   label: {
     ...str,
     description:
-      "Always fill this in: it is what prints on the form. When variable_id names a variable in the plan, the plan's wording replaces it, so the two documents cannot disagree.",
+      "Always fill this in: it is what prints on the form. When variable_id names a variable in the plan, the plan's wording replaces it, so the two documents cannot disagree. Do not repeat what the section heading already says: under a heading that names the modality, write 'Peritendinous fluid', not 'Peritendinous fluid on HRUSG'.",
   },
   column_name: {
     ...str,
@@ -66,7 +66,11 @@ const FIELD = obj({
   options: { ...strArray, description: "Every allowed answer, for a select. Empty otherwise." },
   unit: { ...str, description: "Required for a Number: years, cm, mmHg, minutes. Empty otherwise." },
   primary_outcome: { type: "boolean", description: "True only for the study's primary outcome field." },
-  note: { ...str, description: "A short qualifier such as 'If yes, ...'. Empty when not needed." },
+  note: {
+    ...str,
+    description:
+      "One short capture rule, addressed to the person filling the form in with a patient in front of them: 'If yes, name the organism.', 'Complete only if ICU admission is Yes.', 'Measure at the widest point.' Never explain the analysis here: not the variable's role, not which outcome it serves, not how it is derived, not why the field was added or what the original proforma did. A collector cannot act on any of that and it pushes the answer space off the line. Empty when the field needs no rule, which is most of them.",
+  },
   respondents: {
     ...strArray,
     description:

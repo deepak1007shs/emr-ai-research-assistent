@@ -1,6 +1,7 @@
 import type { CrfField, CrfSpec } from "@/lib/crf/types";
 import { labelNoteFor, responseFor } from "@/lib/crf/response";
 import { HEADING_DASH, IDENTIFIERS_HEADING, partLabel, printedLetter } from "@/lib/crf/letters";
+import { formLabel, formNote } from "@/lib/crf/form-text";
 import { line, plain } from "@/lib/render/plain";
 import { DocSection, DocTable, DocumentShell, Note, Td } from "./document-shell";
 
@@ -40,12 +41,14 @@ export function CrfPreview({ spec }: { spec: CrfSpec }) {
     // downloaded beside it, because the two have different readers.
     <DocumentShell kind="Case Record Form" title={plain(spec.title)}>
       <DocSection title={IDENTIFIERS_HEADING}>
-        <FieldTable fields={identifiers} nameOf={nameOf} />
+        <FieldTable fields={identifiers} nameOf={nameOf} heading={IDENTIFIERS_HEADING} />
       </DocSection>
 
       {sections.map((section, index) => (
         <DocSection key={section.letter} title={`Section ${printedLetter(index)} ${HEADING_DASH} ${section.title}`}>
-          {section.fields.length > 0 && <FieldTable fields={section.fields} nameOf={nameOf} />}
+          {section.fields.length > 0 && (
+            <FieldTable fields={section.fields} nameOf={nameOf} heading={section.title} />
+          )}
           {section.note && <Note>{plain(section.note)}</Note>}
 
           {/* A section's parts, each its own table under its heading. */}
@@ -53,7 +56,7 @@ export function CrfPreview({ spec }: { spec: CrfSpec }) {
             <div key={part.title} className="mt-5">
               <h4 className="text-sm font-semibold text-ink">{`${partLabel(index, i)} ${HEADING_DASH} ${plain(part.title)}`}</h4>
               <div className="mt-2">
-                <FieldTable fields={part.fields} nameOf={nameOf} />
+                <FieldTable fields={part.fields} nameOf={nameOf} heading={`${section.title} ${part.title}`} />
               </div>
               {part.note && <Note>{plain(part.note)}</Note>}
             </div>
@@ -68,7 +71,9 @@ export function CrfPreview({ spec }: { spec: CrfSpec }) {
 function FieldTable({
   fields,
   nameOf,
+  heading,
 }: {
+  heading: string;
   fields: CrfField[];
   nameOf: (field: CrfField) => string;
 }) {
@@ -78,7 +83,7 @@ function FieldTable({
         <tr key={i}>
           <Td centre>{i + 1}</Td>
           <Td bold>
-            {line(nameOf(field))}
+            {formLabel(line(nameOf(field)), heading)}
             {field.primary_outcome && (
               <span className="font-normal text-muted"> (primary outcome)</span>
             )}
@@ -87,12 +92,9 @@ function FieldTable({
             {labelNoteFor(field) && (
               <span className="font-normal text-muted"> {labelNoteFor(field)}</span>
             )}
-            {/* The datasheet column, matching what the blueprint calls this
-                row and what the spreadsheet header will say. */}
-            {field.column_name && (
-              <span className="font-mono font-normal text-muted"> [{field.column_name}]</span>
+            {formNote(field.note) && (
+              <span className="block font-normal text-muted">{plain(formNote(field.note))}</span>
             )}
-            {field.note && <span className="block font-normal text-muted">{plain(field.note)}</span>}
           </Td>
           <Td>{field.type}</Td>
           {/* The answer space, drawn as it prints. */}

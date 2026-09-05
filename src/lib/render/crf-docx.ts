@@ -15,6 +15,7 @@ import type { CrfField, CrfSpec } from "../crf/types.ts";
 import { labelNoteFor, responseFor } from "../crf/response.ts";
 import { columnsByVariable } from "../crf/columns.ts";
 import { HEADING_DASH, IDENTIFIERS_HEADING, partLabel, printedLetter } from "../crf/letters.ts";
+import { formLabel, formNote } from "../crf/form-text.ts";
 
 /**
  * The case report form, and the data-collection plan it was expanded from.
@@ -64,7 +65,7 @@ function para(text: string) {
 }
 
 /** A capture rule under a table: bold and small, as the reference form has it. */
-function formNote(text: string) {
+function noteParagraph(text: string) {
   return formHeading(line(text), 22);
 }
 
@@ -246,28 +247,29 @@ export async function buildCrfDocx(
     }),
   );
 
-  const fieldRows = (fields: CrfField[]) =>
+  // The heading a table sits under, so a field need not repeat what it says.
+  const fieldRows = (fields: CrfField[], heading = "") =>
     fields.map((f, i) => [
       String(i + 1),
-      // The note under the label, where whoever is filling the form is already
-      // looking. It carries the rule a calculated value is worked out from, and
-      // it had been in the spec and printed nowhere.
+      // The label, then the capture rule under it where whoever is filling the
+      // form is already looking.
+      //
+      // The datasheet column is not here. It used to print beside every label,
+      // for the analyst who would later type the form into a spreadsheet, and
+      // it is the analyst's business and not the collector's: forty rows of
+      // [hrusg_periflu] beside forty clinical labels, crowding the answer
+      // space off the line. It is in the data-collection plan, which is the
+      // analyst's document.
       [
-        // The datasheet column beside the label. Whoever types the filled form
-        // into a spreadsheet reads this to know which column the answer goes
-        // in, and the analysis blueprint names its rows by the same word.
         [
-          [
-            f.primary_outcome ? `${nameOf(f)} (primary outcome)` : nameOf(f),
-            labelNoteFor(f),
-          ]
-            .filter(Boolean)
-            .join(" "),
-          f.column_name ? `[${f.column_name}]` : "",
+          f.primary_outcome
+            ? `${formLabel(nameOf(f), heading)} (primary outcome)`
+            : formLabel(nameOf(f), heading),
+          labelNoteFor(f),
         ]
           .filter(Boolean)
-          .join("  "),
-        f.note,
+          .join(" "),
+        formNote(f.note),
       ]
         .filter(Boolean)
         .join("\n"),
@@ -276,21 +278,21 @@ export async function buildCrfDocx(
     ]);
 
   doc.push(formHeading(IDENTIFIERS_HEADING, 24));
-  doc.push(table(["S.No.", "Field / Variable", "Field type", "Response"], fieldRows(spec.identifiers)));
+  doc.push(table(["S.No.", "Field / Variable", "Field type", "Response"], fieldRows(spec.identifiers, IDENTIFIERS_HEADING)));
 
   const HEAD = ["S.No.", "Field / Variable", "Field type", "Response"];
 
   spec.sections.forEach((section, index) => {
     doc.push(sectionHeading(`Section ${printedLetter(index)}`, section.title));
-    if (section.fields.length) doc.push(table(HEAD, fieldRows(section.fields)));
-    if (section.note) doc.push(formNote(section.note));
+    if (section.fields.length) doc.push(table(HEAD, fieldRows(section.fields, section.title)));
+    if (section.note) doc.push(noteParagraph(section.note));
 
     // A section's parts each get their own table under its heading, numbered
     // from the section's letter: H1, H2, H3. One level and no deeper.
     (section.sections ?? []).forEach((part, i) => {
       doc.push(sectionHeading(partLabel(index, i), part.title));
-      doc.push(table(HEAD, fieldRows(part.fields)));
-      if (part.note) doc.push(formNote(part.note));
+      doc.push(table(HEAD, fieldRows(part.fields, `${section.title} ${part.title}`)));
+      if (part.note) doc.push(noteParagraph(part.note));
     });
   });
 
