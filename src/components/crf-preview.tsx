@@ -1,5 +1,6 @@
 import type { CrfField, CrfSpec } from "@/lib/crf/types";
 import { labelNoteFor, responseFor } from "@/lib/crf/response";
+import { HEADING_DASH, IDENTIFIERS_HEADING, partLabel, printedLetter } from "@/lib/crf/letters";
 import { line, plain } from "@/lib/render/plain";
 import { DocSection, DocTable, DocumentShell, Note, Td } from "./document-shell";
 
@@ -38,19 +39,19 @@ export function CrfPreview({ spec }: { spec: CrfSpec }) {
     // and the download is the form. The collection plan is the other document,
     // downloaded beside it, because the two have different readers.
     <DocumentShell kind="Case Record Form" title={plain(spec.title)}>
-      <DocSection title="Form & Subject Identifiers">
+      <DocSection title={IDENTIFIERS_HEADING}>
         <FieldTable fields={identifiers} nameOf={nameOf} />
       </DocSection>
 
-      {sections.map((section) => (
-        <DocSection key={section.letter} title={`Section ${section.letter} - ${section.title}`}>
+      {sections.map((section, index) => (
+        <DocSection key={section.letter} title={`Section ${printedLetter(index)} ${HEADING_DASH} ${section.title}`}>
           {section.fields.length > 0 && <FieldTable fields={section.fields} nameOf={nameOf} />}
           {section.note && <Note>{plain(section.note)}</Note>}
 
           {/* A section's parts, each its own table under its heading. */}
           {(section.sections ?? []).map((part, i) => (
             <div key={part.title} className="mt-5">
-              <h4 className="text-sm font-semibold text-ink">{`${section.letter}${i + 1} - ${plain(part.title)}`}</h4>
+              <h4 className="text-sm font-semibold text-ink">{`${partLabel(index, i)} ${HEADING_DASH} ${plain(part.title)}`}</h4>
               <div className="mt-2">
                 <FieldTable fields={part.fields} nameOf={nameOf} />
               </div>

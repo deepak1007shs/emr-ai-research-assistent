@@ -123,11 +123,14 @@ describe("the CRF document", () => {
 
   it("uses the house table and letters the sections", async () => {
     const { visible } = await read();
-    expect(visible).toContain("Form & Subject Identifiers");
+    // The identifier block is Section A on a printed form, so the topic
+    // sections run from B. The spec still letters them from A; this is how the
+    // page reads.
+    expect(visible).toContain("Section A – Form and subject identifiers");
     expect(visible).toContain("Field / Variable");
     expect(visible).toContain("Field type");
-    expect(visible).toContain("Section A - Demographics & Identification");
-    expect(visible).toContain("Section B - Intraoperative Details");
+    expect(visible).toContain("Section B – Demographics & Identification");
+    expect(visible).toContain("Section C – Intraoperative Details");
   });
 
   it("sets the primary outcome apart", async () => {
@@ -169,9 +172,9 @@ describe("the CRF document", () => {
 
   it("splits a section into its parts, numbered from its letter", async () => {
     const { visible } = await read();
-    expect(visible).toContain("B1 - Adhesion grading, scored independently");
+    expect(visible).toContain("C1 – Adhesion grading, scored independently");
     // The part sits under its section, not beside it.
-    expect(visible.indexOf("Section B -")).toBeLessThan(visible.indexOf("B1 -"));
+    expect(visible.indexOf("Section C –")).toBeLessThan(visible.indexOf("C1 –"));
   });
 
   it("gives each observer a line of their own", async () => {
@@ -197,7 +200,10 @@ describe("the CRF document", () => {
       const colours = [...xml.matchAll(/w:color w:val="([0-9A-Fa-f]{6})"/g)].map((m) => m[1]);
       expect(colours.filter((c) => c.toUpperCase() !== "000000")).toEqual([]);
     }
-    for (const glyph of ["—", "–", "“", "”", "’"]) expect(visible).not.toContain(glyph);
+    // The en dash between a section's letter and its title is this
+    // application's own and deliberate; one the model wrote is still caught.
+    const prose = visible.replace(/ – /g, " - ");
+    for (const glyph of ["—", "–", "“", "”", "’"]) expect(prose).not.toContain(glyph);
     expect(document).not.toContain("<w:pBdr>");
   });
 

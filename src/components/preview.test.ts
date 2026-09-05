@@ -103,7 +103,7 @@ describe("the CRF preview", () => {
   it("shows the form, which is what the download contains", () => {
     const screen = screenText(CrfPreview({ spec: crfFixture }));
     expect(screen).toContain("Case Record Form");
-    expect(screen).toContain("Form & Subject Identifiers");
+    expect(screen).toContain("Section A – Form and subject identifiers");
     for (const section of crfFixture.sections) {
       expect(screen, section.title).toContain(section.title);
     }

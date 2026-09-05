@@ -14,6 +14,7 @@ import { HOUSE_BORDER, HOUSE_STYLES, plain, spaced } from "./house-style.ts";
 import type { CrfField, CrfSpec } from "../crf/types.ts";
 import { labelNoteFor, responseFor } from "../crf/response.ts";
 import { columnsByVariable } from "../crf/columns.ts";
+import { HEADING_DASH, IDENTIFIERS_HEADING, partLabel, printedLetter } from "../crf/letters.ts";
 
 /**
  * The case report form, and the data-collection plan it was expanded from.
@@ -28,12 +29,43 @@ type Block = Paragraph | Table;
 const line = (v?: string) => plain(String(v ?? "").replace(/\s*\n\s*/g, " "));
 const TICK = "✓";
 
+/**
+ * A heading on the printed form.
+ *
+ * Sized here rather than carried by a Word style, which is what the house form
+ * this is modelled on does: 14pt for the title, 12pt for a section, 11pt for a
+ * note, every one of them bold. The cost is real and was accepted knowingly -
+ * a document with no styles has no navigation pane and no table of contents.
+ */
+function formHeading(text: string, half: number, centre = false) {
+  return new Paragraph({
+    children: [new TextRun({ text, bold: true, size: half })],
+    alignment: centre ? AlignmentType.CENTER : AlignmentType.LEFT,
+    spacing: { before: half > 22 ? 260 : 120, after: 130 },
+  });
+}
+
+/**
+ * "Section B - Demographics", with the en dash the reference form uses.
+ *
+ * The title passes through the house cleaner and the separator is added after,
+ * so a dash this application chose survives while one the model wrote does not.
+ */
+function sectionHeading(label: string, title: string) {
+  return formHeading(`${label} ${HEADING_DASH} ${line(title)}`, 24);
+}
+
 function h(text: string, level: (typeof HeadingLevel)[keyof typeof HeadingLevel]) {
   return new Paragraph({ text: line(text), heading: level, spacing: { before: 260, after: 130 } });
 }
 
 function para(text: string) {
   return new Paragraph({ text: plain(text), spacing: { after: 130 } });
+}
+
+/** A capture rule under a table: bold and small, as the reference form has it. */
+function formNote(text: string) {
+  return formHeading(line(text), 22);
 }
 
 function italic(text: string) {
@@ -198,24 +230,17 @@ export async function buildCrfDocx(
 
   /* ---- the form ----------------------------------------------------- */
 
+  doc.push(formHeading("CASE RECORD FORM", 28, true));
   doc.push(
     new Paragraph({
-      text: "CASE RECORD FORM",
-      heading: HeadingLevel.TITLE,
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 140 },
-    }),
-  );
-  doc.push(
-    new Paragraph({
-      children: [new TextRun({ text: plain(spec.title), bold: true })],
+      children: [new TextRun({ text: plain(spec.title), bold: true, size: 24 })],
       alignment: AlignmentType.CENTER,
       spacing: { after: 100 },
     }),
   );
   doc.push(
     new Paragraph({
-      children: [new TextRun({ text: plain(spec.institution), italics: true })],
+      children: [new TextRun({ text: plain(spec.institution), bold: true, size: 22 })],
       alignment: AlignmentType.CENTER,
       spacing: { after: 260 },
     }),
@@ -250,31 +275,43 @@ export async function buildCrfDocx(
       responseFor(f),
     ]);
 
-  doc.push(h("Form & Subject Identifiers", HeadingLevel.HEADING_2));
+  doc.push(formHeading(IDENTIFIERS_HEADING, 24));
   doc.push(table(["S.No.", "Field / Variable", "Field type", "Response"], fieldRows(spec.identifiers)));
 
   const HEAD = ["S.No.", "Field / Variable", "Field type", "Response"];
 
-  for (const section of spec.sections) {
-    doc.push(h(`Section ${section.letter} - ${section.title}`, HeadingLevel.HEADING_2));
+  spec.sections.forEach((section, index) => {
+    doc.push(sectionHeading(`Section ${printedLetter(index)}`, section.title));
     if (section.fields.length) doc.push(table(HEAD, fieldRows(section.fields)));
-    if (section.note) doc.push(italic(section.note));
+    if (section.note) doc.push(formNote(section.note));
 
     // A section's parts each get their own table under its heading, numbered
     // from the section's letter: H1, H2, H3. One level and no deeper.
     (section.sections ?? []).forEach((part, i) => {
-      doc.push(h(`${section.letter}${i + 1} - ${part.title}`, HeadingLevel.HEADING_3));
+      doc.push(sectionHeading(partLabel(index, i), part.title));
       doc.push(table(HEAD, fieldRows(part.fields)));
-      if (part.note) doc.push(italic(part.note));
+      if (part.note) doc.push(formNote(part.note));
     });
-  }
+  });
 
   // What is calculated rather than collected is listed in the plan document,
   // and said again in the section note where the temptation to enter it is:
   // "Body mass index is calculated from height and weight. Do not enter it
   // here." A table of it on the form is a third telling nobody needs.
 
-  return Packer.toBuffer(new Document({ styles: HOUSE_STYLES, sections: [{ children: doc }] }));
+  return Packer.toBuffer(
+    new Document({
+      styles: HOUSE_STYLES,
+      sections: [
+        {
+          // 1152 twips, the reference form's 0.8in, which fits more rows of a
+          // table on a page than the 1in the other documents use.
+          properties: { page: { margin: { top: 1152, right: 1152, bottom: 1152, left: 1152 } } },
+          children: doc,
+        },
+      ],
+    }),
+  );
 }
 
 /** Re-exported so the renderer stays the one import a caller needs. */
