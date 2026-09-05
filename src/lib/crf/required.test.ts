@@ -149,3 +149,45 @@ describe("folding the second pass into the first", () => {
     expect(merged.map((s) => s.letter)).toEqual(["A", "B", "C"]);
   });
 });
+
+describe("a confounder no analysis names", () => {
+  /**
+   * A radiology study declared six confounders - trauma, repetitive overuse,
+   * operator experience, diabetes, hypertension, other comorbidity - and its
+   * analyses adjusted for none of them. Every one was invisible here, so the
+   * repair pass was never told to add them and the form went out without a box
+   * for any. The plan's own roll-call said so six times and nothing acted on it.
+   *
+   * A confounder is not optional because the analysis section forgot it. It is
+   * the one kind of variable that cannot be recovered later: an adjustment can
+   * be added to a plan the week before submission, and a value nobody wrote
+   * down cannot.
+   */
+  function unadjusted(): SapRegistry {
+    const sap = plan();
+    sap.variables.push({
+      id: "var_diabetes",
+      label: "Diabetes mellitus",
+      data_type: "binary",
+      unit_coding: "Yes / No",
+      role: "confounder",
+    });
+    return sap;
+  }
+
+  it("is still required on the form", () => {
+    expect(ids(unadjusted())).toContain("var_diabetes");
+  });
+
+  it("says why, in words that name the risk", () => {
+    const field = requiredFields(unadjusted()).find((f) => f.variable_id === "var_diabetes");
+    expect(field?.because).toMatch(/confound/i);
+  });
+
+  it("and one an analysis does adjust for keeps its own reason", () => {
+    // var_asa is adjusted for in P1, so it must not be relabelled by the
+    // catch-all: the specific reason is the more useful one.
+    const field = requiredFields(unadjusted()).find((f) => f.variable_id === "var_asa");
+    expect(field?.because).toContain("holds it constant");
+  });
+});

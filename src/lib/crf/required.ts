@@ -95,6 +95,24 @@ function neededIds(sap: SapRegistry): Map<string, string> {
     if (v.role === "descriptor" && !why.has(v.id)) {
       why.set(v.id, "the baseline table describes it");
     }
+
+    // A confounder the analyses happen not to name. It used to be invisible
+    // here, because this walked the analyses and nothing else: a radiology
+    // study declared six of them - trauma, repetitive overuse, operator
+    // experience, diabetes, hypertension, other comorbidity - adjusted for none
+    // of them in any analysis, and every one was left off the form. The plan's
+    // own roll-call said so six times and nothing could act on it, because the
+    // repair pass is told what to add by this function.
+    //
+    // Of every kind of variable this is the one that cannot be recovered. An
+    // adjustment missing from the analysis section can be added the week before
+    // submission; a value nobody wrote down cannot be added at all.
+    if (v.role === "confounder") {
+      want(
+        v.id,
+        "the plan calls it a confounder, and an adjustment left out of the analysis can be added later while a value nobody recorded cannot",
+      );
+    }
     for (const input of v.role === "descriptor" ? (v.derived_from ?? []) : []) {
       want(input, "the baseline table describes what it is worked out from");
     }
