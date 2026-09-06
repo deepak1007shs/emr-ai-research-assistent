@@ -55,17 +55,16 @@ describe("the table plan document", () => {
     }
   });
 
-  it("says what is on each axis instead of drawing an empty grid", async () => {
+  it("draws the grid rather than describing the axes", async () => {
     const { document, visible } = await read();
-    // The complaint this document was rewritten for: a grid does not say what
-    // belongs in it, and one baseline table ran to 28 rows labelled "" and
-    // "Mean +/- SD", readable only by resolving ids the reader cannot see.
-    expect(document).not.toContain("<w:tbl>");
-    // The house blueprint's own labels, including its naming of the axes.
-    expect(visible).toContain("Rows (X)");
-    expect(visible).toContain("Columns (Y)");
-    expect(visible).toContain("Cell shows");
-    expect(visible).toContain("Test applied");
+    // This document once drew grids, stopped because the rows printed blank,
+    // and described the axes in prose instead. The folding that fixed the prose
+    // is what lets the grid come back, so the axes are the table now.
+    expect(document).toContain("<w:tbl>");
+    expect(visible).not.toContain("Rows (X)");
+    expect(visible).not.toContain("Columns (Y)");
+    // What a grid cannot carry is still said underneath.
+    expect(visible).toContain("Footnote: test used = ");
   });
 
   it("reports one outcome in one table, with the groups and the estimates in it", async () => {
@@ -122,7 +121,7 @@ describe("the table plan document", () => {
     for (const table of tablesFixture.tables) {
       if (!table.test_applied) continue;
       const at = visible.indexOf(`Table ${table.number}: ${table.title}`);
-      expect(visible.slice(at, at + 900), `Table ${table.number}`).toContain("Test applied");
+      expect(visible.slice(at, at + 900), `Table ${table.number}`).toContain("Footnote: test used = ");
     }
   });
 
@@ -148,5 +147,63 @@ describe("the table plan document", () => {
     }
     for (const glyph of ["—", "–", "“", "”", "’"]) expect(visible).not.toContain(glyph);
     expect(document).not.toContain("<w:pBdr>");
+  });
+});
+
+/**
+ * The tables are drawn, not described.
+ *
+ * This document once drew them and stopped, because a row carrying a variable
+ * id and no label printed as an empty cell: one baseline table ran to 28 rows
+ * reading "", "Mean +/- SD", "", "Median (IQR)". The prose replaced it and
+ * solved that by folding a sub-row into the row above, which is what makes
+ * drawing them possible again - the same folding now names the rows of a grid.
+ *
+ * A shell table is a table a supervisor signs and a student later fills in. It
+ * has to be a table.
+ */
+describe("the drawn shell tables", () => {
+  async function tables() {
+    const zip = await JSZip.loadAsync(await buildTablesDocx(tablesFixture));
+    const xml = await zip.file("word/document.xml")!.async("string");
+    const text = (s: string) => s.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&");
+    return [...xml.matchAll(/<w:tbl>[\s\S]*?<\/w:tbl>/g)].map((m) => {
+      const rows = [...m[0].matchAll(/<w:tr\b[\s\S]*?<\/w:tr>/g)].map((r) =>
+        [...r[0].matchAll(/<w:tc>[\s\S]*?<\/w:tc>/g)].map((c) => text(c[0]).trim()),
+      );
+      return rows;
+    });
+  }
+
+  it("draws one grid per table in the plan", async () => {
+    expect((await tables()).length).toBe(tablesFixture.tables.length);
+  });
+
+  it("heads each grid with the columns the plan named", async () => {
+    const drawn = await tables();
+    tablesFixture.tables.forEach((table, i) => {
+      expect(drawn[i][0]).toEqual(table.columns.map((c) => c.replace(/&/g, "&")));
+    });
+  });
+
+  it("names every row, and leaves no row unlabelled", async () => {
+    // The defect that killed the first attempt: a row whose label came from an
+    // id nobody resolved printed blank.
+    for (const rows of await tables()) {
+      for (const row of rows.slice(1)) expect(row[0]).not.toBe("");
+    }
+  });
+
+  it("leaves every data cell empty, because that is what a shell is", async () => {
+    for (const rows of await tables()) {
+      for (const row of rows.slice(1)) {
+        for (const cell of row.slice(1)) expect(cell).toBe("");
+      }
+    }
+  });
+
+  it("says under each grid which test fills it", async () => {
+    const { visible } = await read();
+    expect(visible).toContain("Footnote: test used =");
   });
 });

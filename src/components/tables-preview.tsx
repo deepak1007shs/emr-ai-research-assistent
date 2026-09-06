@@ -1,9 +1,9 @@
 import type { ShellTable, ShellTablesSpec, TableBlock } from "@/lib/tables/types";
 import { line, plain } from "@/lib/render/plain";
 import { slotTitle } from "@/lib/tables/slots";
-import { contents, describe } from "@/lib/tables/describe";
+import { contents, describe, rowLabels } from "@/lib/tables/describe";
 import { AlertTriangleIcon } from "./icons";
-import { DocumentShell, Note } from "./document-shell";
+import { DocTable, DocumentShell, Note } from "./document-shell";
 
 /**
  * The table plan, on screen.
@@ -146,11 +146,24 @@ function ShellTableBlock({
         Table {table.number}: {line(table.title)}
       </h4>
 
+      {/* The grid, as the download draws it: the plan's columns across the top,
+          its folded rows down the side, and every cell blank. */}
+      <div className="mt-2">
+        <DocTable headers={table.columns.length ? table.columns : ["Variable"]}>
+          {rowLabels(table, labelOf, columnOf).map((name, i) => (
+            <tr key={i}>
+              <td className="border border-ink px-2.5 py-1.5 align-top text-sm">{name}</td>
+              {(table.columns.length ? table.columns : ["Variable"]).slice(1).map((_, c) => (
+                <td key={c} className="border border-ink px-2.5 py-1.5" />
+              ))}
+            </tr>
+          ))}
+        </DocTable>
+      </div>
+
       <dl className="mt-2">
-        <Field label="Rows (X)">{line(said.rows)}</Field>
-        <Field label="Columns (Y)">{line(said.columns)}</Field>
+        {said.analysis && <Field label="Footnote: test used">{plain(said.analysis)}</Field>}
         {said.reported && <Field label="Cell shows">{line(said.reported)}</Field>}
-        {said.analysis && <Field label="Test applied">{plain(said.analysis)}</Field>}
         {said.missing && <Field label="If data are missing">{plain(said.missing)}</Field>}
       </dl>
     </div>

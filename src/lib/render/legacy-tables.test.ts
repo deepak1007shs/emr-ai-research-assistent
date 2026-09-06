@@ -154,11 +154,13 @@ describe("a tables document built before the rewrite", () => {
     expect(visible).not.toContain("undefined");
   });
 
-  it("renders on screen too, with no grid and no missing lines", () => {
+  it("draws a stored spec that predates the grid without a hole in it", () => {
+    // The point of this file: a table saved before a field existed still
+    // renders. A grid makes that sharper, because a row whose label will not
+    // resolve prints as an empty cell rather than as missing prose.
     const markup = renderToStaticMarkup(TablesPreview({ spec: LEGACY }));
-    expect(markup).toContain("Rows (X)");
-    expect(markup).toContain("Columns (Y)");
+    expect(markup).toContain("<table");
     expect(markup).not.toContain("undefined");
-    expect(markup).not.toContain("<table");
+    expect(markup).not.toContain("Rows (X)");
   });
 });

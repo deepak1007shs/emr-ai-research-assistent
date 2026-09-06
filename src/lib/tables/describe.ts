@@ -38,12 +38,20 @@ export type Described = {
  * two rows to the data. They are folded back together here, which is the whole
  * reason this is not simply a join.
  */
-export function rowsSentence(
+/**
+ * The rows, folded, one string each.
+ *
+ * Shared with the drawn grid, so a row reads the same whether it is a name in a
+ * sentence or the first cell of a table. Drawing them straight is what the
+ * first attempt at a grid did, and "" followed by "Mean +/- SD" is two rows to
+ * the data and one thing to a reader.
+ */
+export function rowLabels(
   table: ShellTable,
   labelOf: (id: string, fallback: string) => string,
   /** Variable id to datasheet column, from the form. Empty without one. */
   columnOf: (id: string) => string | undefined = () => undefined,
-): string {
+): string[] {
   const parts: string[] = [];
 
   for (const row of table.rows) {
@@ -68,7 +76,15 @@ export function rowsSentence(
     parts.push(label);
   }
 
-  return parts.join(", ");
+  return parts;
+}
+
+export function rowsSentence(
+  table: ShellTable,
+  labelOf: (id: string, fallback: string) => string,
+  columnOf: (id: string) => string | undefined = () => undefined,
+): string {
+  return rowLabels(table, labelOf, columnOf).join(", ");
 }
 
 const lower = (s: string) => (s && s[0] === s[0].toUpperCase() && !isAcronym(s) ? s[0].toLowerCase() + s.slice(1) : s);

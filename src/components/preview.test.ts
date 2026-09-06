@@ -168,16 +168,16 @@ describe("the shell tables preview", () => {
     expect(printed).toBeGreaterThanOrEqual(3);
   });
 
-  it("says what belongs in a table rather than drawing it empty", () => {
+  it("draws the table on screen as the document draws it", () => {
     const screen = screenText(TablesPreview({ spec: tablesFixture }));
     expect(screen).toContain("Table 1:");
-    // The first column heads the row labels rather than holding data, so it is
-    // described by the Rows line and not repeated as a column.
-    for (const column of tablesFixture.tables[0].columns.slice(1)) {
+    for (const column of tablesFixture.tables[0].columns) {
       expect(screen).toContain(column);
     }
-    expect(screen).toContain("Rows (X)");
-    expect(screen).toContain("Columns (Y)");
+    // The axes are the grid now, so the lines that described them are gone.
+    expect(screen).not.toContain("Rows (X)");
+    expect(screen).not.toContain("Columns (Y)");
+    expect(screen).toContain("Footnote: test used");
   });
 
   it("titles every table the document titles", async () => {
@@ -348,13 +348,12 @@ describe("a table on screen is the table in the document", () => {
     }
   });
 
-  it("draws no grid on screen, as the document draws none", () => {
+  it("draws the grid on screen, as the document draws it", () => {
     const markup = renderToStaticMarkup(TablesPreview({ spec: tablesFixture }));
-    // An empty grid says nothing about what belongs in it, which is why both
-    // renderers stopped drawing one. A placeholder character would be worse:
-    // it reads as data that is not there.
+    expect(markup).toContain("<table");
+    // Blank cells, not placeholders: a rule of underscores reads as data that
+    // is not there, and a shell table's emptiness is the whole point.
     expect(markup).not.toContain("__");
-    expect(markup).not.toContain("<table");
   });
 
   it("carries none of the review chrome into what prints", () => {

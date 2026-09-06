@@ -5,22 +5,30 @@ import {
   Packer,
   Paragraph,
   Table,
+  TableCell,
+  TableRow,
   TextRun,
+  WidthType,
 } from "docx";
-import { HOUSE_STYLES, plain } from "./house-style.ts";
+import { HOUSE_BORDER, HOUSE_STYLES, plain } from "./house-style.ts";
 import type { ShellTable, ShellTablesSpec, TableBlock } from "../tables/types.ts";
 import { slotTitle } from "../tables/slots.ts";
-import { contents, coverage, describe } from "../tables/describe.ts";
+import { contents, coverage, describe, rowLabels } from "../tables/describe.ts";
 
 /**
  * The table plan: every table the study will report, and what belongs in each.
  *
- * It used to draw the tables as empty grids. A grid says nothing about what is
- * meant to go in it, and this one said less than nothing: one baseline table
- * ran to 28 rows labelled "", "Mean +/- SD", "", "Median (IQR)", which is
- * readable only by resolving ids the reader cannot see. What a supervisor needs
- * before the data arrive is the list: how many tables there are, what each is
- * called, what is on each axis, and what will be reported in it.
+ * It draws them as empty grids, which it did once before and stopped: one
+ * baseline table ran to 28 rows labelled "", "Mean +/- SD", "", "Median (IQR)",
+ * readable only by resolving ids the reader could not see. The prose that
+ * replaced it fixed that by folding a sub-row into the row above, and the grid
+ * is drawn from the same folding now, so a row reads "Age (mean +/- SD)"
+ * whether it is a name in a sentence or the first cell of a table.
+ *
+ * A grid still says nothing about what goes in it, so what the axes could not
+ * carry stays underneath: the test that fills it, the statistic in each cell,
+ * and what is done where a value is missing. A shell table is a table a
+ * supervisor signs and a student later fills in, and it has to be a table.
  */
 
 type Block = Paragraph | Table;
@@ -47,20 +55,49 @@ function italic(text: string) {
   });
 }
 
+/** One cell of a shell table: bordered, and empty unless it is a label. */
+function shellCell(text: string, bold: boolean) {
+  return new TableCell({
+    children: [new Paragraph({ children: [new TextRun({ text: line(text), bold })] })],
+    margins: { top: 60, bottom: 60, left: 100, right: 100 },
+    borders: { top: HOUSE_BORDER, bottom: HOUSE_BORDER, left: HOUSE_BORDER, right: HOUSE_BORDER },
+  });
+}
+
 /**
- * One labelled line of a table's specification.
- *
- * Hanging indent, so a column list that wraps stays under the columns rather
- * than under the label.
+ * The empty grid: the plan's columns across the top, its folded rows down the
+ * side, and nothing in between. The blank cells are the point.
  */
-function field(label: string, value: string) {
+function shellGrid(table: ShellTable, names: string[]): Table {
+  const columns = table.columns.length ? table.columns : ["Variable"];
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [
+      new TableRow({
+        tableHeader: true,
+        children: columns.map((column) => shellCell(column, true)),
+      }),
+      ...names.map(
+        (name) =>
+          new TableRow({
+            children: [
+              shellCell(name, false),
+              ...columns.slice(1).map(() => shellCell("", false)),
+            ],
+          }),
+      ),
+    ],
+  });
+}
+
+/** A line under a grid, "Footnote: test used = ..." as the house blueprint writes it. */
+function footnote(label: string, value: string, separator = ": ") {
   return new Paragraph({
     children: [
-      new TextRun({ text: `${label}   `, bold: true }),
+      new TextRun({ text: `${label}${separator}`, bold: true }),
       new TextRun({ text: line(value) }),
     ],
-    indent: { left: 2160, hanging: 2160 },
-    spacing: { after: 60 },
+    spacing: { after: 80 },
   });
 }
 
@@ -79,14 +116,18 @@ function describeTable(
     h(`Table ${table.number}: ${table.title}`, slot ? HeadingLevel.HEADING_3 : HeadingLevel.HEADING_2),
   );
 
-  // The five lines, with the house blueprint's labels and its naming of the
-  // axes: it calls the rows X and the columns Y.
+  // The grid. Its columns are the axes the two "Rows (X)" and "Columns (Y)"
+  // lines used to describe, so those lines are gone: the table is the
+  // description now, and a supervisor signs a page shaped like the one the
+  // thesis will carry.
+  blocks.push(shellGrid(table, rowLabels(table, labelOf, columnOf)));
+
+  // What a grid cannot hold. The test is always said, as the house blueprint
+  // says it; the other two only where the plan set them.
   const said = describe(table, labelOf, columnOf);
-  blocks.push(field("Rows (X)", said.rows));
-  blocks.push(field("Columns (Y)", said.columns));
-  if (said.reported) blocks.push(field("Cell shows", said.reported));
-  if (said.analysis) blocks.push(field("Test applied", said.analysis));
-  if (said.missing) blocks.push(field("If data are missing", said.missing));
+  if (said.analysis) blocks.push(footnote("Footnote: test used", said.analysis, " = "));
+  if (said.reported) blocks.push(footnote("Cell shows", said.reported));
+  if (said.missing) blocks.push(footnote("If data are missing", said.missing));
 
   // Spacing before the next table, which the heading's own spacing does not
   // give when two tables sit under one slot heading.
