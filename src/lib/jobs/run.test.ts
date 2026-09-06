@@ -14,8 +14,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 const calls: string[] = [];
+/** What each builder was handed, so the wiring can be asserted rather than assumed. */
+const given = new Map<string, Record<string, unknown>>();
 const fail = new Set<string>();
 const findings = new Map<string, { severity: "ERROR" | "WARN" }[]>();
+
+/**
+ * Three blockers the review raised and nobody answered: one for the plan, one
+ * for the form, one it could not place.
+ */
+const BLOCKERS = [
+  { affects: "sap", kind: "outcome_ambiguous", target: "the primary outcome", issue: "Two primary outcomes are named." },
+  { affects: "crf", kind: "variable_missing", target: "ASA grade", issue: "The model adjusts for it and nothing collects it." },
+  { affects: "tables", kind: "definition_missing", target: "the composite endpoint", issue: "Its components are not listed." },
+  { affects: "none", kind: "none", target: "", issue: "The consent form is out of date." },
+] as const;
 
 const usage = {
   input_tokens: 10,
@@ -30,7 +43,10 @@ function stub(name: string, spec: unknown) {
   // has already generated everything it is going to be billed for.
   return async (...args: unknown[]) => {
     calls.push(name);
-    const options = args[args.length - 1] as { onUsage?: (u: typeof usage) => void } | undefined;
+    const options = args[args.length - 1] as
+      | { onUsage?: (u: typeof usage) => void; unresolved?: unknown[] }
+      | undefined;
+    given.set(name, (options ?? {}) as Record<string, unknown>);
     options?.onUsage?.(usage);
     if (fail.has(name)) throw new Error(`${name} blew up`);
     return { spec, findings: findings.get(name) ?? [], model: "claude-sonnet-5", usage };
@@ -42,7 +58,12 @@ vi.mock("../protocol/extract.ts", () => ({
 }));
 vi.mock("../render/markdown.ts", () => ({ build: () => "# markdown" }));
 vi.mock("../workspace/decisions.ts", () => ({
-  loadDecisions: async () => ({ reviewId: "rev-1", answers: null }),
+  loadDecisions: async () => ({
+    reviewId: "rev-1",
+    answers: null,
+    consequences: BLOCKERS,
+    unanswered: BLOCKERS,
+  }),
 }));
 vi.mock("../protocol/analyze.ts", async (original) => ({
   ...(await original<Record<string, unknown>>()),
@@ -148,6 +169,7 @@ const run = (kind: "all" | "documents" | "sap" | "crf") =>
 const finalPatch = () => jobPatches[jobPatches.length - 1];
 
 beforeEach(() => {
+  given.clear();
   calls.length = 0;
   fail.clear();
   findings.clear();
@@ -199,6 +221,25 @@ describe("a chain", () => {
     const message = String(finalPatch().error);
     expect(message).toContain("crf blew up");
     expect(message).toContain("Protocol Review and Statistical Analysis Plan");
+  });
+
+  it("hands every open blocker to the plan, and only its own to the others", async () => {
+    // The plan is the root the other two are built from, so a blocker the
+    // review mislabelled would be lost from the whole chain if it were routed.
+    // The form and the tables get what affects them.
+    await run("all");
+
+    const sent = (name: string) =>
+      ((given.get(name)?.unresolved ?? []) as { target: string }[]).map((c) => c.target);
+
+    expect(sent("sap")).toEqual(BLOCKERS.map((b) => b.target));
+    expect(sent("crf")).toEqual(["ASA grade"]);
+    expect(sent("tables")).toEqual(["the composite endpoint"]);
+    // A builder handed nothing and a builder handed no option look the same
+    // from here, and one of them is a wiring bug. Assert the option exists.
+    for (const stage of ["sap", "crf", "tables"]) {
+      expect(given.get(stage), stage).toHaveProperty("unresolved");
+    }
   });
 
   it("records a failed plan rather than leaving nothing behind", async () => {

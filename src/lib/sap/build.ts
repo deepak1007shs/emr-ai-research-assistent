@@ -363,6 +363,9 @@ analysis map is written next, from what you declare here.`,
   // ids the registries have already declared.
   const second = await buildSapMap(frame, {
     answers: options.answers,
+    // Stage one declared the registries; the analyses are chosen here, which is
+    // where most of a review's blockers actually land.
+    unresolved: options.unresolved,
     onProgress: options.onProgress,
     onUsage: report,
   });
@@ -419,6 +422,7 @@ analysis map is written next, from what you declare here.`,
 
   const third = await buildSapRules(front, tests, {
     answers: options.answers,
+    unresolved: options.unresolved,
     onProgress: options.onProgress,
     onUsage: report,
   });

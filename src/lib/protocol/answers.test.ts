@@ -96,3 +96,19 @@ describe("every builder uses it", () => {
     expect(source).toContain("decisionsBlock(options.answers");
   });
 });
+
+describe("the review's blockers reach every stage that writes", () => {
+  // The plan is written in three calls and the blockers used to reach only the
+  // first. The analyses are chosen in the second and the missing-data and
+  // multiplicity rules in the third, which is where most of what a review
+  // raises actually lands.
+  it.each(["build", "map-stage", "rules-stage"])("sap/%s.ts is given them", async (file) => {
+    const source = await readFile(new URL(`../sap/${file}.ts`, import.meta.url), "utf8");
+    expect(source).toContain("unresolvedBlock(options.unresolved");
+  });
+
+  it("and sap/build.ts passes them on to the other two", async () => {
+    const source = await readFile(new URL("../sap/build.ts", import.meta.url), "utf8");
+    expect(source.match(/unresolved: options\.unresolved/g) ?? []).toHaveLength(2);
+  });
+});

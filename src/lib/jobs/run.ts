@@ -8,6 +8,7 @@ import { buildTablesSpec } from "../tables/build.ts";
 import { build as renderMarkdown } from "../render/markdown.ts";
 import { costOf, type TokenUsage } from "../protocol/pricing.ts";
 import { loadDecisions } from "../workspace/decisions.ts";
+import { consequencesFor } from "../protocol/answers.ts";
 import { isLinkable, type SapSpec } from "../sap/types.ts";
 import type { CrfSpec } from "../crf/types.ts";
 import type { Finding } from "../sap/validate.ts";
@@ -208,11 +209,16 @@ async function runSap(db: Db, userId: string, protocolId: string, report: Report
   // The investigator's answers to the review's issues override the protocol.
   // The review is not passed in: the latest complete one for this protocol is
   // the one that was read, and after this change there is always one.
-  const { answers, reviewId } = await loadDecisions(db, protocolId);
+  // The blockers nobody answered, as well as the answers somebody did write.
+  // The plan gets all of them, unrouted: it is the root the form and the tables
+  // are built from, so a blocker the review labelled wrongly would otherwise be
+  // lost from the whole chain rather than from one document.
+  const { answers, reviewId, unanswered } = await loadDecisions(db, protocolId);
 
   try {
     const result = await buildSapSpec(protocol, {
       answers,
+      unresolved: unanswered,
       onProgress: (message) => void report.step(message),
       onUsage: (usage) => report.meter(usage),
     });
@@ -286,11 +292,12 @@ async function runCrf(db: Db, userId: string, protocolId: string, report: Report
 
   await report.step("Reading the protocol");
   const protocol = await readProtocol(db, protocolId);
-  const { answers } = await loadDecisions(db, protocolId);
+  const { answers, unanswered } = await loadDecisions(db, protocolId);
 
   try {
     const result = await buildCrfSpec(protocol, sap.spec as SapSpec, {
       answers,
+      unresolved: consequencesFor(unanswered, "crf"),
       onProgress: (message) => void report.step(message),
       onUsage: (usage) => report.meter(usage),
     });
@@ -345,7 +352,7 @@ async function runTables(db: Db, userId: string, protocolId: string, report: Rep
     .maybeSingle();
 
   // The tables report the study as decided, not as written.
-  const { answers } = await loadDecisions(db, protocolId);
+  const { answers, unanswered } = await loadDecisions(db, protocolId);
 
   // Read at the end against the finished table list, to catch a result the
   // protocol promised that never became an objective and so never became a
@@ -361,6 +368,7 @@ async function runTables(db: Db, userId: string, protocolId: string, report: Rep
       protocol,
       {
         answers,
+        unresolved: consequencesFor(unanswered, "tables"),
         onProgress: (message) => void report.step(message),
         onUsage: (usage) => report.meter(usage),
       },
