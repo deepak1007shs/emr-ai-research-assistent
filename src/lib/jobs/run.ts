@@ -9,6 +9,7 @@ import { build as renderMarkdown } from "../render/markdown.ts";
 import { costOf, type TokenUsage } from "../protocol/pricing.ts";
 import { loadDecisions } from "../workspace/decisions.ts";
 import type { DatasetProfile } from "../data/types.ts";
+import { remapDataset } from "../data/remap.ts";
 import { consequencesFor } from "../protocol/answers.ts";
 import { isLinkable, type SapSpec } from "../sap/types.ts";
 import type { Finding } from "../sap/validate.ts";
@@ -234,7 +235,7 @@ async function runSap(db: Db, userId: string, protocolId: string, report: Report
   // variables the protocol calls for nobody actually collected.
   const { data: attached } = await db
     .from("datasets")
-    .select("id, profile")
+    .select("id, filename, storage_path, profile")
     .eq("protocol_id", protocolId)
     .eq("status", "ready")
     .order("created_at", { ascending: false })
@@ -267,8 +268,31 @@ async function runSap(db: Db, userId: string, protocolId: string, report: Report
       await report.step("The plan is built. The protocol could not be read back against it.");
     }
 
+    // The sheet is read again, now that there are variables to match it to. A
+    // sheet attached before the plan was mapped to nothing, and until it is
+    // mapped nothing can say which of the plan's variables the data lacks.
+    // Caught for the same reason the coverage check is: a plan with an unmapped
+    // dataset is worth more than no plan.
+    let mapped: Awaited<ReturnType<typeof remapDataset>> = null;
+    if (attached?.storage_path) {
+      try {
+        mapped = await remapDataset(
+          db,
+          attached as { id: string; filename: string; storage_path: string | null },
+          result.spec,
+          { signal, onProgress: (message) => void report.step(message) },
+        );
+      } catch {
+        await report.step("The plan is built. The collected data could not be matched to it.");
+      }
+    }
+
     const usage = coverage ? add(result.usage, coverage.usage) : result.usage;
-    const findings = [...result.findings, ...(coverage?.findings ?? [])];
+    const findings = [
+      ...result.findings,
+      ...(coverage?.findings ?? []),
+      ...(mapped?.findings ?? []),
+    ];
 
     const { data: row, error } = await db
       .from("sap_plans")

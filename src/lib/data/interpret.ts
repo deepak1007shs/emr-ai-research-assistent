@@ -114,7 +114,12 @@ export async function interpretDataset(
   grid: Grid,
   profile: DatasetProfile,
   sap: SapRegistry | null,
-  options: { onProgress?: (note: string) => void; onUsage?: (usage: TokenUsage) => void } = {},
+  options: {
+    /** Stops the request where it is, when a build is stopped mid-read. */
+    signal?: AbortSignal;
+    onProgress?: (note: string) => void;
+    onUsage?: (usage: TokenUsage) => void;
+  } = {},
 ): Promise<InterpretResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new DatasetError("ANTHROPIC_API_KEY is not set.");
@@ -174,7 +179,7 @@ ${profile.columns
   .join("\n")}`,
       },
     ],
-  });
+  }, { signal: options.signal });
 
   stream.on("streamEvent", (event) => {
     if (event.type === "message_delta") {
