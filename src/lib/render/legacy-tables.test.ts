@@ -1,9 +1,23 @@
 import JSZip from "jszip";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { buildTablesDocx } from "./tables-docx.ts";
 import { TablesPreview } from "../../components/tables-preview.tsx";
 import type { ShellTablesSpec } from "../tables/types.ts";
+import { buildSapDocx } from "./sap-docx.ts";
+import { sapFixture } from "../sap/fixture.ts";
+import { tableNumbers } from "../tables/types.ts";
+
+/**
+ * The tables live in the plan now, as Section 6.
+ *
+ * These checks were written against a standalone tables document. What they
+ * assert is still exactly right; only where it prints has changed, so they
+ * render the plan carrying the tables rather than the document that is gone.
+ */
+async function buildTablesDocx(spec: ShellTablesSpec): Promise<Buffer> {
+  return buildSapDocx(sapFixture, tableNumbers(spec), { shells: spec });
+}
+
 
 /**
  * A document built before the rewrite still opens.

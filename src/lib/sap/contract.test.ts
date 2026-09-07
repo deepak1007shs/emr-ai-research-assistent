@@ -12,7 +12,20 @@ import { validateCrf } from "../crf/validate.ts";
 import { validateTables } from "../tables/validate.ts";
 import { buildSapDocx } from "../render/sap-docx.ts";
 import { buildCrfDocx } from "../render/crf-docx.ts";
-import { buildTablesDocx } from "../render/tables-docx.ts";
+import { sapFixture } from "./fixture.ts";
+import { tableNumbers } from "../tables/types.ts";
+
+/**
+ * The tables live in the plan now, as Section 6.
+ *
+ * These checks were written against a standalone tables document. What they
+ * assert is still exactly right; only where it prints has changed, so they
+ * render the plan carrying the tables rather than the document that is gone.
+ */
+async function buildTablesDocx(spec: ShellTablesSpec): Promise<Buffer> {
+  return buildSapDocx(sapFixture, tableNumbers(spec), { shells: spec });
+}
+
 
 /**
  * Does the schema we ask for match the type we expect back?

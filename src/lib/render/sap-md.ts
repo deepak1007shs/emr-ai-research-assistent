@@ -15,6 +15,8 @@ import {
   type SapVariant,
 } from "../sap/types.ts";
 import { line, plain } from "./plain.ts";
+import { contents, rowLabels } from "../tables/describe.ts";
+import type { ShellTablesSpec } from "../tables/types.ts";
 
 /**
  * The Statistical Analysis Plan as Markdown.
@@ -45,7 +47,7 @@ export function buildSapMarkdown(
   spec: SapSpec,
   /** Objective id to the table that reports it, once the shell tables exist. */
   tableNumbers?: Record<string, number[]>,
-  options: { variant?: SapVariant } = {},
+  options: { variant?: SapVariant; shells?: ShellTablesSpec | null } = {},
 ): string {
   const short = options.variant === "short";
 
@@ -352,9 +354,40 @@ export function buildSapMarkdown(
   if (!short) {
     push("---", "", "## Section 6 - Shell (Dummy) Tables", "");
     push(
-      "Every empty results table the thesis will contain, in the order it will appear, is laid out in the Shell Tables document that accompanies this plan. Cells stay blank until the data arrive, and each table names the test that produced it.",
+      "Every empty results table the thesis will contain, in the order it will appear. Cells stay blank until the data arrive, and each table names the test that fills it.",
       "",
     );
+    // The same tables the Word document draws. Two renderings of one plan that
+    // named different tables would be two plans.
+    const shells = options.shells;
+    const tables = shells?.tables ?? [];
+    if (shells && tables.length) {
+      // Wording resolved the way the Word document resolves it, from the same
+      // registry, so the two renderings name a row identically.
+      const labelOf = (id: string, fallback = "") => shells.labels?.[id] ?? fallback ?? id;
+      const columnOf = (id: string) => shells.columns?.[id];
+      push(`**Contents: ${tables.length} tables**`, "");
+      for (const entry of contents(shells)) {
+        push(`${entry.number}. ${line(entry.title)}${entry.slot ? `  [${entry.slot}]` : ""}`);
+      }
+      push("");
+      for (const table of [...tables].sort((a, b) => a.number - b.number)) {
+        push(`### Table ${table.number}: ${line(table.title)}`, "");
+        const columns = table.columns.length ? table.columns : ["Variable"];
+        push(`| ${columns.map(cell).join(" | ")} |`);
+        push(`| ${columns.map(() => "---").join(" | ")} |`);
+        for (const name of rowLabels(table, labelOf, columnOf)) {
+          push(`| ${cell(name)} |${columns.slice(1).map(() => "  |").join("")}`);
+        }
+        push("");
+        if (table.test_applied) push(`Footnote: test used = ${line(table.test_applied)}`, "");
+      }
+    } else {
+      push(
+        "The tables have not been built yet. Build them and this section fills in: the plan is written first, and the tables are laid out from it.",
+        "",
+      );
+    }
   }
 
   push(

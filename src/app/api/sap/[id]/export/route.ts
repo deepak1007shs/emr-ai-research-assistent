@@ -57,15 +57,26 @@ export async function GET(
   // Markdown for reading in a terminal or pasting into an email; Word for
   // handing over. Both come from the same spec, so they cannot disagree.
   if (request.nextUrl.searchParams.get("format") === "md") {
-    return new Response(buildSapMarkdown(data.spec as SapSpec, numbers, { variant }), {
-      headers: {
-        "Content-Type": "text/markdown; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${name}-${suffix}.md"`,
+    return new Response(
+      buildSapMarkdown(data.spec as SapSpec, numbers, {
+        variant,
+        shells: (shells?.spec as ShellTablesSpec | undefined) ?? null,
+      }),
+      {
+        headers: {
+          "Content-Type": "text/markdown; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${name}-${suffix}.md"`,
+        },
       },
-    });
+    );
   }
 
-  const buffer = await buildSapDocx(data.spec as SapSpec, numbers, { variant });
+  // The tables are Section 6 of this document now, and the spec was already
+  // fetched above for the numbering, so nothing new is read to print them.
+  const buffer = await buildSapDocx(data.spec as SapSpec, numbers, {
+    variant,
+    shells: (shells?.spec as ShellTablesSpec | undefined) ?? null,
+  });
 
   return new Response(new Uint8Array(buffer), {
     headers: {

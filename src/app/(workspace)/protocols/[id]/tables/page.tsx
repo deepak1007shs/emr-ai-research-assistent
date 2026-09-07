@@ -70,7 +70,11 @@ export default async function TablesPage({ params }: PageProps<"/protocols/[id]/
           ).toLocaleDateString()}`,
           stale ? "built from an earlier analysis plan" : null,
         ].filter((m): m is string => Boolean(m))}
-        downloadHref={`/api/tables/${tables.id}/export`}
+        // The tables are Section 6 of the analysis plan now, so the download
+        // is the plan. One document to sign rather than two carrying the same
+        // tables and able to disagree.
+        downloadHref={plan ? `/api/sap/${plan.id}/export` : undefined}
+        downloadLabel={plan ? "Download the plan (tables are Section 6)" : undefined}
       >
         <BuildButton
           kind="tables"

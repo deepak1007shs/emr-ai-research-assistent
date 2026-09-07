@@ -6,12 +6,24 @@ import { CrfPreview } from "./crf-preview.tsx";
 import { TablesPreview } from "./tables-preview.tsx";
 import { buildSapDocx } from "@/lib/render/sap-docx.ts";
 import { buildCrfDocx } from "@/lib/render/crf-docx.ts";
-import { buildTablesDocx } from "@/lib/render/tables-docx.ts";
 import { sapFixture } from "@/lib/sap/fixture.ts";
 import { chooseTest } from "@/lib/sap/choose-test.ts";
 import { crfFixture } from "@/lib/crf/fixture.ts";
 import { tablesFixture } from "@/lib/tables/fixture.ts";
 import { tableNumbers } from "@/lib/tables/types.ts";
+import type { ShellTablesSpec } from "@/lib/tables/types.ts";
+
+/**
+ * The tables live in the plan now, as Section 6.
+ *
+ * These checks were written against a standalone tables document. What they
+ * assert is still exactly right; only where it prints has changed, so they
+ * render the plan carrying the tables rather than the document that is gone.
+ */
+async function buildTablesDocx(spec: ShellTablesSpec): Promise<Buffer> {
+  return buildSapDocx(sapFixture, tableNumbers(spec), { shells: spec });
+}
+
 
 /**
  * What you read on screen is what you download.

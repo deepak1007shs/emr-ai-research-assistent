@@ -4,6 +4,7 @@ import { buildSapDocx } from "./sap-docx.ts";
 import { HOUSE_FONT } from "./house-style.ts";
 import type { SapSpec } from "../sap/types.ts";
 import { sapFixture as spec } from "../sap/fixture.ts";
+import { tableNumbers } from "../tables/types.ts";
 
 
 async function read(s: SapSpec = spec) {
@@ -153,5 +154,71 @@ describe("the SAP document", () => {
     }
     for (const glyph of ["—", "–", "“", "”", "’"]) expect(visible).not.toContain(glyph);
     expect(document).not.toContain("<w:pBdr>");
+  });
+});
+
+/**
+ * The tables are in the plan now, under the heading that used to point at
+ * another document.
+ *
+ * Section 6 held one sentence saying the tables were "in the Shell Tables
+ * document that accompanies this plan": two documents, one of which existed to
+ * say where the other was. A supervisor signs one.
+ */
+describe("Section 6", () => {
+  async function withTables() {
+    const { tablesFixture } = await import("../tables/fixture.ts");
+    const zip = await JSZip.loadAsync(
+      await buildSapDocx(spec, tableNumbers(tablesFixture), { shells: tablesFixture }),
+    );
+    const xml = await zip.file("word/document.xml")!.async("string");
+    return {
+      xml,
+      visible: xml.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&"),
+      tables: tablesFixture,
+    };
+  }
+
+  it("draws every table the plan has, rather than naming another document", async () => {
+    const { visible, xml, tables } = await withTables();
+    expect(visible).toContain("Section 6 - Shell (Dummy) Tables");
+    expect(visible).not.toContain("document that accompanies this plan");
+    for (const table of tables.tables) {
+      expect(visible, `Table ${table.number}`).toContain(`Table ${table.number}: ${table.title}`);
+    }
+    expect(xml).toContain("<w:tbl>");
+  });
+
+  it("lists them first, and lists exactly the ones it draws", async () => {
+    const { visible, tables } = await withTables();
+    const contentsAt = visible.indexOf(`Contents: ${tables.tables.length} tables`);
+    expect(contentsAt).toBeGreaterThan(-1);
+    // Every table is named in the list before it is drawn below it.
+    for (const table of tables.tables) {
+      expect(visible.indexOf(`Table ${table.number}.`)).toBeLessThan(
+        visible.indexOf(`Table ${table.number}: ${table.title}`),
+      );
+    }
+  });
+
+  it("says which test fills each grid", async () => {
+    const { visible } = await withTables();
+    expect(visible).toContain("Footnote: test used = ");
+  });
+
+  it("does not repeat what the plan already fixed elsewhere", async () => {
+    // Section 4 states the missing-data rule and Section 3 links objectives to
+    // tables. Saying either again here is a second statement that can disagree.
+    const { visible } = await withTables();
+    const section6 = visible.slice(visible.indexOf("Section 6 - Shell"));
+    expect(section6).not.toContain("Objective to table coverage check");
+    expect(section6).not.toContain("Missing data, fixed in advance");
+  });
+
+  it("still renders when the tables have not been built", async () => {
+    // The plan comes before the tables and must not need them to print.
+    const { visible } = await read();
+    expect(visible).toContain("Section 6 - Shell (Dummy) Tables");
+    expect(visible).toContain("have not been built yet");
   });
 });

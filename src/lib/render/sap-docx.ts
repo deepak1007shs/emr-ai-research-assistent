@@ -11,6 +11,8 @@ import {
   WidthType,
 } from "docx";
 import { HOUSE_BORDER, HOUSE_STYLES, plain } from "./house-style.ts";
+import { shellTableSection } from "./shell-tables.ts";
+import type { ShellTablesSpec } from "../tables/types.ts";
 import { chooseTest, degreesOfFreedomNote } from "../sap/choose-test.ts";
 import {
   analysisCell,
@@ -137,7 +139,15 @@ export async function buildSapDocx(
   spec: SapSpec,
   /** Objective id to the table that reports it, once the shell tables exist. */
   tableNumbers?: Record<string, number[]>,
-  options: { variant?: SapVariant } = {},
+  options: {
+    variant?: SapVariant;
+    /**
+     * The shell tables, printed here as Section 6.
+     *
+     * Optional because the plan is built before them and must still render.
+     */
+    shells?: ShellTablesSpec | null;
+  } = {},
 ): Promise<Buffer> {
   const short = options.variant === "short";
 
@@ -643,12 +653,24 @@ export async function buildSapDocx(
   /* ---- Section 6 --------------------------------------------------- */
 
   if (!short) {
-  doc.push(heading("Section 6 - Shell (Dummy) Tables", HeadingLevel.HEADING_1));
-  doc.push(
-    para(
-      "Every empty results table the thesis will contain, in the order it will appear, is laid out in the Shell Tables document that accompanies this plan. Cells stay blank until the data arrive, and each table names the test that produced it.",
-    ),
-  );
+    doc.push(heading("Section 6 - Shell (Dummy) Tables", HeadingLevel.HEADING_1));
+    doc.push(
+      para(
+        "Every empty results table the thesis will contain, in the order it will appear. Cells stay blank until the data arrive, and each table names the test that fills it.",
+      ),
+    );
+    // Printed here rather than pointed at. This section used to hold a sentence
+    // saying the tables were in another document, which meant two documents,
+    // one of which existed to say where the other was.
+    if (options.shells?.tables?.length) {
+      doc.push(...shellTableSection(options.shells));
+    } else {
+      doc.push(
+        para(
+          "The tables have not been built yet. Build them and this section fills in: the plan is written first, and the tables are laid out from it.",
+        ),
+      );
+    }
   }
 
   doc.push(
