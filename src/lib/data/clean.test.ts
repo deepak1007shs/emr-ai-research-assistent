@@ -117,3 +117,54 @@ describe("the same file twice", () => {
     expect(JSON.stringify(run())).toBe(JSON.stringify(run()));
   });
 });
+
+describe("findings a person can actually read", () => {
+  const wide = (rows: string[][]): Grid => ({ sheet: "D", rows });
+
+  it("reports an unlisted value once per column, not once per row", () => {
+    // A real sheet produced 1,075 findings: one per cell, for a column where
+    // the same handful of spellings recurred nine hundred times. That is a wall
+    // and nobody reads it.
+    const grid = wide([
+      ["sex", "site"],
+      ...Array.from({ length: 200 }, () => ["X", "arm"]),
+    ]);
+    const interp = {
+      columns: [
+        {
+          index: 0,
+          variable_id: "",
+          clean_name: "sex",
+          meaning: "",
+          unit: "",
+          categories: [{ canonical: "Male", spellings: ["m", "male"] }],
+        },
+        { index: 1, variable_id: "", clean_name: "site", meaning: "", unit: "", categories: [] },
+      ],
+    };
+
+    const found = clean(grid, 0, interp, { columns: {} }).findings.filter((f) => f.code === "DATA03");
+    expect(found).toHaveLength(1);
+    expect(found[0].message).toContain("200");
+    expect(found[0].message).toContain("X");
+  });
+
+  it("reports duplicate rows once, naming how many", () => {
+    const grid = wide([
+      ["a", "b", "c"],
+      ...Array.from({ length: 30 }, () => ["1", "2", "3"]),
+    ]);
+    const found = clean(grid, 0, { columns: [] }, { columns: {} }).findings.filter(
+      (f) => f.code === "DATA04",
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0].message).toContain("29");
+  });
+
+  it("does not call rows duplicates on a sheet too narrow to identify one", () => {
+    // A single column of 61 stenosis types produced 56 "duplicate row"
+    // findings. Two patients with the same value are not a double entry.
+    const grid = wide([["type"], ...Array.from({ length: 20 }, () => ["Focal"])]);
+    expect(clean(grid, 0, { columns: [] }, { columns: {} }).findings).toEqual([]);
+  });
+});
