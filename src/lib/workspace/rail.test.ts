@@ -43,7 +43,6 @@ describe("loadRail", () => {
     const [protocol] = await loadRail(client(structuredClone(base)));
     expect(protocol.documents.sap.id).toBe("s1");
     expect(protocol.documents.crf.stale).toBe(false);
-    expect(protocol.documents.tables.stale).toBe(false);
     expect(protocol.documents.crf.behindAnswers).toBe(false);
   });
 
@@ -54,7 +53,6 @@ describe("loadRail", () => {
     const [protocol] = await loadRail(client(tables));
     expect(protocol.documents.sap.id).toBe("s2");
     expect(protocol.documents.crf.stale).toBe(true);
-    expect(protocol.documents.tables.stale).toBe(true);
   });
 
   it("marks a document built before the decisions were last edited", async () => {
@@ -97,7 +95,7 @@ describe("loadRail", () => {
     const [protocol] = await loadRail(
       client({ protocols: base.protocols, reviews: [], sap_plans: [], crf_forms: [], shell_tables: [] }),
     );
-    for (const kind of ["review", "sap", "crf", "tables"] as const) {
+    for (const kind of ["review", "sap", "crf"] as const) {
       expect(protocol.documents[kind].id).toBeNull();
       expect(protocol.documents[kind].stale).toBe(false);
     }

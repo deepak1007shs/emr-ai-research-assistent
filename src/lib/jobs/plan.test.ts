@@ -14,10 +14,12 @@ import { hasPrerequisite } from "./run.ts";
  */
 
 describe("the order the documents depend on", () => {
-  it("is the order the rail already shows them in", () => {
-    // Two lists, written for different reasons, that must not drift apart. The
-    // rail is the one the user reads; this is the one the server enforces.
-    expect(STAGES).toEqual(DOC_ORDER);
+  it("shows the rail every stage the rail has a place for", () => {
+    // The rail lists the documents a reader opens. The shell tables are not one
+    // of them any more - they are Section 6 of the plan - so the two lists are
+    // no longer equal, and what must hold is that the rail has a place for
+    // everything the server builds and offers to build.
+    expect(STAGES.filter((s) => s !== "tables")).toEqual(DOC_ORDER);
   });
 
   it("puts the review first and hangs everything else off the plan", () => {
@@ -30,9 +32,11 @@ describe("the order the documents depend on", () => {
   });
 
   it("runs a chain in that order, and a single document alone", () => {
-    expect(stagesOf("all")).toEqual(["review", "sap", "crf", "tables"]);
-    expect(stagesOf("documents")).toEqual(["sap", "crf", "tables"]);
+    expect(stagesOf("all")).toEqual(["review", "sap", "tables", "crf"]);
+    expect(stagesOf("documents")).toEqual(["sap", "tables", "crf"]);
     expect(stagesOf("crf")).toEqual(["crf"]);
+    // The plan carries its tables, so asking for one asks for both.
+    expect(stagesOf("sap")).toEqual(["sap", "tables"]);
   });
 
   it("starts a chain at a stage whose own prerequisite is checked", () => {

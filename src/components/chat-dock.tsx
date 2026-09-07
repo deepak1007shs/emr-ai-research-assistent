@@ -70,7 +70,7 @@ export function ChatDock({
     closedMessage: "The connection closed before the change came back.",
   });
 
-  const revisable = document === "sap" || document === "crf" || document === "tables";
+  const revisable = document === "sap" || document === "crf";
 
   function ask() {
     if (!instruction.trim()) return;

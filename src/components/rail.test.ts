@@ -42,7 +42,6 @@ const protocol = (over: Partial<ProtocolRow> = {}): ProtocolRow => ({
     review: { ...doc(), kind: "review" },
     sap: doc(),
     crf: { ...doc(), kind: "crf" },
-    tables: { ...doc(), kind: "tables" },
   },
   ...over,
 });
@@ -59,9 +58,12 @@ const open = (p: ProtocolRow[], active: string | null = "p1") =>
   );
 
 describe("the protocol rail", () => {
-  it("lists all four documents of the open protocol", () => {
+  it("lists the documents of the open protocol", () => {
+    // Three, not four. The shell tables are Section 6 of the plan and are read
+    // by opening it, so the rail has no separate place for them.
     const text = open([protocol()]);
-    for (const label of ["Review", "SAP", "CRF", "Shell Tables"]) {
+    expect(text).not.toContain("Shell Tables");
+    for (const label of ["Review", "SAP", "CRF"]) {
       expect(text, label).toContain(label);
     }
     expect(text).toContain("thesis.docx");
@@ -91,7 +93,7 @@ describe("the protocol rail", () => {
 
   it("marks a document built before the decisions changed", () => {
     const p = protocol();
-    p.documents.tables = { ...doc({ behindAnswers: true }), kind: "tables" };
+    p.documents.crf = { ...doc({ behindAnswers: true }), kind: "crf" };
     expect(open([p])).toContain("older");
   });
 
@@ -112,8 +114,8 @@ describe("the protocol rail", () => {
     // Twenty protocols expanded at once is a wall, not a list.
     const text = open([protocol(), protocol({ id: "p2", filename: "other.docx" })]);
     expect(text).toContain("other.docx");
-    // Only the open one shows its documents, so "Shell Tables" appears once.
-    expect(text.split("Shell Tables").length - 1).toBe(1);
+    // Only the open one shows its documents, so "CRF" appears once.
+    expect(text.split("CRF").length - 1).toBe(1);
   });
 });
 

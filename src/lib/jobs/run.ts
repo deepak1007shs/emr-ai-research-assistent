@@ -10,7 +10,6 @@ import { costOf, type TokenUsage } from "../protocol/pricing.ts";
 import { loadDecisions } from "../workspace/decisions.ts";
 import { consequencesFor } from "../protocol/answers.ts";
 import { isLinkable, type SapSpec } from "../sap/types.ts";
-import type { CrfSpec } from "../crf/types.ts";
 import type { Finding } from "../sap/validate.ts";
 import { NEEDS, STAGE_LABEL, needsFirst, stagesOf, type JobKind, type Produced, type Stage } from "./plan.ts";
 
@@ -340,16 +339,10 @@ async function runCrf(db: Db, userId: string, protocolId: string, report: Report
 async function runTables(db: Db, userId: string, protocolId: string, report: Reporter): Promise<Produced> {
   const sap = await planFor(db, protocolId, "tables");
 
-  // The form is optional: without it the baseline table is written from the
-  // plan alone, which is thinner but not wrong.
-  const { data: crf } = await db
-    .from("crf_forms")
-    .select("id, spec")
-    .eq("protocol_id", protocolId)
-    .eq("status", "ready")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // The form is not read. Its fields are computed from this same plan, so the
+  // variables the tables report and the variables the form collects are one
+  // list, and the tables no longer wait for a document that tells them nothing
+  // the plan has not already said.
 
   // The tables report the study as decided, not as written.
   const { answers, unanswered } = await loadDecisions(db, protocolId);
@@ -362,24 +355,19 @@ async function runTables(db: Db, userId: string, protocolId: string, report: Rep
   const protocol = await readProtocol(db, protocolId).catch(() => null);
 
   try {
-    const result = await buildTablesSpec(
-      sap.spec as SapSpec,
-      (crf?.spec as CrfSpec | undefined) ?? null,
-      protocol,
-      {
-        answers,
-        unresolved: consequencesFor(unanswered, "tables"),
-        onProgress: (message) => void report.step(message),
-        onUsage: (usage) => report.meter(usage),
-      },
-    );
+    const result = await buildTablesSpec(sap.spec as SapSpec, protocol, {
+      answers,
+      unresolved: consequencesFor(unanswered, "tables"),
+      onProgress: (message) => void report.step(message),
+      onUsage: (usage) => report.meter(usage),
+    });
 
     const { data: row, error } = await db
       .from("shell_tables")
       .insert({
         protocol_id: protocolId,
         sap_id: sap.id,
-        crf_id: crf?.id ?? null,
+        crf_id: null,
         owner: userId,
         status: "ready",
         spec: result.spec,
@@ -399,7 +387,7 @@ async function runTables(db: Db, userId: string, protocolId: string, report: Rep
     await db.from("shell_tables").insert({
       protocol_id: protocolId,
       sap_id: sap.id,
-      crf_id: crf?.id ?? null,
+      crf_id: null,
       owner: userId,
       status: "failed",
       error: message,

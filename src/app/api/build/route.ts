@@ -13,7 +13,7 @@ export const runtime = "nodejs";
  */
 export const maxDuration = 3600;
 
-const KINDS: JobKind[] = ["review", "sap", "crf", "tables", "all", "documents"];
+const KINDS: JobKind[] = ["review", "sap", "crf", "all", "documents"];
 
 /**
  * Starts a build and returns its job id.

@@ -17,9 +17,12 @@ export type Stage = "review" | "sap" | "crf" | "tables";
  * answered: re-running the review there would throw away the answers, because
  * an answer belongs to the review it was written against.
  */
-export type JobKind = Stage | "all" | "documents";
+export type JobKind = Exclude<Stage, "tables"> | "all" | "documents";
 
-export const STAGES: Stage[] = ["review", "sap", "crf", "tables"];
+// The tables come with the plan and before the form. They are Section 6 of the
+// plan, they are built from it alone, and putting them after the form would
+// mean a form that failed cost the plan its tables.
+export const STAGES: Stage[] = ["review", "sap", "tables", "crf"];
 
 /**
  * What must already exist before a stage may run.
@@ -42,7 +45,8 @@ export const STAGE_LABEL: Record<Stage, string> = {
   review: "Protocol Review",
   sap: "Statistical Analysis Plan",
   crf: "Case Record Form",
-  tables: "Shell Tables",
+  // Named for where it prints, because that is the only place it appears.
+  tables: "Shell Tables (Section 6 of the plan)",
 };
 
 /** Why a stage cannot start, in the words the button prints. */
@@ -59,10 +63,22 @@ const WHY: Record<Stage, string> = {
   tables: "The tables report what the plan analyses, so without one there is nothing to lay out.",
 };
 
-/** The stages a job runs, in order. */
+/**
+ * The stages a job runs, in order.
+ *
+ * The shell tables are not one of the things you can ask for. They are Section
+ * 6 of the analysis plan, so building the plan builds them, and there is no way
+ * to rebuild one without the other - which is what used to let a plan and its
+ * tables drift and needed a staleness warning to describe.
+ *
+ * They run with the plan and before the form. The form's fields are computed
+ * from the same registry the tables report, so there is nothing in the form the
+ * tables need, and a form that fails must not cost the plan its Section 6.
+ */
 export function stagesOf(kind: JobKind): Stage[] {
   if (kind === "all") return [...STAGES];
-  if (kind === "documents") return ["sap", "crf", "tables"];
+  if (kind === "documents") return ["sap", "tables", "crf"];
+  if (kind === "sap") return ["sap", "tables"];
   return [kind];
 }
 

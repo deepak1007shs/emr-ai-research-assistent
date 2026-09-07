@@ -1,4 +1,5 @@
 import type { CrfSpec, CrfField } from "./types.ts";
+import type { SapRegistry } from "../sap/types.ts";
 
 /**
  * The name each field carries into the datasheet.
@@ -123,5 +124,31 @@ export function columnsByVariable(spec: CrfSpec | null | undefined): Record<stri
     out[derived.variable_id] = name;
     taken.add(name);
   }
+  return out;
+}
+
+/**
+ * The datasheet name of every variable the plan declares.
+ *
+ * One authority, because the case report form and the shell tables describe the
+ * same variables - the form's fields are computed from this registry - and a
+ * variable called `asa_grade` on the form and `asa` in a table is one variable
+ * the analyst has to match by eye.
+ *
+ * Named from the plan's own label, in registry order, so the name does not move
+ * when a field is added to the form.
+ */
+export function columnsForPlan(sap: SapRegistry | null | undefined): Record<string, string> {
+  const taken = new Set<string>();
+  const out: Record<string, string> = {};
+
+  for (const variable of sap?.variables ?? []) {
+    const wanted = slug(variable.label || variable.id);
+    let name = wanted;
+    for (let n = 2; taken.has(name); n += 1) name = `${wanted}_${n}`;
+    taken.add(name);
+    out[variable.id] = name;
+  }
+
   return out;
 }

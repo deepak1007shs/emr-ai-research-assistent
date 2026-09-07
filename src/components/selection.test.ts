@@ -25,7 +25,6 @@ const protocols: ProtocolRow[] = [
       review: doc("r1", "review"),
       sap: doc("s1", "sap"),
       crf: doc("c1", "crf"),
-      tables: doc(null, "tables"),
     },
   },
   {
@@ -36,7 +35,6 @@ const protocols: ProtocolRow[] = [
       review: doc("r2", "review"),
       sap: doc("s2", "sap"),
       crf: doc(null, "crf"),
-      tables: doc(null, "tables"),
     },
   },
 ];

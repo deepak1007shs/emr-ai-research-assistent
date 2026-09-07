@@ -7,8 +7,7 @@ import type { Consequence } from "../protocol/schema.ts";
 import { DOCUMENT_MAX_TOKENS, EFFORT, MODEL } from "../protocol/analyze.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { SapSpec } from "../sap/types.ts";
-import type { CrfSpec } from "../crf/types.ts";
-import { columnsByVariable } from "../crf/columns.ts";
+import { columnsForPlan } from "../crf/columns.ts";
 import type { ExtractedProtocol } from "../protocol/extract.ts";
 import { checkTableCoverage } from "./coverage.ts";
 import type { Finding } from "../sap/validate.ts";
@@ -277,7 +276,6 @@ export type TablesResult = {
 
 export async function buildTablesSpec(
   sap: SapSpec,
-  crf: CrfSpec | null,
   /**
    * The protocol, for the read back at the end. Optional so a caller with no
    * stored file still gets its tables, one check short.
@@ -329,22 +327,6 @@ ${JSON.stringify({
       })}`,
     },
   ];
-
-  if (crf) {
-    content.push({
-      type: "text",
-      text: `The case report form, which is what will exist to report with. The baseline
-table can only describe variables this form collects:
-
-${JSON.stringify({
-  sections: crf.sections.map((s) => ({
-    title: s.title,
-    fields: s.fields.map((f) => f.variable_id ?? f.label),
-  })),
-  derived: crf.derived.map((d) => d.variable_id ?? d.name),
-})}`,
-    });
-  }
 
   const decisions = decisionsBlock(options.answers, "tables");
   if (decisions) content.push({ type: "text", text: decisions });
@@ -495,9 +477,10 @@ an outcome left out here is an outcome whose table has one unnamed row.`,
     multiplicity: sap.rules?.multiplicity?.trim() || undefined,
     missing_data: sap.rules?.missing_data?.trim() || undefined,
     rules: houseRules(sap),
-    // The names the form gave them, so a row of this document and a column of
+    // The plan's own datasheet names, which the form uses for the same
+    // variables, so a row of this document, a field of the form and a column of
     // the spreadsheet are matched by name rather than by eye.
-    columns: crf ? columnsByVariable(crf) : undefined,
+    columns: columnsForPlan(sap),
     tables: assignSlots(
       mergeTables(described, buildAnalyticTables(sap, raw.groups ?? [], categories, timepoints), sap),
       (sap.objectives ?? []).map((o) => o.id),

@@ -28,11 +28,11 @@ const d = (id: string | null, kind: DocKind, over: object = {}) => ({
 
 const protocols: ProtocolRow[] = [
   { id: "p1", filename: "Satyanarayana \u2014 DM Thesis (Final)", created_at: "2026-08-26",
-    documents: { review: d("r", "review"), sap: d("s", "sap"), crf: d("c", "crf", { errors: 2 }), tables: d("t", "tables") } },
+    documents: { review: d("r", "review"), sap: d("s", "sap"), crf: d("c", "crf", { errors: 2 }) } },
   { id: "p2", filename: "Laparoscopic conversion \u2014 cohort", created_at: "2026-08-20",
-    documents: { review: d("r2", "review"), sap: d(null, "sap"), crf: d(null, "crf"), tables: d(null, "tables") } },
+    documents: { review: d("r2", "review"), sap: d(null, "sap"), crf: d(null, "crf") } },
   { id: "p3", filename: "Thyroid FNAC diagnostic accuracy", created_at: "2026-08-11",
-    documents: { review: d("r3", "review"), sap: d("s3", "sap", { stale: true }), crf: d(null, "crf"), tables: d(null, "tables") } },
+    documents: { review: d("r3", "review"), sap: d("s3", "sap", { stale: true }), crf: d(null, "crf") } },
 ];
 
 const findings: Finding[] = [
@@ -75,9 +75,9 @@ it.skipIf(!process.env.OUT)("writes the shell harness", async () => {
           h("span", { className: "text-xs font-medium text-ink-2" }, "deepak1007shs")))),
     h("div", { className: "flex min-h-0 flex-1" },
       h("aside", { className: "panel-type flex w-[var(--rail-w)] shrink-0 flex-col border-r border-line bg-surface" },
-        h(ProtocolRail, { protocols, activeProtocolId: "p1", activeDoc: "tables" as DocKind })),
+        h(ProtocolRail, { protocols, activeProtocolId: "p1", activeDoc: "sap" as DocKind })),
       h("div", { className: "flex min-h-0 min-w-0 flex-1 flex-col" },
-        h(DocumentToolbar, { title: "Shell tables", status: "built" as const,
+        h(DocumentToolbar, { title: "Analysis plan", status: "built" as const,
           meta: ["5 tables", "3 versions \u00b7 built 27 Aug 2026"], downloadHref: "#",
           children: h("button", { className: "btn btn-quiet" }, "Rebuild") }),
         h("div", { className: "flex min-h-0 flex-1" },

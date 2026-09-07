@@ -181,14 +181,14 @@ beforeEach(() => {
 describe("a chain", () => {
   it("runs the four stages in the order they depend on each other", async () => {
     await run("all");
-    expect(calls).toEqual(["review", "sap", "crf", "tables"]);
+    expect(calls).toEqual(["review", "sap", "tables", "crf"]);
     expect(finalPatch().status).toBe("done");
   });
 
   it("starts at the plan when the review is already written", async () => {
     has.review = true;
     await run("documents");
-    expect(calls).toEqual(["sap", "crf", "tables"]);
+    expect(calls).toEqual(["sap", "tables", "crf"]);
   });
 
   it("carries on past a document that was built with problems in it", async () => {
@@ -196,7 +196,7 @@ describe("a chain", () => {
     // the form is never reached, which is worse than reaching it.
     findings.set("sap", [{ severity: "ERROR" }, { severity: "WARN" }]);
     await run("all");
-    expect(calls).toEqual(["review", "sap", "crf", "tables"]);
+    expect(calls).toEqual(["review", "sap", "tables", "crf"]);
     expect(finalPatch().status).toBe("done");
 
     const produced = jobPatches.flatMap((p) => (p.produced ? [p.produced] : [])).pop() as {
@@ -237,7 +237,7 @@ describe("a chain", () => {
     expect(sent("tables")).toEqual(["the composite endpoint"]);
     // A builder handed nothing and a builder handed no option look the same
     // from here, and one of them is a wiring bug. Assert the option exists.
-    for (const stage of ["sap", "crf", "tables"]) {
+    for (const stage of ["sap", "tables", "crf"]) {
       expect(given.get(stage), stage).toHaveProperty("unresolved");
     }
   });
