@@ -44,6 +44,23 @@ describe("reading a workbook", () => {
     expect(grid.rows[1]).toEqual(["1", "", ""]);
   });
 
+  it("reads the used range, not everything Excel has ever touched", async () => {
+    // A real thesis sheet of 101 rows reported 2009 by 238, because rowCount
+    // and columnCount cover anything formatted rather than anything filled.
+    // Asking for every cell in that rectangle created four hundred thousand
+    // empty cells and did not finish in five minutes.
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Data");
+    ws.addRow(["Sr", "Age"]);
+    ws.addRow([1, 34]);
+    ws.getRow(900).height = 20; // touched, never filled
+    const grid = await readWorkbook(Buffer.from(await wb.xlsx.writeBuffer()));
+
+    expect(ws.rowCount).toBeGreaterThan(100);
+    expect(grid.rows.length).toBeLessThan(10);
+    expect(grid.rows[1]).toEqual(["1", "34"]);
+  });
+
   it("names the sheet it read", async () => {
     expect((await readWorkbook(await sheetOf([["a"]]))).sheet).toBe("Data");
   });

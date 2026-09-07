@@ -72,14 +72,26 @@ export async function readWorkbook(buffer: Buffer, sheetName?: string): Promise<
     );
   }
 
+  // Bounded by the sheet's own dimensions, not by rowCount and columnCount.
+  // Those two report the extent of anything Excel has touched, including
+  // formatting on empty cells: one real thesis sheet of 101 rows reported 2009
+  // by 238, and asking for every cell in that rectangle materialised four
+  // hundred thousand empty cell objects and never finished. Dimensions is the
+  // used range.
+  const box = sheet.dimensions as unknown as
+    | { model?: { top: number; left: number; bottom: number; right: number } }
+    | undefined;
+  const lastRow = Math.min(box?.model?.bottom ?? sheet.rowCount, sheet.rowCount);
+  const lastColumn = Math.min(box?.model?.right ?? sheet.columnCount, sheet.columnCount);
+
   const rows: Cell[][] = [];
-  // eachRow skips rows Excel considers empty, and an empty row between the
-  // title and the table is part of the shape of the file, so the count is
-  // walked directly instead.
-  for (let r = 1; r <= sheet.rowCount; r += 1) {
-    const row = sheet.getRow(r);
+  for (let r = 1; r <= lastRow; r += 1) {
+    // `values` is a sparse 1-based array and costs one read for the whole row.
+    // getCell would create every cell it was asked for, which is what made the
+    // rectangle above expensive as well as large.
+    const values = sheet.getRow(r).values as unknown[];
     const cells: Cell[] = [];
-    for (let c = 1; c <= sheet.columnCount; c += 1) cells.push(textOf(row.getCell(c).value));
+    for (let c = 1; c <= lastColumn; c += 1) cells.push(textOf(values?.[c]));
     rows.push(cells);
   }
 
