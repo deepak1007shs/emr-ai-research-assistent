@@ -253,6 +253,14 @@ export async function buildCrfSpec(
      * been taken.
      */
     unresolved?: Consequence[];
+    /**
+     * Stops the request where it is.
+     *
+     * A build runs for minutes and can be started by accident. Without this the
+     * Stop button could only refuse to begin the next stage, and the call
+     * already in flight would run to the end and be paid for.
+     */
+    signal?: AbortSignal;
     onProgress?: (note: string) => void;
     onUsage?: (usage: TokenUsage) => void;
   } = {},
@@ -313,7 +321,7 @@ cannot be analysed.`,
       { type: "text", text: loadKnowledge(), cache_control: { type: "ephemeral", ttl: "1h" } },
     ],
     messages: [{ role: "user", content }],
-  });
+  }, { signal: options.signal });
 
   stream.on("streamEvent", (event) => {
     if (event.type === "message_delta") {
@@ -512,7 +520,11 @@ async function completeForm(
   spec: CrfSpec,
   sap: SapSpec,
   tidyField: (f: CrfField) => CrfField,
-  options: { onProgress?: (note: string) => void; onUsage?: (usage: TokenUsage) => void },
+  options: {
+    signal?: AbortSignal;
+    onProgress?: (note: string) => void;
+    onUsage?: (usage: TokenUsage) => void;
+  },
 ): Promise<{ sections: CrfSection[]; usage: TokenUsage }> {
   const none = {
     sections: [] as CrfSection[],
@@ -573,7 +585,7 @@ field belongs in one, and give anything collected at a follow-up visit its own
 section named for that visit.`,
         },
       ],
-    });
+    }, { signal: options.signal });
   } catch {
     // The first form still stands, and the validators will report what it is
     // missing. A failed second call must not lose the first.

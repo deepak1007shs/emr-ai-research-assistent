@@ -17,7 +17,7 @@ import type { JobKind, Produced, Stage } from "@/lib/jobs/plan";
 export type JobView = {
   id: string;
   kind: JobKind;
-  status: "running" | "done" | "failed";
+  status: "running" | "done" | "failed" | "cancelled";
   stage: Stage | null;
   step: string | null;
   produced: Produced[];
@@ -34,6 +34,7 @@ export function useJob(protocolId: string) {
   const [job, setJob] = useState<JobView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [stopping, setStopping] = useState(false);
 
   // A tab opened while a build is already running adopts it.
   useEffect(() => {
@@ -107,6 +108,29 @@ export function useJob(protocolId: string) {
     [protocolId],
   );
 
+  /**
+   * Asks the build to stop.
+   *
+   * The runner reads the row within a few seconds and aborts the model call it
+   * is waiting on, so this returns long before the build has actually ended.
+   * The polling above reports the change when it lands.
+   */
+  const stop = useCallback(async () => {
+    if (!job) return;
+    setStopping(true);
+    try {
+      const response = await fetch(`/api/jobs/${job.id}/cancel`, { method: "POST" });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        setError(body.error ?? "The build could not be stopped.");
+      }
+    } catch {
+      setError("Could not reach the server.");
+    } finally {
+      setStopping(false);
+    }
+  }, [job]);
+
   const reset = useCallback(() => {
     setError(null);
     setJob(null);
@@ -114,6 +138,9 @@ export function useJob(protocolId: string) {
 
   return {
     job,
+    stop,
+    /** True from pressing Stop until the request has returned. */
+    stopping,
     /** True from the click until the job is done, failed or found stalled. */
     running: starting || Boolean(job && job.status === "running" && !job.stalled),
     error: error ?? (job?.status === "failed" ? job.error : null),

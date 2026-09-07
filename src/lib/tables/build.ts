@@ -289,6 +289,14 @@ export async function buildTablesSpec(
      * been taken.
      */
     unresolved?: Consequence[];
+    /**
+     * Stops the request where it is.
+     *
+     * A build runs for minutes and can be started by accident. Without this the
+     * Stop button could only refuse to begin the next stage, and the call
+     * already in flight would run to the end and be paid for.
+     */
+    signal?: AbortSignal;
     onProgress?: (note: string) => void;
     onUsage?: (usage: TokenUsage) => void;
   } = {},
@@ -384,7 +392,7 @@ an outcome left out here is an outcome whose table has one unnamed row.`,
       { type: "text", text: loadTablesKnowledge(), cache_control: { type: "ephemeral", ttl: "1h" } },
     ],
     messages: [{ role: "user", content }],
-  });
+  }, { signal: options.signal });
 
   stream.on("streamEvent", (event) => {
     if (event.type === "message_delta") {

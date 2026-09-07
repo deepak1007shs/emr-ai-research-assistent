@@ -117,6 +117,14 @@ export { apiMessage };
 export async function analyzeProtocol(
   protocol: ExtractedProtocol,
   options: {
+    /**
+     * Stops the request where it is.
+     *
+     * A build runs for minutes and can be started by accident. Without this the
+     * Stop button could only refuse to begin the next stage, and the call
+     * already in flight would run to the end and be paid for.
+     */
+    signal?: AbortSignal;
     onProgress?: (note: string) => void;
     /** Fires as tokens accumulate, so the UI can show the job growing. */
     onUsage?: (usage: TokenUsage) => void;
@@ -154,7 +162,7 @@ export async function analyzeProtocol(
         },
       ],
       messages: [{ role: "user", content: userContent(protocol) }],
-    });
+    }, { signal: options.signal });
 
     let announced = false;
     const running: TokenUsage = {

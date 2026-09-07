@@ -43,6 +43,7 @@ function stub(name: string, spec: unknown) {
   // has already generated everything it is going to be billed for.
   return async (...args: unknown[]) => {
     calls.push(name);
+    if (stopAfter > 0) stopAfter -= 1;
     const options = args[args.length - 1] as
       | { onUsage?: (u: typeof usage) => void; unresolved?: unknown[] }
       | undefined;
@@ -69,6 +70,7 @@ vi.mock("../protocol/analyze.ts", async (original) => ({
   ...(await original<Record<string, unknown>>()),
   analyzeProtocol: async () => {
     calls.push("review");
+    if (stopAfter > 0) stopAfter -= 1;
     if (fail.has("review")) throw new Error("review blew up");
     return { spec: {}, actionSpec: {}, model: "claude-sonnet-5", usage };
   },
@@ -95,6 +97,8 @@ type Result = { data?: unknown; error?: unknown; count?: number };
 
 /** The rows the fake database has, and the writes it took. */
 let has: { review: boolean; sap: boolean };
+/** Stages to let through before the row reports a Stop. -1 never stops. */
+let stopAfter: number;
 let jobPatches: Record<string, unknown>[];
 let inserted: { table: string; row: Record<string, unknown> }[];
 
@@ -114,7 +118,8 @@ function makeDb() {
     if (table === "jobs") {
       const update = ops.find((o) => o.name === "update");
       if (update) jobPatches.push(update.args[0] as Record<string, unknown>);
-      return { data: null, error: null };
+      // A read of the row is the runner asking whether Stop has been pressed.
+      return { data: { status: stopAfter === 0 ? "cancelled" : "running" }, error: null };
     }
     if (table === "reviews") {
       return { count: has.review ? 1 : 0, data: has.review ? { id: "rev-1" } : null };
@@ -176,6 +181,7 @@ beforeEach(() => {
   jobPatches = [];
   inserted = [];
   has = { review: false, sap: false };
+  stopAfter = -1;
 });
 
 describe("a chain", () => {
@@ -303,5 +309,41 @@ describe("a single document", () => {
     await run("crf");
     expect(calls).toEqual(["crf"]);
     expect(finalPatch().status).toBe("done");
+  });
+});
+
+describe("stopping a build", () => {
+  it("keeps what finished and does not run what had not started", async () => {
+    // Stop after the review. The plan, the tables and the form never begin, and
+    // the review that finished stays: it is built and paid for.
+    stopAfter = 1;
+    await run("all");
+
+    expect(calls).toEqual(["review"]);
+    expect(finalPatch().status).toBe("cancelled");
+    expect(String(finalPatch().error)).toContain("Protocol Review");
+    expect(String(finalPatch().error)).toContain("kept");
+  });
+
+  it("is not a failure", async () => {
+    // A build you stopped on purpose must not sit in the history looking like
+    // a crash, because one is worth investigating and the other is not.
+    stopAfter = 1;
+    await run("all");
+    expect(finalPatch().status).not.toBe("failed");
+  });
+
+  it("leaves no failed document behind", async () => {
+    stopAfter = 1;
+    await run("all");
+    const failed = inserted.filter((i) => i.row.status === "failed");
+    expect(failed).toEqual([]);
+  });
+
+  it("says so plainly when nothing had been built yet", async () => {
+    stopAfter = 0;
+    await run("all");
+    expect(calls).toEqual([]);
+    expect(String(finalPatch().error)).toContain("before anything was built");
   });
 });

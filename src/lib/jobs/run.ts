@@ -103,6 +103,18 @@ function progress(db: Db, jobId: string) {
     async done() {
       await write({ status: "done", stage: null, step: null, usage: banked, cost: costOf(MODEL, banked).total });
     },
+    /** Stopped on purpose. Not a failure, and not written as one. */
+    async cancelled(message: string) {
+      const spent = add(banked, live);
+      await write({
+        status: "cancelled",
+        stage: null,
+        step: null,
+        error: message,
+        usage: spent,
+        cost: costOf(MODEL, spent).total,
+      });
+    },
     async failed(message: string) {
       // The failing stage's own tokens are banked here, because a stage only
       // banks its usage when it finishes and a failed one never does. Writing
@@ -156,7 +168,7 @@ async function readySap(db: Db, protocolId: string) {
 /* The stages                                                                 */
 /* -------------------------------------------------------------------------- */
 
-async function runReview(db: Db, userId: string, protocolId: string, report: Reporter): Promise<Produced> {
+async function runReview(db: Db, userId: string, protocolId: string, report: Reporter, signal: AbortSignal): Promise<Produced> {
   await report.step("Reading the protocol");
   const protocol = await readProtocol(db, protocolId);
 
@@ -169,6 +181,7 @@ async function runReview(db: Db, userId: string, protocolId: string, report: Rep
 
   try {
     const result = await analyzeProtocol(protocol, {
+      signal,
       onProgress: (message) => void report.step(message),
       onUsage: (usage) => report.meter(usage),
     });
@@ -195,13 +208,14 @@ async function runReview(db: Db, userId: string, protocolId: string, report: Rep
     await report.finished(entry, result.usage);
     return entry;
   } catch (error) {
+    if (signal.aborted) throw error;
     const message = error instanceof Error ? error.message : "The review failed.";
     await db.from("reviews").update({ status: "failed", error: message }).eq("id", reviewRow.id);
     throw new Error(message);
   }
 }
 
-async function runSap(db: Db, userId: string, protocolId: string, report: Reporter): Promise<Produced> {
+async function runSap(db: Db, userId: string, protocolId: string, report: Reporter, signal: AbortSignal): Promise<Produced> {
   await report.step("Reading the protocol");
   const protocol = await readProtocol(db, protocolId);
 
@@ -218,6 +232,7 @@ async function runSap(db: Db, userId: string, protocolId: string, report: Report
     const result = await buildSapSpec(protocol, {
       answers,
       unresolved: unanswered,
+      signal,
       onProgress: (message) => void report.step(message),
       onUsage: (usage) => report.meter(usage),
     });
@@ -230,6 +245,7 @@ async function runSap(db: Db, userId: string, protocolId: string, report: Report
     let coverage: Awaited<ReturnType<typeof checkCoverage>> | null = null;
     try {
       coverage = await checkCoverage(protocol, result.spec, {
+        signal,
         onProgress: (message) => void report.step(message),
         onUsage: (usage) => report.meter(usage),
       });
@@ -260,6 +276,10 @@ async function runSap(db: Db, userId: string, protocolId: string, report: Report
     await report.finished(entry, usage);
     return entry;
   } catch (error) {
+    // A build you stopped leaves no wreckage. Without this, cancelling wrote a
+    // failed row claiming the document had been attempted and had broken, which
+    // is not what happened and is not what the workspace should show.
+    if (signal.aborted) throw error;
     const message = error instanceof Error ? error.message : "Building the plan failed.";
     // Recorded, not only reported. A failure that leaves nothing behind can only
     // be diagnosed from the runs that happened to succeed beside it.
@@ -286,7 +306,7 @@ async function planFor(db: Db, protocolId: string, stage: "crf" | "tables") {
   return sap;
 }
 
-async function runCrf(db: Db, userId: string, protocolId: string, report: Reporter): Promise<Produced> {
+async function runCrf(db: Db, userId: string, protocolId: string, report: Reporter, signal: AbortSignal): Promise<Produced> {
   const sap = await planFor(db, protocolId, "crf");
 
   await report.step("Reading the protocol");
@@ -296,6 +316,7 @@ async function runCrf(db: Db, userId: string, protocolId: string, report: Report
   try {
     const result = await buildCrfSpec(protocol, sap.spec as SapSpec, {
       answers,
+      signal,
       unresolved: consequencesFor(unanswered, "crf"),
       onProgress: (message) => void report.step(message),
       onUsage: (usage) => report.meter(usage),
@@ -324,6 +345,10 @@ async function runCrf(db: Db, userId: string, protocolId: string, report: Report
     // Recorded the way a failed plan is. Written after the plan was found, so a
     // form refused for having no plan to build against still writes nothing:
     // that is a run which never started, not a form that failed.
+    // A build you stopped leaves no wreckage. Without this, cancelling wrote a
+    // failed row claiming the document had been attempted and had broken, which
+    // is not what happened and is not what the workspace should show.
+    if (signal.aborted) throw error;
     const message = error instanceof Error ? error.message : "Building the form failed.";
     await db.from("crf_forms").insert({
       protocol_id: protocolId,
@@ -336,7 +361,7 @@ async function runCrf(db: Db, userId: string, protocolId: string, report: Report
   }
 }
 
-async function runTables(db: Db, userId: string, protocolId: string, report: Reporter): Promise<Produced> {
+async function runTables(db: Db, userId: string, protocolId: string, report: Reporter, signal: AbortSignal): Promise<Produced> {
   const sap = await planFor(db, protocolId, "tables");
 
   // The form is not read. Its fields are computed from this same plan, so the
@@ -357,6 +382,7 @@ async function runTables(db: Db, userId: string, protocolId: string, report: Rep
   try {
     const result = await buildTablesSpec(sap.spec as SapSpec, protocol, {
       answers,
+      signal,
       unresolved: consequencesFor(unanswered, "tables"),
       onProgress: (message) => void report.step(message),
       onUsage: (usage) => report.meter(usage),
@@ -383,6 +409,10 @@ async function runTables(db: Db, userId: string, protocolId: string, report: Rep
     await report.finished(entry, result.usage);
     return entry;
   } catch (error) {
+    // A build you stopped leaves no wreckage. Without this, cancelling wrote a
+    // failed row claiming the document had been attempted and had broken, which
+    // is not what happened and is not what the workspace should show.
+    if (signal.aborted) throw error;
     const message = error instanceof Error ? error.message : "Building the tables failed.";
     await db.from("shell_tables").insert({
       protocol_id: protocolId,
@@ -396,7 +426,10 @@ async function runTables(db: Db, userId: string, protocolId: string, report: Rep
   }
 }
 
-const STAGE_FN: Record<Stage, (db: Db, userId: string, protocolId: string, report: Reporter) => Promise<Produced>> = {
+const STAGE_FN: Record<
+  Stage,
+  (db: Db, userId: string, protocolId: string, report: Reporter, signal: AbortSignal) => Promise<Produced>
+> = {
   review: runReview,
   sap: runSap,
   crf: runCrf,
@@ -435,8 +468,35 @@ export async function runJob(
   const report = progress(db, job.id);
   const stages = stagesOf(job.kind);
 
+  // Stop arrives as a different request, and possibly in a different process,
+  // so the row is the only thing this runner and that request can both see. It
+  // is read on a timer and the model call in flight is aborted, because a Stop
+  // that waited for a five-minute call to end would not be stopping anything.
+  const stopping = new AbortController();
+  let asked = false;
+  const watch = setInterval(() => {
+    void db
+      .from("jobs")
+      .select("status")
+      .eq("id", job.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.status !== "cancelled" || asked) return;
+        asked = true;
+        stopping.abort();
+      }, () => undefined);
+  }, 3000);
+
   try {
     for (const stage of stages) {
+      // A cancel that lands between two stages stops here rather than waiting
+      // for the next poll, and before any of the next stage is paid for.
+      if (stopping.signal.aborted || (await isCancelled(db, job.id))) {
+        asked = true;
+        stopping.abort();
+        break;
+      }
+
       // A chain builds its own prerequisites as it goes; a single stage must
       // find them already there.
       const built = report.produced().some((p) => p.kind === NEEDS[stage]);
@@ -445,16 +505,38 @@ export async function runJob(
       }
 
       await report.enter(stage);
-      await STAGE_FN[stage](db, job.userId, job.protocolId, report);
+      await STAGE_FN[stage](db, job.userId, job.protocolId, report, stopping.signal);
     }
-    await report.done();
+    if (asked) await report.cancelled(stoppedNote(report.produced()));
+    else await report.done();
   } catch (error) {
-    const message = error instanceof Error ? error.message : "The build failed.";
-    // What a failed chain did finish is worth saying. Without it a run that
-    // fails at its fourth stage reads exactly like one that did nothing.
+    // What finished is worth saying either way. Without it a run that ends at
+    // its fourth stage reads exactly like one that did nothing.
     const done = report.produced().map((p) => STAGE_LABEL[p.kind]);
-    await report.failed(
-      done.length ? `${message} (${done.join(" and ")} finished before this.)` : message,
-    );
+    if (asked || stopping.signal.aborted) {
+      await report.cancelled(stoppedNote(report.produced()));
+    } else {
+      const message = error instanceof Error ? error.message : "The build failed.";
+      await report.failed(
+        done.length ? `${message} (${done.join(" and ")} finished before this.)` : message,
+      );
+    }
+  } finally {
+    clearInterval(watch);
   }
+}
+
+/** Whether somebody has asked this build to stop. */
+async function isCancelled(db: Db, jobId: string): Promise<boolean> {
+  const { data } = await db.from("jobs").select("status").eq("id", jobId).maybeSingle();
+  return data?.status === "cancelled";
+}
+
+/** "Stopped. The Protocol Review finished before you stopped it." */
+function stoppedNote(produced: Produced[]): string {
+  const done = produced.map((p) => STAGE_LABEL[p.kind]);
+  if (!done.length) return "Stopped before anything was built.";
+  return `Stopped. ${done.join(" and ")} finished before you stopped it, and ${
+    done.length === 1 ? "it is" : "they are"
+  } kept.`;
 }

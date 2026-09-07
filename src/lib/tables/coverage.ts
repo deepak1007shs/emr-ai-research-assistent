@@ -101,6 +101,14 @@ export async function checkTableCoverage(
   protocol: ExtractedProtocol,
   spec: ShellTablesSpec,
   options: {
+    /**
+     * Stops the request where it is.
+     *
+     * A build runs for minutes and can be started by accident. Without this the
+     * Stop button could only refuse to begin the next stage, and the call
+     * already in flight would run to the end and be paid for.
+     */
+    signal?: AbortSignal;
     onProgress?: (note: string) => void;
     onUsage?: (usage: TokenUsage) => void;
   } = {},
@@ -145,7 +153,7 @@ ${JSON.stringify(
     },
     system: [{ type: "text", text: ROLE }],
     messages: [{ role: "user", content }],
-  });
+  }, { signal: options.signal });
 
   stream.on("streamEvent", (event) => {
     if (event.type === "message_delta") {

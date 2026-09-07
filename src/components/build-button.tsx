@@ -53,7 +53,7 @@ export function BuildButton({
   blockedReason?: string | null;
   rebuildLabel?: string;
 }) {
-  const { job, running, error, stalled, start } = useJob(protocolId);
+  const { job, running, error, stalled, start, stop, stopping } = useJob(protocolId);
 
   const verb = VERB[kind];
   const blocked = Boolean(blockedReason);
@@ -83,7 +83,22 @@ export function BuildButton({
               ? (rebuildLabel ?? "Build it again")
               : verb.build}
         </button>
+
+        {/* A build runs for minutes and can be pressed by accident. This aborts
+            the model call in flight rather than waiting for it to finish, so
+            stopping costs what has been spent and no more. */}
+        {running && (
+          <button type="button" onClick={() => void stop()} disabled={stopping} className="btn btn-quiet">
+            {stopping ? "Stopping..." : "Stop"}
+          </button>
+        )}
       </div>
+
+      {job?.status === "cancelled" && (
+        <div className="card px-3 py-2.5">
+          <p className="text-xs">{job.error ?? "Stopped."}</p>
+        </div>
+      )}
 
       {running && (
         <div className="card px-3 py-2.5">

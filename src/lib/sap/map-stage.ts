@@ -145,6 +145,14 @@ export async function buildSapMap(
      * been taken.
      */
     unresolved?: Consequence[];
+    /**
+     * Stops the request where it is.
+     *
+     * A build runs for minutes and can be started by accident. Without this the
+     * Stop button could only refuse to begin the next stage, and the call
+     * already in flight would run to the end and be paid for.
+     */
+    signal?: AbortSignal;
     onProgress?: (note: string) => void;
     onUsage?: (usage: TokenUsage) => void;
   } = {},
@@ -196,7 +204,7 @@ export async function buildSapMap(
     output_config: { effort: EFFORT, format: { type: "json_schema", schema: SAP_MAP_JSON_SCHEMA } },
     system: [{ type: "text", text: ROLE }],
     messages: [{ role: "user", content }],
-  });
+  }, { signal: options.signal });
 
   stream.on("streamEvent", (event) => {
     if (event.type === "message_delta") {
