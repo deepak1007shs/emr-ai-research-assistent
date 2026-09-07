@@ -1,4 +1,5 @@
 import type { ActionSpec, Consequence } from "./schema.ts";
+import type { DatasetProfile } from "../data/types.ts";
 
 /**
  * The investigator's decisions, as one block of prose.
@@ -125,4 +126,53 @@ export function consequencesFor(
   affects: "sap" | "crf" | "tables",
 ): Consequence[] {
   return (consequences ?? []).filter((c) => c.affects === affects && c.kind !== "none");
+}
+
+/** How many columns a plan is shown before the block starts saying so instead. */
+const COLUMNS_SHOWN = 250;
+
+/**
+ * The dataset, described for whoever is writing the plan.
+ *
+ * The rows are never sent. What a plan needs is which columns exist, what is in
+ * them and how much is missing, and that is a few hundred words whether the
+ * study has fifty patients or five thousand.
+ *
+ * The instruction at the end is the point of the whole block. A plan that
+ * quietly declared only what the spreadsheet happened to contain would read as
+ * though the study were going perfectly, and would hide the one thing this
+ * comparison can say that nothing else can: that the protocol promised
+ * something nobody collected, and an objective is at risk because of it.
+ */
+export function dataBlock(profile: DatasetProfile | null | undefined): string | null {
+  if (!profile?.columns?.length) return null;
+
+  const shown = profile.columns.slice(0, COLUMNS_SHOWN);
+  const omitted = profile.columns.length - shown.length;
+
+  const lines = shown.map((column) => {
+    const missing = `${column.missing} of ${column.missing + column.filled} missing`;
+    const values = column.distinct.length
+      ? `; values: ${column.distinct
+          .slice(0, 10)
+          .map((d) => `${d.value} (${d.count})`)
+          .join(", ")}${column.distinctTotal > 10 ? `, and ${column.distinctTotal - 10} more` : ""}`
+      : "";
+    return `- "${column.header || `column ${column.index + 1}`}": ${column.looks}, ${missing}${values}`;
+  });
+
+  return `Data has already been collected for this study. The sheet has ${profile.rowCount} rows
+and these columns:
+
+${lines.join("\n")}${
+    omitted
+      ? `\n\nand ${omitted} further columns, not listed here. The sheet has ${profile.columns.length} columns in all.`
+      : ""
+  }
+
+Write the plan the protocol calls for, not the plan this sheet happens to allow.
+Where the protocol calls for a variable and no column holds it, declare the
+variable anyway and say plainly that the data does not contain it. A plan
+trimmed to fit the spreadsheet hides the one thing worth knowing here, which is
+that an objective cannot be answered with what was collected.`;
 }

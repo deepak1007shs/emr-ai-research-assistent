@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { loadKnowledge } from "../protocol/knowledge.ts";
 import { explainApiError } from "../protocol/api-error.ts";
-import { decisionsBlock, unresolvedBlock } from "../protocol/answers.ts";
+import { dataBlock, decisionsBlock, unresolvedBlock } from "../protocol/answers.ts";
+import type { DatasetProfile } from "../data/types.ts";
 import type { Consequence } from "../protocol/schema.ts";
 import { DOCUMENT_MAX_TOKENS, EFFORT, MODEL } from "../protocol/analyze.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
@@ -257,6 +258,14 @@ export async function buildSapSpec(
      */
     unresolved?: Consequence[];
     /**
+     * The columns of a dataset already collected, where one is attached.
+     *
+     * The plan is still written from the protocol. This says which of the
+     * variables it calls for were actually collected, so the plan can name the
+     * ones that were not rather than declaring them as though all were well.
+     */
+    data?: DatasetProfile | null;
+    /**
      * Stops the request where it is.
      *
      * A build runs for minutes and can be started by accident. Without this the
@@ -290,6 +299,9 @@ export async function buildSapSpec(
 
   const unresolved = unresolvedBlock(options.unresolved ?? [], "plan");
   if (unresolved) content.push({ type: "text", text: unresolved });
+
+  const data = dataBlock(options.data);
+  if (data) content.push({ type: "text", text: data });
 
   content.push({
     type: "text",

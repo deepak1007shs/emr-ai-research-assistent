@@ -8,6 +8,7 @@ import { buildTablesSpec } from "../tables/build.ts";
 import { build as renderMarkdown } from "../render/markdown.ts";
 import { costOf, type TokenUsage } from "../protocol/pricing.ts";
 import { loadDecisions } from "../workspace/decisions.ts";
+import type { DatasetProfile } from "../data/types.ts";
 import { consequencesFor } from "../protocol/answers.ts";
 import { isLinkable, type SapSpec } from "../sap/types.ts";
 import type { Finding } from "../sap/validate.ts";
@@ -228,10 +229,23 @@ async function runSap(db: Db, userId: string, protocolId: string, report: Report
   // lost from the whole chain rather than from one document.
   const { answers, reviewId, unanswered } = await loadDecisions(db, protocolId);
 
+  // The columns of a dataset already collected, where one is attached. The plan
+  // is still written from the protocol; this is what lets it say which of the
+  // variables the protocol calls for nobody actually collected.
+  const { data: attached } = await db
+    .from("datasets")
+    .select("id, profile")
+    .eq("protocol_id", protocolId)
+    .eq("status", "ready")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   try {
     const result = await buildSapSpec(protocol, {
       answers,
       unresolved: unanswered,
+      data: (attached?.profile as DatasetProfile | undefined) ?? null,
       signal,
       onProgress: (message) => void report.step(message),
       onUsage: (usage) => report.meter(usage),

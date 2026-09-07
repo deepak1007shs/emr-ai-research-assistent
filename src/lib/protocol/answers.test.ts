@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
-import { composeAnswers, decisionsBlock, parseIssueAnswers } from "./answers.ts";
+import { composeAnswers, dataBlock, decisionsBlock, parseIssueAnswers } from "./answers.ts";
+import type { ColumnProfile, DatasetProfile } from "../data/types.ts";
 import type { ActionSpec } from "./schema.ts";
 
 /**
@@ -107,8 +108,82 @@ describe("the review's blockers reach every stage that writes", () => {
     expect(source).toContain("unresolvedBlock(options.unresolved");
   });
 
+  it("sap/build.ts is given the data as well", async () => {
+    // The same blunt grep as above, catching the same regression: a block
+    // written and never passed. The shell tables were built with no decisions
+    // at all for months because the route never handed them over.
+    const source = await readFile(new URL("../sap/build.ts", import.meta.url), "utf8");
+    expect(source).toContain("dataBlock(options.data)");
+  });
+
   it("and sap/build.ts passes them on to the other two", async () => {
     const source = await readFile(new URL("../sap/build.ts", import.meta.url), "utf8");
     expect(source.match(/unresolved: options\.unresolved/g) ?? []).toHaveLength(2);
+  });
+});
+
+describe("what the plan is told about the data", () => {
+  const column = (over: Partial<ColumnProfile> = {}): ColumnProfile => ({
+    index: 0,
+    header: "age_yrs",
+    filled: 98,
+    missing: 2,
+    looks: "number",
+    distinct: [],
+    distinctTotal: 40,
+    missingMarkers: [],
+    ...over,
+  });
+
+  const profile = (columns: ColumnProfile[]): DatasetProfile => ({
+    sheet: "Data",
+    headerRow: 0,
+    rowCount: 100,
+    columns,
+  });
+
+  it("says nothing when no data has been attached", () => {
+    expect(dataBlock(null)).toBeNull();
+    expect(dataBlock(undefined)).toBeNull();
+  });
+
+  it("names each column, what it holds, and how much is missing", () => {
+    const block = dataBlock(profile([column()]))!;
+    expect(block).toContain("age_yrs");
+    expect(block).toContain("number");
+    expect(block).toContain("2");
+    expect(block).toContain("100 rows");
+  });
+
+  it("lists the categories, which is what a variable is matched by", () => {
+    const block = dataBlock(
+      profile([
+        column({
+          header: "sex",
+          looks: "category",
+          distinct: [
+            { value: "Male", count: 60 },
+            { value: "Female", count: 40 },
+          ],
+          distinctTotal: 2,
+        }),
+      ]),
+    )!;
+    expect(block).toContain("Male");
+    expect(block).toContain("Female");
+  });
+
+  it("says how many columns it left out rather than truncating quietly", () => {
+    // A plan written against a sheet it was shown half of, with nothing saying
+    // so, is worse than one written against no sheet at all.
+    const many = Array.from({ length: 300 }, (_, i) => column({ index: i, header: `c${i}` }));
+    const block = dataBlock(profile(many))!;
+    expect(block).toContain("50 further columns");
+    expect(block).not.toContain("c299");
+  });
+
+  it("tells the plan to declare what the protocol wants and the data lacks", () => {
+    const block = dataBlock(profile([column()]))!;
+    expect(block).toMatch(/declare it|does not contain/i);
   });
 });
