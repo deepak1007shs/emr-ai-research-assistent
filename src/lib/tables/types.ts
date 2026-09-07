@@ -176,6 +176,12 @@ export type TableRow = {
   indent?: boolean;
   /** True for a heading row, which spans the table and carries no data cells. */
   heading?: boolean;
+  /**
+   * Why no data can fill this row, where a dataset has been matched to the plan
+   * and holds no column for the variable. Absent where a column exists, and
+   * absent everywhere when no dataset is attached.
+   */
+  unavailable?: string;
 };
 
 /**
@@ -258,6 +264,11 @@ export type ShellTable = {
   if_missing?: string;
   /** "Footnote: test used = Pearson chi-square test." Printed under the table. */
   test_applied?: string;
+  /**
+   * Set where the collected data fills none of this table, so one dead
+   * objective reads as one thing rather than as a grid of missing rows.
+   */
+  unavailable?: string;
   footnote?: string;
 };
 

@@ -53,6 +53,8 @@ export function rowLabels(
   columnOf: (id: string) => string | undefined = () => undefined,
 ): string[] {
   const parts: string[] = [];
+  /** The mark for each part, by the same index, applied once folding is done. */
+  const marks: (string | undefined)[] = [];
 
   for (const row of table.rows) {
     const named = row.variable_id ? labelOf(row.variable_id, row.label) : row.label;
@@ -74,9 +76,12 @@ export function rowLabels(
       continue;
     }
     parts.push(label);
+    marks.push(row.unavailable);
   }
 
-  return parts;
+  // Appended last, so it reads after the categories a sub-row folded on rather
+  // than between the variable and them.
+  return parts.map((part, i) => (marks[i] ? `${part} - ${marks[i]}` : part));
 }
 
 export function rowsSentence(

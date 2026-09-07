@@ -10,6 +10,7 @@ import { costOf, type TokenUsage } from "../protocol/pricing.ts";
 import { loadDecisions } from "../workspace/decisions.ts";
 import type { DatasetProfile } from "../data/types.ts";
 import { remapDataset } from "../data/remap.ts";
+import { markUnavailable } from "../tables/unavailable.ts";
 import { consequencesFor } from "../protocol/answers.ts";
 import { isLinkable, type SapSpec } from "../sap/types.ts";
 import type { Finding } from "../sap/validate.ts";
@@ -417,6 +418,24 @@ async function runTables(db: Db, userId: string, protocolId: string, report: Rep
   await report.step("Reading the protocol");
   const protocol = await readProtocol(db, protocolId).catch(() => null);
 
+  // Which variables the collected data actually holds, where a sheet has been
+  // matched to this plan. Used after the tables are built rather than before:
+  // what the data can fill is a set difference, not a judgement, so the model
+  // is not asked about it.
+  const { data: mappedData } = await db
+    .from("datasets")
+    .select("mapping")
+    .eq("protocol_id", protocolId)
+    .eq("status", "ready")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const held: Record<string, string> = {};
+  for (const column of ((mappedData?.mapping as { columns?: { variable_id?: string; clean_name?: string }[] } | null)?.columns ?? [])) {
+    if (column.variable_id) held[column.variable_id] = column.clean_name || column.variable_id;
+  }
+
   try {
     const result = await buildTablesSpec(sap.spec as SapSpec, protocol, {
       answers,
@@ -434,7 +453,7 @@ async function runTables(db: Db, userId: string, protocolId: string, report: Rep
         crf_id: null,
         owner: userId,
         status: "ready",
-        spec: result.spec,
+        spec: markUnavailable(result.spec, held),
         validation: { findings: result.findings },
         model: result.model,
         usage: result.usage,

@@ -104,6 +104,10 @@ function oneTable(
   if (slot) blocks.push(heading(`${table.slot} - ${slot}`, HeadingLevel.HEADING_3));
   blocks.push(heading(`Table ${table.number}: ${table.title}`, HeadingLevel.HEADING_4));
 
+  // Said once at the top where the whole table is dead, rather than leaving the
+  // reader to work it out from four rows that each say the same thing.
+  if (table.unavailable) blocks.push(footnote("No data", table.unavailable));
+
   blocks.push(shellGrid(table, rowLabels(table, labelOf, columnOf)));
 
   const said = describe(table, labelOf, columnOf);
