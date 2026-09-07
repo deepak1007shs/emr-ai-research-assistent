@@ -11,6 +11,7 @@ import { needsFirst } from "@/lib/jobs/plan";
 import { NotBuilt } from "@/components/not-built";
 import { VersionList } from "@/components/version-list";
 import { Breadcrumb } from "@/components/breadcrumb";
+import { DatasetPanel } from "@/components/dataset-panel";
 import type { SapSpec } from "@/lib/sap/types";
 import type { ShellTablesSpec } from "@/lib/tables/types";
 
@@ -23,7 +24,7 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
   const { id } = await params;
   const supabase = await createClient();
 
-  const [plan, shells, review, versions, protocol] = await Promise.all([
+  const [plan, shells, review, versions, protocol, dataset] = await Promise.all([
     loadCurrent<SapSpec>(supabase, "sap_plans", id),
     loadCurrent<ShellTablesSpec>(supabase, "shell_tables", id),
     supabase
@@ -36,6 +37,14 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
       .maybeSingle(),
     loadVersions(supabase, "sap", id),
     supabase.from("protocols").select("filename").eq("id", id).maybeSingle(),
+    supabase
+      .from("datasets")
+      .select("id, filename, row_count, findings")
+      .eq("protocol_id", id)
+      .eq("status", "ready")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const filename = (protocol.data as { filename?: string } | null)?.filename ?? "Protocol";
@@ -101,7 +110,25 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
           {/* Once the shell tables exist they own the numbering, so the plan
               prints the number the reader will actually find. */}
           <SapPreview spec={plan.spec} tableNumbers={tableNumbers(shells?.spec)} />
-          <div className="mx-auto mt-6 w-full max-w-[var(--sheet-w)] px-6">
+          <div className="mx-auto mt-6 w-full max-w-[var(--sheet-w)] space-y-6 px-6">
+            {/* Added here, a sheet takes the datasheet names this plan gave its
+                variables, so the spreadsheet and the documents agree. */}
+            <DatasetPanel
+              protocolId={id}
+              hasPlan
+              existing={
+                dataset.data
+                  ? {
+                      id: dataset.data.id as string,
+                      filename: dataset.data.filename as string,
+                      rows: dataset.data.row_count as number | null,
+                      findings: Array.isArray(dataset.data.findings)
+                        ? dataset.data.findings.length
+                        : 0,
+                    }
+                  : null
+              }
+            />
             <VersionList kind="sap" versions={versions} />
           </div>
         </section>

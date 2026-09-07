@@ -5,6 +5,7 @@ import { ReviewDocument } from "@/components/review-document";
 import { UsagePanel } from "@/components/usage-panel";
 import { IssueAnswers } from "@/components/issue-answers";
 import { NextStep } from "@/components/next-step";
+import { DatasetPanel } from "@/components/dataset-panel";
 import { NotBuilt } from "@/components/not-built";
 import { BuildButton } from "@/components/build-button";
 import { DeleteReview } from "@/components/delete-review";
@@ -30,6 +31,17 @@ export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/
     .select("id")
     .eq("protocol_id", id)
     .eq("status", "ready")
+    .limit(1)
+    .maybeSingle();
+
+  // The newest cleaned dataset, if one has been added, so the panel can offer
+  // the workbook rather than only the upload.
+  const { data: dataset } = await supabase
+    .from("datasets")
+    .select("id, filename, row_count, findings")
+    .eq("protocol_id", id)
+    .eq("status", "ready")
+    .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
@@ -143,6 +155,23 @@ export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/
       {/* The review is the first of four documents, and answering the issues
           is only worth doing if the next step is obvious from here. */}
       <NextStep protocolId={id} built={Boolean(existingPlan)} />
+
+      {/* Data can arrive before a plan exists. Read here it keeps names of its
+          own; read once the plan is written it takes the plan's. */}
+      <DatasetPanel
+        protocolId={id}
+        hasPlan={Boolean(existingPlan)}
+        existing={
+          dataset
+            ? {
+                id: dataset.id,
+                filename: dataset.filename,
+                rows: dataset.row_count,
+                findings: Array.isArray(dataset.findings) ? dataset.findings.length : 0,
+              }
+            : null
+        }
+      />
 
       <DeleteReview
         reviewId={review.id}
