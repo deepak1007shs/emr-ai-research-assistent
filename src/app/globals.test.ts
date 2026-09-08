@@ -5,21 +5,32 @@ import { HOUSE_FONT, HOUSE_SIZE } from "@/lib/render/house-style.ts";
 /**
  * The screen and the page are one document.
  *
- * The house rule for a generated .docx is Times New Roman, black on white. The
- * app reads the same documents before they are downloaded, so it uses the same
- * face: a supervisor checking a plan on screen and handing over the Word file
- * should not be looking at two different things.
+ * The house rule for a generated .docx is Times New Roman, black on white, and
+ * the app shows those documents before they are downloaded. So the document is
+ * set in the face it prints in: a supervisor checking a plan on screen and
+ * handing over the Word file must not be looking at two different things.
+ *
+ * The application around the document is not. The rail, the toolbar and the
+ * buttons are not a proof of any page, and setting them in Times bought nothing
+ * and cost the whole app its appearance.
  */
 
 const css = await readFile(new URL("./globals.css", import.meta.url), "utf8");
 
 describe("the app's own type", () => {
-  it("is the same family the documents are set in", () => {
+  it("sets the document in the face it prints in", () => {
     expect(css).toContain(`--font-document: "${HOUSE_FONT}"`);
-    // Every Tailwind family token resolves to it, so no utility escapes.
-    expect(css).toContain("--font-sans: var(--font-document)");
+    // Applied to the sheet, which is the document and nothing else.
+    expect(css).toMatch(/\.sheet\s*\{[^}]*font-family:\s*var\(--font-document\)/);
     expect(css).toContain("--font-serif: var(--font-document)");
-    expect(css).toMatch(/body\s*\{[^}]*font-family:\s*var\(--font-document\)/);
+  });
+
+  it("sets the application around it in something else", () => {
+    // The change this replaced an assertion for: the chrome was Times too, and
+    // that one fact was most of why the app looked older than it is.
+    expect(css).toMatch(/body\s*\{[^}]*font-family:\s*var\(--font-ui\)/);
+    expect(css).toContain("--font-sans: var(--font-ui)");
+    expect(css).not.toMatch(/body\s*\{[^}]*font-family:\s*var\(--font-document\)/);
   });
 
   it("falls back to faces a machine without Times actually has", () => {

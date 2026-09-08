@@ -25,19 +25,26 @@ export function FindingsPanel({ findings }: { findings: Finding[] }) {
         judgements a supervisor would make on it.
       </p>
 
-      <ul className="mt-3 space-y-2">
+      {/* A coloured edge rather than a badge alone: a list of twenty findings is
+          scanned for the serious ones before any of it is read. */}
+      <ul className="mt-3 space-y-1.5">
         {[...errors, ...warnings].map((finding, i) => (
-          <li key={i} className="flex gap-2 text-xs leading-relaxed">
+          <li
+            key={i}
+            className={`flex gap-2 rounded-r-md border-l-2 py-1.5 pr-2 pl-2.5 text-xs leading-relaxed ${
+              finding.severity === "ERROR"
+                ? "border-danger bg-danger-soft/45"
+                : "border-amber bg-amber-50/50"
+            }`}
+          >
             <span
-              className={`mt-0.5 shrink-0 rounded px-1 font-mono text-[0.65rem] ${
-                finding.severity === "ERROR"
-                  ? "bg-danger-soft text-danger"
-                  : "bg-warn-soft text-warn"
+              className={`mt-px shrink-0 font-mono text-[0.65rem] font-semibold ${
+                finding.severity === "ERROR" ? "text-danger" : "text-amber"
               }`}
             >
               {finding.code}
             </span>
-            <span>{finding.message}</span>
+            <span className="text-ink-2">{finding.message}</span>
           </li>
         ))}
       </ul>

@@ -51,3 +51,6 @@ jay-study-spec.json
 
 # Scratch scripts for running a protocol through end to end.
 *.tmp.ts
+
+# Visual brainstorming sessions
+.superpowers/
