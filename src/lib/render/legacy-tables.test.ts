@@ -1,7 +1,7 @@
 import JSZip from "jszip";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { TablesPreview } from "../../components/tables-preview.tsx";
+import { ShellTableSection } from "../../components/tables-preview.tsx";
 import type { ShellTablesSpec } from "../tables/types.ts";
 import { buildSapDocx } from "./sap-docx.ts";
 import { sapFixture } from "../sap/fixture.ts";
@@ -172,7 +172,7 @@ describe("a tables document built before the rewrite", () => {
     // The point of this file: a table saved before a field existed still
     // renders. A grid makes that sharper, because a row whose label will not
     // resolve prints as an empty cell rather than as missing prose.
-    const markup = renderToStaticMarkup(TablesPreview({ spec: LEGACY }));
+    const markup = renderToStaticMarkup(ShellTableSection({ spec: LEGACY }));
     expect(markup).toContain("<table");
     expect(markup).not.toContain("undefined");
     expect(markup).not.toContain("Rows (X)");

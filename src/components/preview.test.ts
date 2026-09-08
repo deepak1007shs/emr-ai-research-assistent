@@ -3,7 +3,7 @@ import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 import { SapPreview } from "./sap-preview.tsx";
 import { CrfPreview } from "./crf-preview.tsx";
-import { TablesPreview } from "./tables-preview.tsx";
+import { ShellTableSection } from "./tables-preview.tsx";
 import { buildSapDocx } from "@/lib/render/sap-docx.ts";
 import { buildCrfDocx } from "@/lib/render/crf-docx.ts";
 import { sapFixture } from "@/lib/sap/fixture.ts";
@@ -160,7 +160,7 @@ describe("the CRF preview", () => {
 
 describe("the shell tables preview", () => {
   it("carries the blocks in the document's order", () => {
-    const screen = screenText(TablesPreview({ spec: tablesFixture }));
+    const screen = screenText(ShellTableSection({ spec: tablesFixture }));
     const order = [
       "Descriptive and baseline characteristics",
       "Primary outcome",
@@ -181,7 +181,7 @@ describe("the shell tables preview", () => {
   });
 
   it("draws the table on screen as the document draws it", () => {
-    const screen = screenText(TablesPreview({ spec: tablesFixture }));
+    const screen = screenText(ShellTableSection({ spec: tablesFixture }));
     expect(screen).toContain("Table 1:");
     for (const column of tablesFixture.tables[0].columns) {
       expect(screen).toContain(column);
@@ -193,7 +193,7 @@ describe("the shell tables preview", () => {
   });
 
   it("titles every table the document titles", async () => {
-    const screen = screenText(TablesPreview({ spec: tablesFixture }));
+    const screen = screenText(ShellTableSection({ spec: tablesFixture }));
     const page = await pageText(await buildTablesDocx(tablesFixture));
     for (const table of tablesFixture.tables) {
       expect(screen, `table ${table.number} on screen`).toContain(`Table ${table.number}:`);
@@ -219,7 +219,7 @@ describe("a stored document that predates a field", () => {
 
   it("the tables preview renders without a label registry", () => {
     const thin = { ...structuredClone(tablesFixture), labels: undefined };
-    const screen = screenText(TablesPreview({ spec: thin as never }));
+    const screen = screenText(ShellTableSection({ spec: thin as never }));
     expect(screen).toContain("Sex");
   });
 });
@@ -339,7 +339,7 @@ describe("a plan stored before the route map existed", () => {
 
 describe("a table on screen is the table in the document", () => {
   it("captions, heads and fills every table the same way", async () => {
-    const screen = screenText(TablesPreview({ spec: tablesFixture }));
+    const screen = screenText(ShellTableSection({ spec: tablesFixture }));
     const page = await pageText(await buildTablesDocx(tablesFixture));
 
     for (const table of tablesFixture.tables) {
@@ -361,7 +361,7 @@ describe("a table on screen is the table in the document", () => {
   });
 
   it("draws the grid on screen, as the document draws it", () => {
-    const markup = renderToStaticMarkup(TablesPreview({ spec: tablesFixture }));
+    const markup = renderToStaticMarkup(ShellTableSection({ spec: tablesFixture }));
     expect(markup).toContain("<table");
     // Blank cells, not placeholders: a rule of underscores reads as data that
     // is not there, and a shell table's emptiness is the whole point.
@@ -370,10 +370,36 @@ describe("a table on screen is the table in the document", () => {
 
   it("carries none of the review chrome into what prints", () => {
     const markup = renderToStaticMarkup(
-      TablesPreview({ spec: tablesFixture, flagged: new Set([1]) }),
+      ShellTableSection({ spec: tablesFixture, flagged: new Set([1]) }),
     );
     // The flag is a note from the rail, not part of the document.
     expect(markup).toContain("Flagged in review");
     expect(markup).toContain("no-print");
+  });
+});
+
+describe("Section 6 on screen and in the download", () => {
+  /**
+   * The bug this pins. The tables moved into the plan as Section 6, the Word
+   * and Markdown renderings were updated, and the screen was not: it kept a
+   * sentence saying the tables were "in the Shell Tables document that
+   * accompanies this plan", and that document had been deleted in the same
+   * change. A reader looking at the plan was pointed at nothing.
+   */
+  it("draws the tables on screen, and names the ones the document names", () => {
+    const screen = screenText(
+      SapPreview({ spec: sapFixture, shells: tablesFixture }),
+    );
+    expect(screen).not.toContain("document that accompanies this plan");
+    for (const table of tablesFixture.tables) {
+      expect(screen, `Table ${table.number}`).toContain(table.title);
+    }
+  });
+
+  it("says the tables are not built yet rather than pointing nowhere", () => {
+    const screen = screenText(SapPreview({ spec: sapFixture }));
+    expect(screen).toContain("Section 6");
+    expect(screen).toContain("not been built yet");
+    expect(screen).not.toContain("accompanies this plan");
   });
 });

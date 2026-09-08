@@ -14,7 +14,7 @@ vi.mock("next/navigation", () => ({
   useSelectedLayoutSegment: () => null,
 }));
 import { ProtocolRail } from "../components/protocol-rail.tsx";
-import { TablesPreview } from "../components/tables-preview.tsx";
+import { ShellTableSection } from "../components/tables-preview.tsx";
 import { ReviewRail } from "../components/review-rail.tsx";
 import { DocumentToolbar } from "../components/document-toolbar.tsx";
 import { tablesFixture } from "../lib/tables/fixture.ts";
@@ -82,7 +82,7 @@ it.skipIf(!process.env.OUT)("writes the shell harness", async () => {
           children: h("button", { className: "btn btn-quiet" }, "Rebuild") }),
         h("div", { className: "flex min-h-0 flex-1" },
           h("section", { className: "min-w-0 flex-1 overflow-y-auto py-6 pb-10" },
-            h(TablesPreview, { spec: tablesFixture, flagged })),
+            h(ShellTableSection, { spec: tablesFixture, flagged })),
           h(ReviewRail, { findings }))))
   );
 

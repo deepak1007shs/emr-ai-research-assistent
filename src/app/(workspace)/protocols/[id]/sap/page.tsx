@@ -109,7 +109,11 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
         <section className="min-w-0 flex-1 overflow-y-auto py-6 pb-10">
           {/* Once the shell tables exist they own the numbering, so the plan
               prints the number the reader will actually find. */}
-          <SapPreview spec={plan.spec} tableNumbers={tableNumbers(shells?.spec)} />
+          <SapPreview
+            spec={plan.spec}
+            tableNumbers={tableNumbers(shells?.spec)}
+            shells={shells?.spec ?? null}
+          />
           <div className="mx-auto mt-6 w-full max-w-[var(--sheet-w)] space-y-6 px-6">
             {/* Added here, a sheet takes the datasheet names this plan gave its
                 variables, so the spreadsheet and the documents agree. */}

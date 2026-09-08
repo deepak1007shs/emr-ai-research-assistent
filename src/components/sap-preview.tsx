@@ -24,6 +24,8 @@ import {
   Note,
   Td,
 } from "./document-shell";
+import { ShellTableSection } from "./tables-preview";
+import type { ShellTablesSpec } from "@/lib/tables/types";
 
 /**
  * The Statistical Analysis Plan, on screen.
@@ -38,8 +40,11 @@ const HEADERS = ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistic
 export function SapPreview({
   spec,
   tableNumbers,
+  shells,
 }: {
   spec: SapSpec;
+  /** The shell tables, drawn as Section 6. Absent until they are built. */
+  shells?: ShellTablesSpec | null;
   /**
    * Objective id to the table that reports it, from the shell tables. The plan's
    * own table_id is provisional: it was written before anyone knew how many
@@ -432,10 +437,22 @@ export function SapPreview({
 
       <DocSection title="Section 6 - Shell (Dummy) Tables">
         <p className="text-xs leading-relaxed">
-          Every empty results table the thesis will contain, in the order it will appear, is laid
-          out in the Shell Tables document that accompanies this plan. Cells stay blank until the
-          data arrive, and each table names the test that produced it.
+          Every empty results table the thesis will contain, in the order it will appear. Cells
+          stay blank until the data arrive, and each table names the test that fills it.
         </p>
+        {/* Drawn here, not pointed at. This said the tables were in a separate
+            document, and that document no longer exists: they are part of the
+            plan. What is on screen is what the download contains. */}
+        {shells?.tables?.length ? (
+          <div className="mt-4">
+            <ShellTableSection spec={shells} />
+          </div>
+        ) : (
+          <p className="mt-2 text-xs leading-relaxed text-muted">
+            The tables have not been built yet. Build the plan again and this section fills in:
+            the plan is written first, and the tables are laid out from it.
+          </p>
+        )}
       </DocSection>
 
       <Note>

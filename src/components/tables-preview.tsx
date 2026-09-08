@@ -3,13 +3,16 @@ import { line, plain } from "@/lib/render/plain";
 import { slotTitle } from "@/lib/tables/slots";
 import { contents, describe, rowLabels } from "@/lib/tables/describe";
 import { AlertTriangleIcon } from "./icons";
-import { DocTable, DocumentShell, Note } from "./document-shell";
+import { DocTable, Note } from "./document-shell";
 
 /**
- * The table plan, on screen.
+ * Section 6 of the analysis plan, on screen.
  *
- * Mirrors tables-docx.ts: the contents list, then the four blocks in order,
- * each table said in words rather than drawn. It used to draw the grids with
+ * Mirrors render/shell-tables.ts: the contents list, then the four blocks in
+ * order, each table drawn. There is no separate tables document any more and no
+ * page of its own; this is embedded in the plan's preview, so a reader who
+ * checks the screen and then downloads the plan finds the same tables. It used
+ * to draw the grids with
  * their cells empty, which said nothing about what belonged in them.
  *
  * Each table carries an anchor, so a finding in the review rail can send you to
@@ -25,7 +28,15 @@ const BLOCK_HEADING: Record<TableBlock, string> = {
 
 const BLOCK_ORDER: TableBlock[] = ["descriptive", "primary", "secondary", "exploratory"];
 
-export function TablesPreview({
+/**
+ * Section 6 of the analysis plan, on screen.
+ *
+ * The tables are part of the plan and have no document of their own, so this is
+ * embedded in the plan's own preview rather than wrapped in a shell. It draws
+ * what `render/shell-tables.ts` draws, because a reader who checks the screen
+ * and then downloads the plan must not find two different sets of tables.
+ */
+export function ShellTableSection({
   spec,
   /** Table numbers a finding flagged, so the reader shows what the rail says. */
   flagged = new Set<number>(),
@@ -38,11 +49,7 @@ export function TablesPreview({
   const ordered = [...(spec.tables ?? [])].sort((a, b) => a.number - b.number);
 
   return (
-    <DocumentShell
-      kind="Section 6 - Analysis Blueprint"
-      title={plain(spec.title)}
-      subtitle="Every table the study will report: what each one is called, what is on each axis, and what will be reported in it. Fixed before the data arrive, so nothing about the layout is decided once they have."
-    >
+    <>
       <Contents spec={spec} />
       {BLOCK_ORDER.map((block) => {
         const inBlock = ordered.filter((t) => t.block === block);
@@ -78,7 +85,7 @@ export function TablesPreview({
           </section>
         );
       })}
-    </DocumentShell>
+    </>
   );
 }
 
