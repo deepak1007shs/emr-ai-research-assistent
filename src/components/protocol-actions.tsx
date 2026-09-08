@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ConfirmDelete } from "./confirm-delete";
+import { PencilIcon } from "./icons";
 
 /**
  * Renaming and removing one protocol, from the rail.
@@ -101,12 +102,16 @@ export function ProtocolActions({
           </div>
         </div>
       ) : (
-        <div className="flex items-center gap-3">
+        /* Two real controls rather than two grey words. They were set at the
+           smallest size the app has, in muted grey, with no icon and no border:
+           present, and invisible enough to be reported as missing. */
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => setRenaming(true)}
-            className="text-2xs text-ink-3 hover:text-ink-2"
+            className="inline-flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-xs font-medium text-ink-2 transition-colors hover:border-line-3 hover:bg-surface-2 hover:text-ink"
           >
+            <PencilIcon className="size-3.5" />
             Rename
           </button>
           <ConfirmDelete

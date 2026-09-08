@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { TrashIcon } from "./icons";
 
 /**
  * A delete that says what it is about to delete.
@@ -47,9 +48,14 @@ export function ConfirmDelete({
       <button
         type="button"
         onClick={() => setAsking(true)}
-        className="text-2xs text-ink-3 hover:text-warn"
+        className="inline-flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-xs font-medium text-ink-3 transition-colors hover:border-danger hover:bg-danger-soft/50 hover:text-danger"
       >
-        {children ?? label}
+        {children ?? (
+          <>
+            <TrashIcon className="size-3.5" />
+            {label}
+          </>
+        )}
       </button>
     );
   }
