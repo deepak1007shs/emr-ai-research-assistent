@@ -102,10 +102,17 @@ export function ProtocolActions({
           </div>
         </div>
       ) : (
-        /* Two real controls rather than two grey words. They were set at the
-           smallest size the app has, in muted grey, with no icon and no border:
-           present, and invisible enough to be reported as missing. */
-        <div className="flex items-center gap-1.5">
+        /* Two real controls rather than two grey words: they were set at the
+           smallest size the app has, in muted grey, with no icon and no border,
+           and were reported as missing.
+
+           Held apart on purpose. Side by side, an ordinary action and an
+           irreversible one are one slip of the hand from each other, and the
+           slip only ever goes one way. Rename sits at the left where the reader
+           already is; delete is pushed to the far edge with the whole width of
+           the rail between them, and the rule underneath separates the two
+           again for anyone reading rather than aiming. */
+        <div className="flex items-center justify-between gap-6 border-t border-line-2 pt-2">
           <button
             type="button"
             onClick={() => setRenaming(true)}

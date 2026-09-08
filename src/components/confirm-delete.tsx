@@ -48,7 +48,10 @@ export function ConfirmDelete({
       <button
         type="button"
         onClick={() => setAsking(true)}
-        className="inline-flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-xs font-medium text-ink-3 transition-colors hover:border-danger hover:bg-danger-soft/50 hover:text-danger"
+        /* Deliberately quieter than the action beside it. A bordered button
+           invites a press, and this one cannot be taken back; it earns its
+           border only when the pointer is already on it. */
+        className="inline-flex items-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-xs font-medium text-ink-4 transition-colors hover:border-danger hover:bg-danger-soft/50 hover:text-danger"
       >
         {children ?? (
           <>
