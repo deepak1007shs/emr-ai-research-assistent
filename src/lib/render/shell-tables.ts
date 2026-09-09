@@ -8,9 +8,14 @@ import {
   WidthType,
 } from "docx";
 import { HOUSE_BORDER, plain } from "./house-style.ts";
-import { slotTitle } from "../tables/slots.ts";
-import { contents, describe, rowLabels } from "../tables/describe.ts";
-import type { ShellTable, ShellTablesSpec, TableBlock } from "../tables/types.ts";
+import {
+  BLOCK_HEADING,
+  BLOCK_NOTE_LABEL,
+  BLOCK_ORDER,
+  blockNote,
+} from "../tables/block-notes.ts";
+import { describe, rowLabels } from "../tables/describe.ts";
+import type { ShellTable, ShellTablesSpec } from "../tables/types.ts";
 
 /**
  * The shell tables, drawn.
@@ -23,23 +28,14 @@ import type { ShellTable, ShellTablesSpec, TableBlock } from "../tables/types.ts
  * this exists to end.
  *
  * A grid says nothing about what belongs in it, so what the axes cannot carry
- * stays underneath: the test that fills it, in the house blueprint's own
- * words, and the statistic per cell and the missing-data rule where the plan
- * sets them.
+ * stays underneath: the test that fills it, in the house blueprint's own words
+ * and in the one footnote line the blueprint allows.
  */
 
 type Block = Paragraph | Table;
 
 const line = (v?: string) => plain(String(v ?? "").replace(/\s*\n\s*/g, " "));
 
-const BLOCK_HEADING: Record<TableBlock, string> = {
-  descriptive: "Descriptive and baseline characteristics",
-  primary: "Primary outcome",
-  secondary: "Secondary outcomes",
-  exploratory: "Exploratory analyses",
-};
-
-const BLOCK_ORDER: TableBlock[] = ["descriptive", "primary", "secondary", "exploratory"];
 
 function heading(text: string, level: (typeof HeadingLevel)[keyof typeof HeadingLevel]) {
   return new Paragraph({ text: line(text), heading: level, spacing: { before: 280, after: 140 } });
@@ -91,6 +87,16 @@ function footnote(label: string, value: string, separator = ": ") {
   });
 }
 
+/**
+ * One table, in the three parts the house blueprint fixes: the numbered title
+ * line, the empty grid, and the one footnote naming the test.
+ *
+ * The slot code above the number, the statistic per cell and the per-table
+ * missing-data rule used to print here as well. The blueprint carries one
+ * footnote and no slot codes, and what those three lines said is said once at
+ * the family level instead: the slot in the plan's own numbering, the statistic
+ * in the column headings, and the missing-data rule in the population line.
+ */
 function oneTable(
   table: ShellTable,
   labelOf: (id: string, fallback: string) => string,
@@ -98,11 +104,19 @@ function oneTable(
 ): Block[] {
   const blocks: Block[] = [];
 
-  // The slot above the number. A reader cites "Table 7"; the slot tells them
-  // which part of the skeleton they are in, and lets a missing part be seen.
-  const slot = slotTitle(table.slot);
-  if (slot) blocks.push(heading(`${table.slot} - ${slot}`, HeadingLevel.HEADING_3));
-  blocks.push(heading(`Table ${table.number}: ${table.title}`, HeadingLevel.HEADING_4));
+  // Built from two runs, because the blueprint puts two spaces after the stop
+  // and the house sanitiser collapses runs of spaces in model-written prose.
+  // The number is ours and the title is the model's; only the title needs it.
+  blocks.push(
+    new Paragraph({
+      heading: HeadingLevel.HEADING_4,
+      spacing: { before: 280, after: 140 },
+      children: [
+        new TextRun({ text: `Table ${table.number}.  ` }),
+        new TextRun({ text: line(table.title) }),
+      ],
+    }),
+  );
 
   // Said once at the top where the whole table is dead, rather than leaving the
   // reader to work it out from four rows that each say the same thing.
@@ -112,57 +126,41 @@ function oneTable(
 
   const said = describe(table, labelOf, columnOf);
   if (said.analysis) blocks.push(footnote("Footnote: test used", said.analysis, " = "));
-  if (said.reported) blocks.push(footnote("Cell shows", said.reported));
-  if (said.missing) blocks.push(footnote("If data are missing", said.missing));
 
   blocks.push(new Paragraph({ text: "", spacing: { after: 120 } }));
   return blocks;
 }
 
 /**
- * Section 6 of the analysis plan: the contents list, then the tables.
+ * Section 6 of the analysis plan: four family headings, each with its note line
+ * and its tables, in the order the blueprint fixes.
  *
- * The plan's own missing-data rule and its objective-to-table map are not
- * repeated here. Section 4 fixes the first and Section 3 carries the second,
- * and a second statement of either is a second thing that can disagree.
+ * There used to be a contents list above them and a slot code beside every
+ * title. Both were navigation for a document that was once separate; printed
+ * inside the plan they duplicate its own numbering, and the blueprint carries
+ * neither.
  */
 export function shellTableSection(spec: ShellTablesSpec): Block[] {
   const labelOf = (id: string, fallback = "") => spec.labels?.[id] ?? fallback ?? id;
   const columnOf = (id: string) => spec.columns?.[id];
   const blocks: Block[] = [];
 
-  const list = contents(spec);
-  blocks.push(
-    new Paragraph({
-      children: [
-        new TextRun({ text: `Contents: ${spec.tables.length} tables`, bold: true }),
-      ],
-      spacing: { before: 120, after: 120 },
-    }),
-  );
-  for (const entry of list) {
-    blocks.push(
-      new Paragraph({
-        children: [
-          new TextRun({ text: `Table ${entry.number}.   ` }),
-          new TextRun({ text: line(entry.title) }),
-          ...(entry.slot ? [new TextRun({ text: `   [${entry.slot}]` })] : []),
-        ],
-        spacing: { after: 40 },
-      }),
-    );
-  }
-
   for (const block of BLOCK_ORDER) {
     const tables = spec.tables.filter((t) => t.block === block);
     if (!tables.length) continue;
     blocks.push(heading(BLOCK_HEADING[block], HeadingLevel.HEADING_2));
 
-    // Above the primary block and nowhere else. Who is analysed and on what
-    // denominator is what a reader needs before the first result, and the plan
-    // states it in Section 4, thirty pages behind them.
-    if (block === "primary" && spec.analysis_population) {
-      blocks.push(footnote("Analysis population", spec.analysis_population));
+    // One line under the family heading and nowhere else: who is analysed for
+    // the primary, what a secondary result may claim, the caveat over anything
+    // exploratory, and the multiplicity rule that governs the family.
+    const note = blockNote(block, spec);
+    const label = BLOCK_NOTE_LABEL[block];
+    if (note) {
+      blocks.push(
+        label
+          ? footnote(label, note)
+          : new Paragraph({ text: line(note), spacing: { after: 80 } }),
+      );
     }
 
     for (const table of tables) blocks.push(...oneTable(table, labelOf, columnOf));

@@ -1,4 +1,5 @@
 import { chooseTest, degreesOfFreedomNote } from "../sap/choose-test.ts";
+import { PICOT_COLUMNS, PICOT_HEADING, picotRows } from "../sap/picot.ts";
 import {
   analysisCell,
   dataTypeCell,
@@ -8,14 +9,19 @@ import {
 } from "./analysis-cells.ts";
 import {
   outcomeCell,
-  outcomeDefinition,
   outcomeIndex,
   variableIndex,
   type SapSpec,
   type SapVariant,
 } from "../sap/types.ts";
 import { line, plain } from "./plain.ts";
-import { contents, rowLabels } from "../tables/describe.ts";
+import {
+  BLOCK_HEADING,
+  BLOCK_NOTE_LABEL,
+  BLOCK_ORDER,
+  blockNote,
+} from "../tables/block-notes.ts";
+import { rowLabels } from "../tables/describe.ts";
 import type { ShellTablesSpec } from "../tables/types.ts";
 
 /**
@@ -27,7 +33,7 @@ import type { ShellTablesSpec } from "../tables/types.ts";
  * second renderer that drifts is worse than no second renderer.
  */
 
-const HEADERS = ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical analysis -> Table #"];
+const HEADERS = ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical test -> Table #"];
 
 /** A pipe inside a cell would end the column early. */
 const cell = (value: string) => line(value).replace(/\|/g, "\\|");
@@ -61,7 +67,6 @@ export function buildSapMarkdown(
 
   const objectives = spec.objectives ?? [];
   const analyses = spec.analyses ?? [];
-  const variables = spec.variables ?? [];
 
   const out: string[] = [];
   const push = (...parts: string[]) => out.push(...parts);
@@ -75,24 +80,20 @@ export function buildSapMarkdown(
 
   /* ---- the clinical question --------------------------------------- */
 
-  const fw = spec.picot?.framework === "PICOT" ? "PICOT" : "PECOT";
   if (spec.picot && !short) {
-    push("---", "", `## ${fw}`, "");
+    push("---", "", `## ${PICOT_HEADING}`, "");
     push(
       "*The clinical question decomposed. This is what every objective, variable and test below must trace back to.*",
       "",
     );
     push(
-      facts([
-        ["P - Population", spec.picot.population],
-        [fw === "PICOT" ? "I - Intervention" : "E - Exposure", spec.picot.intervention_or_exposure],
-        ["C - Comparator", spec.picot.comparator],
-        ["O - Outcome", spec.picot.outcome],
-        ["T - Time / type of study", spec.picot.time],
-      ]),
+      table(
+        PICOT_COLUMNS,
+        picotRows(spec.picot).map(([letter, element, value]) => [letter, element, value]),
+      ),
       "",
     );
-    push(`**Assembled question.** ${plain(spec.picot.assembled_question)}`, "");
+    push(`**Assembled question:** ${plain(spec.picot.assembled_question)}`, "");
   }
 
   /* ---- Section 1 --------------------------------------------------- */
@@ -132,12 +133,8 @@ export function buildSapMarkdown(
   tier("Secondary objectives", "secondary");
   tier("Exploratory objectives (hypothesis-generating, not powered)", "exploratory");
 
-  /* ---- Section 2 --------------------------------------------------- */
+  /* ---- the outcomes, in the short document only --------------------- */
 
-  const ROLE_ORDER: Record<string, number> = {
-    outcome: 0, predictor: 1, effect_modifier: 2, confounder: 3,
-    mediator: 4, collider: 5, descriptor: 6,
-  };
   // The outcomes get a section of their own in the short document, where they
   // are the point rather than a note under the map.
   if (short) {
@@ -160,35 +157,7 @@ export function buildSapMarkdown(
     }
   }
 
-  if (!short) {
-  push("---", "", "## Section 2 - Variable Table", "");
-  push(
-    "*One row per variable. Once the data type and the role are set, the correct test follows almost mechanically. Grouped by role: outcomes first, then predictors, then confounders, then descriptors.*",
-    "",
-  );
-  push(
-    table(
-      ["Variable", "Data type", "Unit / coding", "Role in analysis"],
-      [...variables]
-        .sort((a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9))
-        .map((v) => [v.label, v.data_type, v.unit_coding, v.role.replace(/_/g, " ")]),
-    ),
-    "",
-  );
-  if (spec.priority_confounder_ids?.length) {
-    push(
-      `**Priority confounders for adjustment.** ${spec.priority_confounder_ids
-        .map((id) => byVariable.get(id)?.label ?? id)
-        .join(", ")}. Respecting about ten outcome events per variable.`,
-      "",
-    );
-  }
-
-  /* ---- Section 3 --------------------------------------------------- */
-
-  }
-
-  push("---", "", section(3, "Analysis Map"), "");
+  push("---", "", "## Analysis Map", "");
   push(
     "*One row per objective, or per group of objectives that share an analysis. Every question is linked to its analysis, unadjusted and adjusted, AND to the empty results tables it will fill.*",
     "",
@@ -225,127 +194,43 @@ export function buildSapMarkdown(
     "",
   );
 
-  const measured = (spec.outcomes ?? []).filter((o) =>
-    analyses.some((a) => (a.outcome_ids ?? []).includes(o.id)),
-  );
-  if (measured.length && !short) {
-    push("**How each outcome is defined.**", "");
-    for (const o of measured) push(`- **${plain(o.what)}.** ${plain(outcomeDefinition(o))}`);
-    push("");
-  }
+  /* ---- the notes under the map, in the short document only ----------- */
 
-  if (reasons.size) {
-    push("**Why each analysis.**", "");
-    for (const [test, why] of reasons) push(`- **${line(test)}:** ${plain(why)}.`);
-    push("");
-  }
-
-  if (avoided.size) {
-    push("**What must not be done.**", "");
-    for (const [test, avoid] of avoided) push(`- **${line(test)}:** ${plain(avoid)}.`);
-    push("");
-  }
-
-  const adjusted = analyses.find((a) => (a.adjust_for_ids ?? []).length > 0);
-  if (spec.expected_events !== undefined && adjusted) {
-    const { note } = degreesOfFreedomNote(
-      spec.expected_events,
-      (adjusted.adjust_for_ids ?? []).length,
-    );
-    push("**Degrees of freedom.**", "", plain(note), "");
-  }
-
-  const excluded = variables.filter(
-    (v) => (v.role === "mediator" || v.role === "collider") && v.exclusion_reason,
-  );
-  if (excluded.length) {
-    push("**Not adjusted for.**", "");
-    for (const v of excluded) push(`- ${plain(`${v.label} is a ${v.role}. ${v.exclusion_reason}`)}`);
-    push("", "Neither enters any model.", "");
-  }
-
-  /* ---- Section 4 --------------------------------------------------- */
-
-  if (spec.rules && !short) {
-    push("---", "", "## Section 4 - General Statistical Rules", "");
-    push("*Fixed upfront so they are never re-decided after seeing the data.*", "");
-    for (const [label, value] of [
-      ["Software", spec.rules.software],
-      ["Normality", spec.rules.normality],
-      ["Continuous data", spec.rules.continuous_summary],
-      ["Categorical data", spec.rules.categorical_summary],
-      ["Significance", spec.rules.significance],
-      ["Effect estimates", spec.rules.effect_estimates],
-      ["Missing data", spec.rules.missing_data],
-      ["Multiplicity", spec.rules.multiplicity],
-      ["Reproducibility", spec.rules.reproducibility],
-    ] as [string, string][]) {
-      push(`- **${label}.** ${plain(value)}`);
+  // The house format prints the analysis map and nothing under it. These notes
+  // are what the short plan is for: the working sheet a statistician sits down
+  // with, where why a test was chosen and what must not be done with it is the
+  // point rather than a departure from the blueprint.
+  if (short) {
+    if (reasons.size) {
+      push("**Why each analysis.**", "");
+      for (const [test, why] of reasons) push(`- **${line(test)}:** ${plain(why)}.`);
+      push("");
     }
-    push("");
-  }
-  if (spec.sample_size_note && !short) {
-    push(`**Sample size.** ${plain(spec.sample_size_note)}`, "");
-  }
 
-  if (spec.populations?.length && !short) {
-    push("### Analysis populations (who is analysed)", "");
-    push(table(["Population", "Definition"], spec.populations.map((p) => [p.name, p.definition])), "");
-  }
-  if (spec.baseline_comparison && !short) {
-    push("### Baseline comparison", "", plain(spec.baseline_comparison), "");
-  }
-  if (spec.intercurrent_events?.length && !short) {
-    push("### Intercurrent events", "");
-    push(
-      "*These change what is being estimated. Missing data is a separate problem, handled by the rule above.*",
-      "",
-    );
-    push(table(["Event", "Strategy"], spec.intercurrent_events.map((e) => [e.event, e.strategy])), "");
-  }
-  if (spec.testing_hierarchy && !short) {
-    push("### Multiplicity and testing hierarchy", "", plain(spec.testing_hierarchy), "");
-  }
-  if (spec.subgroups?.length && !short) {
-    push("### Subgroup and interaction analyses", "");
-    push(
-      "*Pre-specified. Effect modification is tested by an interaction term, never by comparing within-subgroup p values.*",
-      "",
-    );
-    push(table(["Subgroup", "How it is tested"], spec.subgroups.map((g) => [g.subgroup, g.how_tested])), "");
-  }
-  if (spec.interim && !short) {
-    push("### Interim analyses and stopping rules", "", plain(spec.interim), "");
-  }
-
-  /* ---- Section 5 and 5A -------------------------------------------- */
-
-  if (spec.steps?.length && !short) {
-    push("---", "", "## Section 5 - Step-by-Step Analysis Flow", "");
-    push("*The ladder for the primary objective. The same ladder works for almost any design.*", "");
-    for (const step of spec.steps) push(`- **${line(step.step)}.** ${plain(step.what)}`);
-    push("");
-  }
-
-  if (spec.assumption_checks?.length && !short) {
-    push("---", "", "## Section 5A - Assumption Checking", "");
-    push(
-      "*The assumptions belong to the test that was chosen, so only the assumptions the planned tests actually make are listed.*",
-      "",
-    );
-    const byTest = new Map<string, typeof spec.assumption_checks>();
-    for (const check of spec.assumption_checks) {
-      byTest.set(check.test, [...(byTest.get(check.test) ?? []), check]);
+    if (avoided.size) {
+      push("**What must not be done.**", "");
+      for (const [test, avoid] of avoided) push(`- **${line(test)}:** ${plain(avoid)}.`);
+      push("");
     }
-    for (const [test, checks] of byTest) {
-      push(`### ${line(test)}`, "");
-      push(
-        table(
-          ["Assumption", "How it will be checked", "If violated", "Clinical example"],
-          checks.map((c) => [c.assumption, c.how_checked, c.if_violated, c.example]),
-        ),
-        "",
+
+    const adjusted = analyses.find((a) => (a.adjust_for_ids ?? []).length > 0);
+    if (spec.expected_events !== undefined && adjusted) {
+      const { note } = degreesOfFreedomNote(
+        spec.expected_events,
+        (adjusted.adjust_for_ids ?? []).length,
       );
+      push("**Degrees of freedom.**", "", plain(note), "");
+    }
+
+    const excluded = (spec.variables ?? []).filter(
+      (v) => (v.role === "mediator" || v.role === "collider") && v.exclusion_reason,
+    );
+    if (excluded.length) {
+      push("**Not adjusted for.**", "");
+      for (const v of excluded) {
+        push(`- ${plain(`${v.label} is a ${v.role}. ${v.exclusion_reason}`)}`);
+      }
+      push("", "Neither enters any model.", "");
     }
   }
 
@@ -366,21 +251,31 @@ export function buildSapMarkdown(
       // registry, so the two renderings name a row identically.
       const labelOf = (id: string, fallback = "") => shells.labels?.[id] ?? fallback ?? id;
       const columnOf = (id: string) => shells.columns?.[id];
-      push(`**Contents: ${tables.length} tables**`, "");
-      for (const entry of contents(shells)) {
-        push(`${entry.number}. ${line(entry.title)}${entry.slot ? `  [${entry.slot}]` : ""}`);
-      }
-      push("");
-      for (const table of [...tables].sort((a, b) => a.number - b.number)) {
-        push(`### Table ${table.number}: ${line(table.title)}`, "");
-        const columns = table.columns.length ? table.columns : ["Variable"];
-        push(`| ${columns.map(cell).join(" | ")} |`);
-        push(`| ${columns.map(() => "---").join(" | ")} |`);
-        for (const name of rowLabels(table, labelOf, columnOf)) {
-          push(`| ${cell(name)} |${columns.slice(1).map(() => "  |").join("")}`);
+      // Grouped into the four families, each under its heading and its note
+      // line, as the Word document groups them. This used to print one flat
+      // list, which is a third arrangement of the same tables.
+      for (const block of BLOCK_ORDER) {
+        const inBlock = tables
+          .filter((t) => t.block === block)
+          .sort((a, b) => a.number - b.number);
+        if (!inBlock.length) continue;
+
+        push(`### ${BLOCK_HEADING[block]}`, "");
+        const note = blockNote(block, shells);
+        const label = BLOCK_NOTE_LABEL[block];
+        if (note) push(label ? `**${label}:** ${line(note)}` : `*${line(note)}*`, "");
+
+        for (const table of inBlock) {
+          push(`#### Table ${table.number}.  ${line(table.title)}`, "");
+          const columns = table.columns.length ? table.columns : ["Variable"];
+          push(`| ${columns.map(cell).join(" | ")} |`);
+          push(`| ${columns.map(() => "---").join(" | ")} |`);
+          for (const name of rowLabels(table, labelOf, columnOf)) {
+            push(`| ${cell(name)} |${columns.slice(1).map(() => "  |").join("")}`);
+          }
+          push("");
+          if (table.test_applied) push(`Footnote: test used = ${line(table.test_applied)}`, "");
         }
-        push("");
-        if (table.test_applied) push(`Footnote: test used = ${line(table.test_applied)}`, "");
       }
     } else {
       push(

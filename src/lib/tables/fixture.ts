@@ -86,7 +86,7 @@ export const tablesFixture: ShellTablesSpec = {
   // printed once under the block they govern.
   multiplicity: sapFixture.rules.multiplicity,
   missing_data: sapFixture.rules.missing_data,
-  analysis_population: `${sapFixture.populations[0].name} - ${sapFixture.populations[0].definition} Missing data are handled as Section 4 states: ${sapFixture.rules.missing_data}`,
+  analysis_population: `${sapFixture.populations[0].name} - ${sapFixture.populations[0].definition} Missing data: ${sapFixture.rules.missing_data}`,
   tables: assignSlots(
     mergeTables(described, buildAnalyticTables(sapFixture, groups), sapFixture),
     sapFixture.objectives.map((o) => o.id),

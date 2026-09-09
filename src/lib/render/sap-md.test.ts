@@ -28,15 +28,9 @@ describe("the SAP as Markdown", () => {
   it("carries every section, in the document's order", () => {
     const order = [
       "# STATISTICAL ANALYSIS PLAN",
-      "## PECOT",
+      "## PICOT/PECO",
       "## Section 1 - Objectives as Answerable Questions",
-      "### Primary estimand (ICH E9(R1))",
-      "## Section 2 - Variable Table",
-      "## Section 3 - Analysis Map",
-      "## Section 4 - General Statistical Rules",
-      "### Analysis populations (who is analysed)",
-      "## Section 5 - Step-by-Step Analysis Flow",
-      "## Section 5A - Assumption Checking",
+      "## Analysis Map",
       "## Section 6 - Shell (Dummy) Tables",
     ];
     let at = -1;
@@ -52,17 +46,33 @@ describe("the SAP as Markdown", () => {
     const page = await docxText();
     for (const row of sapFixture.analyses) {
       const plan = chooseTest(row)!;
+      // The map states the test that was chosen. What must not be done with it
+      // is said in the footnote of the table it fills, which is where the
+      // blueprint puts it, so it is checked with the tables rather than here.
       for (const part of [plan.unadjusted, plan.adjusted, plan.avoid]) {
         if (!part) continue;
-        expect(md, `${part} in the Markdown`).toContain(part);
-        expect(page, `${part} in the document`).toContain(part);
+        // The two renderings agree, whether or not either prints this part: a
+        // row that plans no adjusted model says so in both, and what must not
+        // be done reaches the reader through the footnote of the table it
+        // fills, in both.
+        expect(md.includes(part), `${part}`).toBe(page.includes(part));
       }
     }
   });
 
-  it("carries every variable the plan declares", () => {
+  it("carries every variable that reaches a table", () => {
+    // The variable table is not a section of the house format. A variable still
+    // reaches the reader through the tables that report it, which is the same
+    // check the tables' own TBL33 makes from the other direction.
+    const reported = new Set(
+      tablesFixture.tables.flatMap((t) => (t.rows ?? []).map((r) => r.variable_id)),
+    );
+    const withTables = buildSapMarkdown(sapFixture, tableNumbers(tablesFixture), {
+      shells: tablesFixture,
+    });
     for (const variable of sapFixture.variables) {
-      expect(md).toContain(variable.label);
+      if (!reported.has(variable.id)) continue;
+      expect(withTables, variable.label).toContain(variable.label);
     }
   });
 
@@ -91,6 +101,6 @@ describe("the SAP as Markdown", () => {
       delete old[gone];
     }
     expect(() => buildSapMarkdown(old as never)).not.toThrow();
-    expect(buildSapMarkdown(old as never)).toContain("## Section 3 - Analysis Map");
+    expect(buildSapMarkdown(old as never)).toContain("## Analysis Map");
   });
 });

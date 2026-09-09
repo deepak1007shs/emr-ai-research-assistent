@@ -552,7 +552,10 @@ function populationLine(sap: SapSpec): string | undefined {
   const missing = sap.rules?.missing_data?.trim();
   return [
     `${primary.name.trim()}${definition ? ` - ${definition}` : ""}`,
-    missing ? `Missing data are handled as Section 4 states: ${missing}` : "",
+    // The rule itself, not a pointer to the section that used to hold it. The
+    // plan renders in the house format now, which has no Section 4 for a
+    // cross-reference to land in.
+    missing ? `Missing data: ${missing}` : "",
   ]
     .filter(Boolean)
     .join(" ");

@@ -143,9 +143,10 @@ describe("a tables document built before the rewrite", () => {
       .replace(/&amp;/g, "&");
 
     for (const table of LEGACY.tables) {
-      expect(visible, `table ${table.number}`).toContain(`Table ${table.number}: ${table.title}`);
+      expect(visible, `table ${table.number}`).toContain(
+        `Table ${table.number}.  ${table.title}`,
+      );
     }
-    expect(visible).toContain("Contents: 6 tables");
   });
 
   it("resolves the ids of a row that carries no wording of its own", async () => {

@@ -5,10 +5,33 @@ import { HOUSE_FONT } from "./house-style.ts";
 import type { SapSpec } from "../sap/types.ts";
 import { sapFixture as spec } from "../sap/fixture.ts";
 import { tableNumbers } from "../tables/types.ts";
+import { tablesFixture } from "../tables/fixture.ts";
+import { BLOCK_HEADING, BLOCK_ORDER } from "../tables/block-notes.ts";
 
+
+/**
+ * The plan as a reader receives it: with its Section 6.
+ *
+ * The tables carry the footnotes now - the test, the assumption it falls back
+ * on, the degrees of freedom the model can afford - so a plan rendered without
+ * them is a plan with none of that in it.
+ */
+/** The plan before its tables exist, where the map carries its own numbering. */
+async function readPlanOnly(s: SapSpec = spec) {
+  const zip = await JSZip.loadAsync(await buildSapDocx(s));
+  const xml = await zip.file("word/document.xml")!.async("string");
+  return {
+    visible: xml
+      .replace(/<[^>]+>/g, "")
+      .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&"),
+  };
+}
 
 async function read(s: SapSpec = spec) {
-  const zip = await JSZip.loadAsync(await buildSapDocx(s));
+  const zip = await JSZip.loadAsync(
+    await buildSapDocx(s, tableNumbers(tablesFixture), { shells: tablesFixture }),
+  );
   const document = await zip.file("word/document.xml")!.async("string");
   const styles = await zip.file("word/styles.xml")!.async("string");
   const visible = document
@@ -21,16 +44,15 @@ async function read(s: SapSpec = spec) {
 describe("the SAP document", () => {
   it("carries every section of the route map, in order", async () => {
     const { visible } = await read();
+    // The house blueprint's four parts and nothing between them. The variable
+    // table, the rules, the analysis flow and the assumption checks are still
+    // computed - they choose the tests and write the footnotes - but the
+    // blueprint prints none of them as a section of its own.
     const order = [
       "STATISTICAL ANALYSIS PLAN",
+      "PICOT/PECO",
       "Section 1 - Objectives as Answerable Questions",
-      "Primary estimand",
-      "Section 2 - Variable Table",
-      "Section 3 - Analysis Map",
-      "Section 4 - General Statistical Rules",
-      "Analysis populations",
-      "Section 5 - Step-by-Step Analysis Flow",
-      "Section 5A - Assumption Checking",
+      "Analysis Map",
       "Section 6 - Shell (Dummy) Tables",
     ];
     let at = -1;
@@ -44,26 +66,20 @@ describe("the SAP document", () => {
 
   it("decomposes the question, and names the frame the design calls for", async () => {
     const { visible } = await read();
-    // Observational, so PECOT rather than PICOT, and an exposure not an
-    // intervention.
-    expect(visible).toContain("PECOT");
-    expect(visible).toContain("E - Exposure");
+    // One heading and one set of element labels whichever framework the study
+    // uses, as the blueprint's own observational example prints them.
+    expect(visible).toContain("PICOT/PECO");
+    expect(visible).toContain("Intervention / Exposure");
+    expect(visible).toContain("For this study");
     expect(visible).toContain("Assembled question");
   });
 
-  it("states the assumptions of the tests it actually chose", async () => {
+  it("carries the assumption into the footnote, where the blueprint puts it", async () => {
     const { visible } = await read();
-    for (const check of spec.assumption_checks) {
-      expect(visible, check.test).toContain(check.test);
-      expect(visible).toContain(check.assumption);
-      expect(visible).toContain(check.if_violated);
-    }
-  });
-
-  it("keeps the sample-size basis with the rules, not just the number", async () => {
-    const { visible } = await read();
-    expect(visible).toContain("Sample size.");
-    expect(visible).toContain("TODO");
+    // The assumption checks have no section of their own any more. What they
+    // decide still reaches the reader: the footnote names the test and the
+    // test it falls back to when the assumption fails.
+    expect(visible).toContain("Fisher exact where any expected cell is under 5");
   });
 
   it("carries none of the three sections that were dropped", async () => {
@@ -84,13 +100,15 @@ describe("the SAP document", () => {
 
   it("carries the five analysis-map columns", async () => {
     const { visible } = await read();
-    for (const header of ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical analysis"]) {
+    for (const header of ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical test"]) {
       expect(visible).toContain(header);
     }
   });
 
   it("names the test the rules choose, never one the model invented", async () => {
-    const { visible } = await read();
+    // The map alone: a descriptive table legitimately footnotes a t-test for
+    // its continuous rows, and that is not the skewed outcome this is about.
+    const { visible } = await readPlanOnly();
     expect(visible).toContain("Clopper-Pearson");        // binary, single group
     expect(visible).toContain("Multivariable binary logistic regression"); // binary, adjusted
     expect(visible).toContain("Mann-Whitney");            // continuous, skewed
@@ -98,7 +116,7 @@ describe("the SAP document", () => {
   });
 
   it("points each row at every table it fills", async () => {
-    const { visible } = await read();
+    const { visible } = await readPlanOnly();
     // One analysis often fills more than one: the unadjusted estimate and the
     // adjusted model beside it.
     expect(visible).toContain("-> T1");
@@ -111,7 +129,6 @@ describe("the SAP document", () => {
     expect(visible).toContain("Adjusted:");
     // A row that plans no adjusted model says why, rather than leaving a blank.
     expect(visible).toContain("Adjusted: not planned -");
-    expect(visible).toContain("What must not be done");
   });
 
   it("keeps the exposure apart from what is held constant", async () => {
@@ -122,17 +139,11 @@ describe("the SAP document", () => {
 
   it("declares the adjusted model exploratory when the events cannot afford it", async () => {
     const { visible } = await read();
-    // 10 events affords one predictor; three are named.
-    expect(visible).toContain("Degrees of freedom");
+    // 10 events affords one predictor; three are named. Said in the footnote of
+    // the table that would report the model, rather than in a section about
+    // degrees of freedom that the blueprint does not carry.
+    expect(visible).toContain("Expected events: 10");
     expect(visible).toContain("declared exploratory");
-  });
-
-  it("names the mediator and the collider, and says neither enters a model", async () => {
-    const { visible } = await read();
-    expect(visible).toContain("Not adjusted for");
-    expect(visible).toContain("is a mediator");
-    expect(visible).toContain("is a collider");
-    expect(visible).toContain("Neither enters any model");
   });
 
   it("says so loudly when no rule covers a row", async () => {
@@ -167,7 +178,6 @@ describe("the SAP document", () => {
  */
 describe("Section 6", () => {
   async function withTables() {
-    const { tablesFixture } = await import("../tables/fixture.ts");
     const zip = await JSZip.loadAsync(
       await buildSapDocx(spec, tableNumbers(tablesFixture), { shells: tablesFixture }),
     );
@@ -184,20 +194,26 @@ describe("Section 6", () => {
     expect(visible).toContain("Section 6 - Shell (Dummy) Tables");
     expect(visible).not.toContain("document that accompanies this plan");
     for (const table of tables.tables) {
-      expect(visible, `Table ${table.number}`).toContain(`Table ${table.number}: ${table.title}`);
+      expect(visible, `Table ${table.number}`).toContain(
+        `Table ${table.number}.  ${table.title}`,
+      );
     }
     expect(xml).toContain("<w:tbl>");
   });
 
-  it("lists them first, and lists exactly the ones it draws", async () => {
-    const { visible, tables } = await withTables();
-    const contentsAt = visible.indexOf(`Contents: ${tables.tables.length} tables`);
-    expect(contentsAt).toBeGreaterThan(-1);
-    // Every table is named in the list before it is drawn below it.
-    for (const table of tables.tables) {
-      expect(visible.indexOf(`Table ${table.number}.`)).toBeLessThan(
-        visible.indexOf(`Table ${table.number}: ${table.title}`),
-      );
+  it("groups them into the four families, in the blueprint's order", async () => {
+    // There used to be a contents list above these. The blueprint has none:
+    // inside the plan it duplicates the plan's own numbering, and it was
+    // navigation left over from when the tables were a separate document.
+    const { visible } = await withTables();
+    expect(visible).not.toContain("Contents:");
+
+    let at = -1;
+    for (const heading of BLOCK_ORDER.map((b) => BLOCK_HEADING[b])) {
+      const found = visible.indexOf(heading);
+      expect(found, `${heading} is missing`).toBeGreaterThan(-1);
+      expect(found, `${heading} is out of order`).toBeGreaterThan(at);
+      at = found;
     }
   });
 
@@ -207,8 +223,8 @@ describe("Section 6", () => {
   });
 
   it("does not repeat what the plan already fixed elsewhere", async () => {
-    // Section 4 states the missing-data rule and Section 3 links objectives to
-    // tables. Saying either again here is a second statement that can disagree.
+    // The analysis map links objectives to tables. Saying it again here is a
+    // second statement that can disagree with the first.
     const { visible } = await withTables();
     const section6 = visible.slice(visible.indexOf("Section 6 - Shell"));
     expect(section6).not.toContain("Objective to table coverage check");
@@ -217,7 +233,7 @@ describe("Section 6", () => {
 
   it("still renders when the tables have not been built", async () => {
     // The plan comes before the tables and must not need them to print.
-    const { visible } = await read();
+    const { visible } = await readPlanOnly();
     expect(visible).toContain("Section 6 - Shell (Dummy) Tables");
     expect(visible).toContain("have not been built yet");
   });

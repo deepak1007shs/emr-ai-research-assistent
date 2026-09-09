@@ -71,6 +71,10 @@ const WHY: Record<Stage, string> = {
  * to rebuild one without the other - which is what used to let a plan and its
  * tables drift and needed a staleness warning to describe.
  *
+ * The case record form goes with them for the same reason. It collects exactly
+ * what the tables report, and the check that proves it can only run when both
+ * exist; a plan built without its form leaves that check unrun.
+ *
  * They run with the plan and before the form. The form's fields are computed
  * from the same registry the tables report, so there is nothing in the form the
  * tables need, and a form that fails must not cost the plan its Section 6.
@@ -78,7 +82,11 @@ const WHY: Record<Stage, string> = {
 export function stagesOf(kind: JobKind): Stage[] {
   if (kind === "all") return [...STAGES];
   if (kind === "documents") return ["sap", "tables", "crf"];
-  if (kind === "sap") return ["sap", "tables"];
+  // The plan and the form are two deliverables from one backbone. Both are
+  // built from the same variable list, and the form is checked against the
+  // tables before either is delivered, so asking for one and not the other
+  // produces a pair nothing has ever compared.
+  if (kind === "sap") return ["sap", "tables", "crf"];
   return [kind];
 }
 

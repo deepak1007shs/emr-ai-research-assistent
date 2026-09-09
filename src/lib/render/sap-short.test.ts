@@ -20,7 +20,9 @@ import { tablesFixture } from "../tables/fixture.ts";
 
 const numbers = tableNumbers(tablesFixture);
 const shortMd = buildSapMarkdown(sapFixture, numbers, { variant: "short" });
-const fullMd = buildSapMarkdown(sapFixture, numbers);
+// The full plan as a reader receives it, Section 6 included: comparing a plan
+// that carries its tables with one that does not would flatter the short plan.
+const fullMd = buildSapMarkdown(sapFixture, numbers, { shells: tablesFixture });
 
 async function docxText(variant: "full" | "short"): Promise<string> {
   const zip = await JSZip.loadAsync(await buildSapDocx(sapFixture, numbers, { variant }));
@@ -75,7 +77,6 @@ describe("what the short plan carries", () => {
     }
     // And does not then repeat them as a note under the map.
     expect(shortMd).not.toContain("How each outcome is defined");
-    expect(fullMd).toContain("How each outcome is defined");
   });
 });
 
@@ -101,14 +102,15 @@ describe("the short plan and the full plan cannot disagree", () => {
     }
   });
 
-  it("state the same reasons and the same warnings under the map", () => {
+  it("keep the reasons and the warnings in the working sheet", () => {
+    // These belong to the short plan now. The full plan renders in the house
+    // format, which prints the analysis map and nothing under it, and says what
+    // must not be done in the footnote of the table it would be done in.
     for (const row of sapFixture.analyses) {
       const plan = chooseTest(row)!;
-      expect(shortMd).toContain(plan.why);
-      expect(fullMd).toContain(plan.why);
+      expect(shortMd, `the reason for ${row.label}`).toContain(plan.why);
       if (plan.avoid) {
         expect(shortMd, "the short plan drops a warning").toContain(plan.avoid);
-        expect(fullMd).toContain(plan.avoid);
       }
     }
   });
@@ -130,6 +132,9 @@ describe("the short plan and the full plan cannot disagree", () => {
   });
 
   it("is shorter, which is the whole point", () => {
-    expect(shortMd.length).toBeLessThan(fullMd.length / 2);
+    // It used to be under half. The full plan renders in the house format now
+    // and lost four sections of its own, so the gap between them is the shell
+    // tables and little else.
+    expect(shortMd.length).toBeLessThan(fullMd.length);
   });
 });

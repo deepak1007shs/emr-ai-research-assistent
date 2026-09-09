@@ -1,32 +1,27 @@
-import type { ShellTable, ShellTablesSpec, TableBlock } from "@/lib/tables/types";
+import type { ShellTable, ShellTablesSpec } from "@/lib/tables/types";
 import { line, plain } from "@/lib/render/plain";
-import { slotTitle } from "@/lib/tables/slots";
-import { contents, describe, rowLabels } from "@/lib/tables/describe";
+import {
+  BLOCK_HEADING,
+  BLOCK_NOTE_LABEL,
+  BLOCK_ORDER,
+  blockNote,
+} from "@/lib/tables/block-notes";
+import { describe, rowLabels } from "@/lib/tables/describe";
 import { AlertTriangleIcon } from "./icons";
 import { DocTable, Note } from "./document-shell";
 
 /**
  * Section 6 of the analysis plan, on screen.
  *
- * Mirrors render/shell-tables.ts: the contents list, then the four blocks in
- * order, each table drawn. There is no separate tables document any more and no
- * page of its own; this is embedded in the plan's preview, so a reader who
- * checks the screen and then downloads the plan finds the same tables. It used
- * to draw the grids with
- * their cells empty, which said nothing about what belonged in them.
+ * Mirrors render/shell-tables.ts: the four family headings in order, each with
+ * its note line and its tables. There is no separate tables document any more
+ * and no page of its own; this is embedded in the plan's preview, so a reader
+ * who checks the screen and then downloads the plan finds the same tables.
  *
  * Each table carries an anchor, so a finding in the review rail can send you to
  * the table it is about.
  */
 
-const BLOCK_HEADING: Record<TableBlock, string> = {
-  descriptive: "Descriptive and baseline characteristics",
-  primary: "Primary outcome",
-  secondary: "Secondary outcomes",
-  exploratory: "Exploratory analyses",
-};
-
-const BLOCK_ORDER: TableBlock[] = ["descriptive", "primary", "secondary", "exploratory"];
 
 /**
  * Section 6 of the analysis plan, on screen.
@@ -50,7 +45,6 @@ export function ShellTableSection({
 
   return (
     <>
-      <Contents spec={spec} />
       {BLOCK_ORDER.map((block) => {
         const inBlock = ordered.filter((t) => t.block === block);
         if (!inBlock.length) return null;
@@ -59,24 +53,15 @@ export function ShellTableSection({
           <section key={block} className="mb-10">
             <h2 className="mb-4 text-base font-bold text-ink">{BLOCK_HEADING[block]}</h2>
 
-            {/* Once, under the block they govern: mirrors `tables-docx.ts`. */}
-            {/* Above the primary block and nowhere else, as the document
-                prints it: the denominator belongs in front of the first
-                result, not thirty pages behind it. */}
-            {block === "primary" && spec.analysis_population && (
-              <Note>Analysis population: {plain(spec.analysis_population)}</Note>
-            )}
-            {(block === "primary" || block === "secondary") && spec.multiplicity && (
-              <Note>Multiplicity: {plain(spec.multiplicity)}</Note>
-            )}
-            {(block === "primary" || block === "secondary") && spec.missing_data && (
-              <Note>Missing data: {plain(spec.missing_data)}</Note>
-            )}
-
-            {block === "exploratory" && (
+            {/* One line under the family heading, from the same composer the
+                download uses. Two renderers wording the same rule twice is how
+                a screen and a document come to disagree. */}
+            {blockNote(block, spec) && (
               <Note>
-                Exploratory analyses are hypothesis-generating. They are not powered and must not
-                be reported as confirmatory findings.
+                {BLOCK_NOTE_LABEL[block] && (
+                  <span className="font-semibold">{BLOCK_NOTE_LABEL[block]}: </span>
+                )}
+                {plain(blockNote(block, spec))}
               </Note>
             )}
             {inBlock.map((table) => (
@@ -104,28 +89,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-/** "This study reports 14 tables", before any of them. */
-function Contents({ spec }: { spec: ShellTablesSpec }) {
-  const list = contents(spec);
-  return (
-    <section className="mb-10">
-      <h2 className="mb-3 text-base font-bold text-ink">
-        Contents: {list.length} table{list.length === 1 ? "" : "s"}
-      </h2>
-      <ol className="space-y-1 text-sm">
-        {list.map((entry) => (
-          <li key={entry.number}>
-            <a href={`#table-${entry.number}`} className="hover:text-brand">
-              <span className="font-semibold">Table {entry.number}.</span> {line(entry.title)}
-              {entry.slot && <span className="text-muted"> [{entry.slot}]</span>}
-            </a>
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
-}
-
 function ShellTableBlock({
   table,
   labelOf,
@@ -150,13 +113,8 @@ function ShellTableBlock({
         </p>
       )}
 
-      {slotTitle(table.slot) && (
-        <h3 className="text-base font-bold text-ink">
-          {table.slot} - {slotTitle(table.slot)}
-        </h3>
-      )}
-      <h4 className={`font-bold text-ink ${slotTitle(table.slot) ? "mt-1 text-sm" : "text-base"}`}>
-        Table {table.number}: {line(table.title)}
+      <h4 className="text-base font-bold text-ink">
+        Table {table.number}.  {line(table.title)}
       </h4>
 
       {/* The grid, as the download draws it: the plan's columns across the top,
@@ -176,8 +134,6 @@ function ShellTableBlock({
 
       <dl className="mt-2">
         {said.analysis && <Field label="Footnote: test used">{plain(said.analysis)}</Field>}
-        {said.reported && <Field label="Cell shows">{line(said.reported)}</Field>}
-        {said.missing && <Field label="If data are missing">{plain(said.missing)}</Field>}
       </dl>
     </div>
   );

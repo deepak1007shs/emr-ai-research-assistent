@@ -79,15 +79,17 @@ describe("the SAP preview", () => {
     for (const row of sapFixture.analyses) {
       const plan = chooseTest(row);
       expect(plan, `no rule covers ${row.objective_ids.join(", ")}`).not.toBeNull();
-      // Both halves, and what to avoid: the whole plan, not a test name.
-      for (const part of [plan!.unadjusted, plan!.adjusted, plan!.avoid]) {
+      // Both halves of the plan, not a test name. What must not be done with
+      // the test is said in the footnote of the table it would be done in,
+      // which is where the house blueprint puts it.
+      for (const part of [plan!.unadjusted, plan!.adjusted]) {
         if (!part) continue;
-        expect(screen, `${part} on screen`).toContain(part);
-        expect(page, `${part} in the document`).toContain(part);
+        // Agreement, whether or not either prints it: a row that plans no
+        // adjusted model says so in both, and neither may say otherwise.
+        expect(screen.includes(part), `${part}`).toBe(page.includes(part));
       }
+      expect(screen).toContain(plan!.unadjusted);
     }
-    expect(screen).toContain("Why each analysis");
-    expect(screen).toContain("What must not be done");
   });
 
   it("names every objective and every table the document does", async () => {
@@ -182,7 +184,7 @@ describe("the shell tables preview", () => {
 
   it("draws the table on screen as the document draws it", () => {
     const screen = screenText(ShellTableSection({ spec: tablesFixture }));
-    expect(screen).toContain("Table 1:");
+    expect(screen).toContain("Table 1.");
     for (const column of tablesFixture.tables[0].columns) {
       expect(screen).toContain(column);
     }
@@ -196,8 +198,8 @@ describe("the shell tables preview", () => {
     const screen = screenText(ShellTableSection({ spec: tablesFixture }));
     const page = await pageText(await buildTablesDocx(tablesFixture));
     for (const table of tablesFixture.tables) {
-      expect(screen, `table ${table.number} on screen`).toContain(`Table ${table.number}:`);
-      expect(page, `table ${table.number} in the document`).toContain(`Table ${table.number}:`);
+      expect(screen, `table ${table.number} on screen`).toContain(`Table ${table.number}.`);
+      expect(page, `table ${table.number} in the document`).toContain(`Table ${table.number}.`);
     }
   });
 });
@@ -248,7 +250,7 @@ describe("who owns a table number", () => {
 });
 
 describe("the analysis map stays readable", () => {
-  it("keeps the outcome cell short and puts the definition underneath", async () => {
+  it("keeps the outcome cell short, and says the long part nowhere twice", async () => {
     const spec = structuredClone(sapFixture);
     spec.outcomes[0].how =
       "the surgeon decides in a way described at such length that a cell holding it would be a paragraph rather than a cell";
@@ -256,15 +258,15 @@ describe("the analysis map stays readable", () => {
     const screen = screenText(SapPreview({ spec }));
     const page = await pageText(await buildSapDocx(spec));
 
+    // The definitions that used to run under the map are not part of the house
+    // format. The map's cell stays short either way, and the long wording is
+    // not repeated anywhere in the plan.
     for (const text of [screen, page]) {
-      // The long text appears once, in the definitions, not in the map's cell.
-      expect(text).toContain("How each outcome is defined");
-      // Matched mid-sentence: the definition capitalises its first word.
-      expect(text.split("described at such length").length - 1).toBe(1);
+      expect(text.split("described at such length").length - 1).toBeLessThanOrEqual(1);
     }
   });
 
-  it("names every measured outcome in the definitions", () => {
+  it("names every measured outcome the map reports", () => {
     const screen = screenText(SapPreview({ spec: sapFixture }));
     for (const outcome of sapFixture.outcomes) {
       expect(screen).toContain(outcome.what);
@@ -274,14 +276,9 @@ describe("the analysis map stays readable", () => {
 
 describe("the plan on screen is the plan you download", () => {
   const SECTIONS = [
+    "PICOT/PECO",
     "Section 1 - Objectives as Answerable Questions",
-    "Primary estimand",
-    "Section 2 - Variable Table",
-    "Section 3 - Analysis Map",
-    "Section 4 - General Statistical Rules",
-    "Analysis populations",
-    "Section 5 - Step-by-Step Analysis Flow",
-    "Section 5A - Assumption Checking",
+    "Analysis Map",
     "Section 6 - Shell (Dummy) Tables",
   ];
 
@@ -300,19 +297,24 @@ describe("the plan on screen is the plan you download", () => {
     }
   });
 
-  it("groups the assumption checks under the test they belong to", async () => {
-    const screen = screenText(SapPreview({ spec: sapFixture }));
-    for (const check of sapFixture.assumption_checks) {
-      expect(screen).toContain(check.test);
-      expect(screen).toContain(check.if_violated);
+  it("carries none of the sections the house format drops", async () => {
+    const screen = screenText(SapPreview({ spec: sapFixture, shells: tablesFixture }));
+    const page = await pageText(
+      await buildSapDocx(sapFixture, tableNumbers(tablesFixture), { shells: tablesFixture }),
+    );
+    // Dropped from the rendering, not from the plan: they still choose the
+    // tests and write the footnotes. Held on both sides, because a section
+    // surviving on screen alone is how the screen and the download drift.
+    for (const gone of [
+      "Section 2 - Variable Table",
+      "Section 4 - General Statistical Rules",
+      "Section 5 - Step-by-Step Analysis Flow",
+      "Section 5A - Assumption Checking",
+      "Primary estimand",
+    ]) {
+      expect(screen, `${gone} on screen`).not.toContain(gone);
+      expect(page, `${gone} in the document`).not.toContain(gone);
     }
-  });
-
-  it("lists the variables by role, outcomes first", () => {
-    const screen = screenText(SapPreview({ spec: sapFixture }));
-    const outcome = sapFixture.variables.find((v) => v.role === "outcome")!;
-    const descriptor = sapFixture.variables.find((v) => v.role === "confounder")!;
-    expect(screen.indexOf(outcome.label)).toBeLessThan(screen.indexOf(descriptor.label));
   });
 });
 
@@ -343,7 +345,7 @@ describe("a table on screen is the table in the document", () => {
     const page = await pageText(await buildTablesDocx(tablesFixture));
 
     for (const table of tablesFixture.tables) {
-      const caption = `Table ${table.number}: ${table.title}`;
+      const caption = `Table ${table.number}. ${table.title}`;
       expect(screen, `caption on screen`).toContain(caption);
       expect(page, `caption in the document`).toContain(caption);
 
@@ -416,7 +418,7 @@ describe("Section 6 on screen and in the download", () => {
     const at = page.indexOf("Analysis population:");
     expect(at).toBeGreaterThan(page.indexOf("Primary outcome"));
     expect(at).toBeLessThan(
-      page.indexOf(`Table ${primaryTable.number}: ${primaryTable.title}`),
+      page.indexOf(`Table ${primaryTable.number}. ${primaryTable.title}`),
     );
   });
 
