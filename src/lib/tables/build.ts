@@ -220,7 +220,9 @@ point at the same ids, so a variable named once is named the same in all three.
 Never name a statistical test yourself. The plan carries the test it chose on
 every analysis row, together with what it ruled out and why; copy it.
 
-Every title ends with its denominator in brackets.
+Head each group's column with that group's own denominator, blank for filling in:
+"iNPWT (n= )". The denominator belongs there and not in the title, because a
+table comparing two arms has two of them and the study's total is neither.
 
 Every table also says what will be done when a value is not there. Decide it now,
 for the variables in that table, and be specific: a field that only applies to
@@ -230,10 +232,17 @@ rather than estimated from the other; a variable expected to exceed twenty per
 cent missing is described but not modelled. Handling decided after the data are
 seen is a reaction to the results, and reads as one.
 
-Name every table the same way: the statistic, then what is being described, then
-the population or the grouping variable. "Distribution of comorbid conditions
-among the study population (n = 120)". Never name a table after a statistical
+Name every table for what it describes and who it describes it by, in the fewest
+words that stay exact: "Demographic and baseline characteristics by study group",
+"Comorbidities and risk factors by study group", "Baseline clinical
+characteristics of the patient group". Never name a table after a statistical
 test, and never begin one with "Table showing".
+
+Write one row per line a reader will read across. A categorical variable becomes
+one row per category, named "Variable - Category": "Sex - Male", "Sex - Female",
+"Side - Right", "Side - Left". A continuous variable becomes one row naming its
+units and its summary: "Age (years) - Mean +/- SD". A single row reading "Sex
+(male, female)" is three facts in one line and leaves the reader to split it.
 
 Keep the tables simple to read. A table a supervisor cannot follow at a glance
 will be redrawn by hand, and then it no longer matches the plan.`;

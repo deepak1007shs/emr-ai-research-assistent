@@ -153,9 +153,12 @@ describe("a tables document built before the rewrite", () => {
     const zip = await JSZip.loadAsync(await buildTablesDocx(LEGACY));
     const visible = (await zip.file("word/document.xml")!.async("string")).replace(/<[^>]+>/g, "");
     // The failure this guards against is "var_age" reaching the page, or the
-    // row vanishing because its label was empty.
-    expect(visible).toContain("Age (mean +/- SD)");
-    expect(visible).toContain("Sex (male, female)");
+    // row vanishing because its label was empty. A sub-row takes its parent's
+    // name and its own line, which is a row a reader can put a number in.
+    expect(visible).toContain("Age - Mean +/- SD");
+    expect(visible).toContain("Sex - Male");
+    expect(visible).toContain("Sex - Female");
+    expect(visible).not.toContain("Sex (male, female)");
     expect(visible).toContain("Diabetes mellitus");
     expect(visible).not.toMatch(/\bvar_[a-z]/);
   });

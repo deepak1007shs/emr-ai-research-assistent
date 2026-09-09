@@ -39,12 +39,21 @@ export type Described = {
  * reason this is not simply a join.
  */
 /**
- * The rows, folded, one string each.
+ * The rows, one string each, a sub-row carrying its parent's name.
  *
  * Shared with the drawn grid, so a row reads the same whether it is a name in a
  * sentence or the first cell of a table. Drawing them straight is what the
  * first attempt at a grid did, and "" followed by "Mean +/- SD" is two rows to
  * the data and one thing to a reader.
+ *
+ * They were folded into the parent's brackets after that - "Sex (male,
+ * female)", "Age group (< 40 years, 40 to 60 years, > 60 years)" - which named
+ * the unnamed row and then put three facts on one line, leaving the reader to
+ * split it back into the three cells it needs. The house documents give each
+ * its own line with the parent in front: "Sex - Male", "Sex - Female", "Age
+ * (years) - Mean +/- SD". The parent's name comes from the registry, so a
+ * sub-row is still named when the row above it has no wording of its own, which
+ * is the whole reason the fold existed.
  */
 export function rowLabels(
   table: ShellTable,
@@ -56,6 +65,9 @@ export function rowLabels(
   /** The mark for each part, by the same index, applied once folding is done. */
   const marks: (string | undefined)[] = [];
 
+  /** The row a sub-row belongs to, and where it sits once printed. */
+  let parent = { label: "", mark: undefined as string | undefined, at: -1, used: false };
+
   for (const row of table.rows) {
     const named = row.variable_id ? labelOf(row.variable_id, row.label) : row.label;
     // The datasheet column beside the label, so the analyst does not have to
@@ -64,19 +76,34 @@ export function rowLabels(
     // SD)" does not say which of the two the column is called.
     const column = row.variable_id ? columnOf(row.variable_id) : undefined;
     const label = (column ? `${named} [${column}]` : named).trim();
-    if (!label) continue;
 
-    if (row.indent && parts.length) {
-      // "Age" + "Mean +/- SD" reads as "Age (mean +/- SD)".
-      const last = parts.length - 1;
-      const inner = label.replace(/^\(|\)$/g, "");
-      parts[last] = parts[last].endsWith(")")
-        ? `${parts[last].slice(0, -1)}, ${lower(inner)})`
-        : `${parts[last]} (${lower(inner)})`;
+    if (!row.indent) {
+      parent = { label, mark: row.unavailable, at: -1, used: false };
+      if (!label) continue;
+      parts.push(label);
+      marks.push(row.unavailable);
+      parent.at = parts.length - 1;
       continue;
     }
-    parts.push(label);
-    marks.push(row.unavailable);
+
+    // Unwrapped only when the whole label is wrapped. Stripping the brackets
+    // one at a time turned "Median (IQR)" into "Median (IQR", which the fold
+    // hid by putting a bracket back on the end.
+    const inner = (label.match(/^\((.*)\)$/)?.[1] ?? label).trim();
+    if (!inner) continue;
+    const text = parent.label ? `${parent.label} - ${inner}` : inner;
+    const mark = row.unavailable ?? parent.mark;
+
+    // The first sub-row takes the parent's place. A "Sex" row above "Male" and
+    // "Female" is a row with nothing to put in its cells.
+    if (!parent.used && parent.at >= 0) {
+      parts[parent.at] = text;
+      marks[parent.at] = mark;
+    } else {
+      parts.push(text);
+      marks.push(mark);
+    }
+    parent.used = true;
   }
 
   // Appended last, so it reads after the categories a sub-row folded on rather
@@ -90,14 +117,6 @@ export function rowsSentence(
   columnOf: (id: string) => string | undefined = () => undefined,
 ): string {
   return rowLabels(table, labelOf, columnOf).join(", ");
-}
-
-const lower = (s: string) => (s && s[0] === s[0].toUpperCase() && !isAcronym(s) ? s[0].toLowerCase() + s.slice(1) : s);
-
-/** "IQR" and "SD" keep their capitals; "Mean" does not. */
-function isAcronym(s: string): boolean {
-  const first = s.split(/\s+/)[0] ?? "";
-  return first.length > 1 && first === first.toUpperCase();
 }
 
 export function describe(
