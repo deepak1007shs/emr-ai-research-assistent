@@ -60,6 +60,12 @@ export function ShellTableSection({
             <h2 className="mb-4 text-base font-bold text-ink">{BLOCK_HEADING[block]}</h2>
 
             {/* Once, under the block they govern: mirrors `tables-docx.ts`. */}
+            {/* Above the primary block and nowhere else, as the document
+                prints it: the denominator belongs in front of the first
+                result, not thirty pages behind it. */}
+            {block === "primary" && spec.analysis_population && (
+              <Note>Analysis population: {plain(spec.analysis_population)}</Note>
+            )}
             {(block === "primary" || block === "secondary") && spec.multiplicity && (
               <Note>Multiplicity: {plain(spec.multiplicity)}</Note>
             )}

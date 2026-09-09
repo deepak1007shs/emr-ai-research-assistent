@@ -157,6 +157,14 @@ export function shellTableSection(spec: ShellTablesSpec): Block[] {
     const tables = spec.tables.filter((t) => t.block === block);
     if (!tables.length) continue;
     blocks.push(heading(BLOCK_HEADING[block], HeadingLevel.HEADING_2));
+
+    // Above the primary block and nowhere else. Who is analysed and on what
+    // denominator is what a reader needs before the first result, and the plan
+    // states it in Section 4, thirty pages behind them.
+    if (block === "primary" && spec.analysis_population) {
+      blocks.push(footnote("Analysis population", spec.analysis_population));
+    }
+
     for (const table of tables) blocks.push(...oneTable(table, labelOf, columnOf));
   }
 

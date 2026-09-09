@@ -235,3 +235,125 @@ describe("validateTables", () => {
     }
   });
 });
+
+/**
+ * Two rules from the skill this application reproduces, which it did not hold
+ * itself to. Both are things a supervisor catches on the first read.
+ */
+describe("an absolute measure beside a ratio", () => {
+  it("objects to a ratio reported with no absolute measure", () => {
+    // "Give the absolute measure alongside any ratio." An odds ratio of 2.4
+    // with no risk difference beside it is the commonest way a thesis
+    // overstates an effect: it reads as a finding rather than as arithmetic.
+    // The fixture's own adjusted table does this, which is the point.
+    expect(codes(clean(), sap())).toContain("TBL32");
+  });
+
+  it("is satisfied by a risk difference", () => {
+    const spec = clean();
+    for (const table of spec.tables) {
+      if (/odds ratio/i.test(table.columns.join(" "))) {
+        table.columns = [...table.columns, "Risk difference (95% CI)"];
+      }
+    }
+    expect(codes(spec, sap())).not.toContain("TBL32");
+  });
+
+  it("is satisfied by a number needed to treat", () => {
+    const spec = clean();
+    for (const table of spec.tables) {
+      if (/odds ratio/i.test(table.columns.join(" "))) {
+        table.columns = [...table.columns, "NNT"];
+      }
+    }
+    expect(codes(spec, sap())).not.toContain("TBL32");
+  });
+
+  it("says nothing about a table that reports no ratio at all", () => {
+    // Checked per table, not across the spec: the fixture has other tables
+    // that do report a ratio, and they are supposed to be raised.
+    const spec = clean();
+    const table = roled(spec, "descriptive");
+    table.columns = ["Variable", "Converted", "Completed", "P value"];
+    const raised = validateTables(spec, sap())
+      .findings.filter((f) => f.code === "TBL32")
+      .map((f) => f.message);
+    expect(raised.some((m) => m.startsWith(`Table ${table.number} `))).toBe(false);
+  });
+});
+
+describe("a variable no table reports", () => {
+  it("is raised, because it is either a missing analysis or a wasted field", () => {
+    // The form already refuses to collect what nothing analyses. The tables did
+    // not refuse to leave a declared variable unreported, so a field could be
+    // collected, declared, and printed nowhere.
+    const plan = sap();
+    plan.variables.push({
+      id: "var_never_reported",
+      label: "Serum widget",
+      data_type: "continuous",
+      unit_coding: "ng/mL",
+      role: "descriptor",
+    });
+    expect(codes(clean(), plan)).toContain("TBL33");
+  });
+
+  it("says nothing about a variable a table does report", () => {
+    // Age is a row of the demographics table and a covariate of the adjusted
+    // model, so it reaches a reader twice over.
+    const raised = validateTables(clean(), sap())
+      .findings.filter((f) => f.code === "TBL33")
+      .map((f) => f.message)
+      .join(" ");
+    expect(raised).not.toContain('"Age"');
+  });
+
+  it("excuses what an analysis compares, which heads the columns", () => {
+    // Found on the stored plans: a trial whose every table split its columns by
+    // the allocated arm was told the allocated arm went unreported.
+    const plan = sap();
+    plan.variables.push({
+      id: "var_arm",
+      label: "Trial arm",
+      data_type: "binary",
+      unit_coding: "TAPP; TEP",
+      role: "descriptor",
+    });
+    plan.analyses[0].exposure_ids = ["var_arm"];
+
+    const raised = validateTables(clean(), plan)
+      .findings.filter((f) => f.code === "TBL33")
+      .map((f) => f.message)
+      .join(" ");
+    expect(raised).not.toContain("Trial arm");
+  });
+
+  it("but not one predictor of a model that names many", () => {
+    // A long exposure list is a predictor set, and a predictor set belongs in
+    // the rows of the model table. Excusing those would hide what this looks
+    // for.
+    const plan = sap();
+    plan.variables.push({
+      id: "var_widget",
+      label: "Serum widget",
+      data_type: "continuous",
+      unit_coding: "ng/mL",
+      role: "descriptor",
+    });
+    plan.analyses[0].exposure_ids = ["var_widget", "var_age", "var_sex"];
+
+    expect(codes(clean(), plan)).toContain("TBL33");
+  });
+
+  it("excuses what a derived value is computed from", () => {
+    // Height and weight are collected so a body mass index can be checked
+    // against them. Demanding a table for each would be asking the plan to
+    // report its own arithmetic.
+    const raised = validateTables(clean(), sap())
+      .findings.filter((f) => f.code === "TBL33")
+      .map((f) => f.message)
+      .join(" ");
+    expect(raised).not.toContain("Height");
+    expect(raised).not.toContain("Weight");
+  });
+});

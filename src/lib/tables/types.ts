@@ -300,6 +300,14 @@ export type ShellTablesSpec = {
   multiplicity?: string;
   missing_data?: string;
   /**
+   * Who is analysed, copied from the plan and printed above the primary block.
+   *
+   * The plan defines its populations in Section 4, which is thirty pages from
+   * the primary result. A reader arriving at that result needs the denominator
+   * in front of them, not behind them.
+   */
+  analysis_population?: string;
+  /**
    * The conventions that hold for every table, printed once at the front.
    *
    * Copied from the analysis plan by code, so the blueprint cannot state a rule

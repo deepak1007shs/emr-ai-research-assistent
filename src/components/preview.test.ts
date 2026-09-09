@@ -379,6 +379,8 @@ describe("a table on screen is the table in the document", () => {
 });
 
 describe("Section 6 on screen and in the download", () => {
+  const primaryTable = tablesFixture.tables.find((t) => t.block === "primary")!;
+
   /**
    * The bug this pins. The tables moved into the plan as Section 6, the Word
    * and Markdown renderings were updated, and the screen was not: it kept a
@@ -394,6 +396,36 @@ describe("Section 6 on screen and in the download", () => {
     for (const table of tablesFixture.tables) {
       expect(screen, `Table ${table.number}`).toContain(table.title);
     }
+  });
+
+  /**
+   * Read from the rendered document rather than from the helper that composes
+   * the line. A mark printed in the middle of a row label passed every
+   * function-level test it had, because the fault was in where the text landed
+   * and not in what the text said.
+   */
+  it("opens the primary block with who is analysed, once", async () => {
+    const page = await pageText(await buildTablesDocx(tablesFixture));
+    const line = tablesFixture.analysis_population!;
+
+    expect(page).toContain(`Analysis population: ${line}`);
+    expect(page.split("Analysis population:").length - 1).toBe(1);
+
+    // Above the primary block, which is what makes it useful: the denominator
+    // in front of the first result rather than thirty pages behind it.
+    const at = page.indexOf("Analysis population:");
+    expect(at).toBeGreaterThan(page.indexOf("Primary outcome"));
+    expect(at).toBeLessThan(
+      page.indexOf(`Table ${primaryTable.number}: ${primaryTable.title}`),
+    );
+  });
+
+  it("says the same thing on screen as in the download", () => {
+    const screen = screenText(
+      SapPreview({ spec: sapFixture, shells: tablesFixture }),
+    );
+    expect(screen).toContain(`Analysis population: ${tablesFixture.analysis_population}`);
+    expect(screen.split("Analysis population:").length - 1).toBe(1);
   });
 
   it("says the tables are not built yet rather than pointing nowhere", () => {

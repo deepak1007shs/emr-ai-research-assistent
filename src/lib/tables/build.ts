@@ -484,6 +484,8 @@ an outcome left out here is an outcome whose table has one unnamed row.`,
     // labels, so the tables cannot state a rule the plan does not.
     multiplicity: sap.rules?.multiplicity?.trim() || undefined,
     missing_data: sap.rules?.missing_data?.trim() || undefined,
+    // Composed from what the plan already declares, never asked of the model.
+    analysis_population: populationLine(sap),
     rules: houseRules(sap),
     // The plan's own datasheet names, which the form uses for the same
     // variables, so a row of this document, a field of the form and a column of
@@ -531,4 +533,27 @@ an outcome left out here is an outcome whose table has one unnamed row.`,
     model: message.model,
     usage,
   };
+}
+
+/**
+ * "Analysis population: ..." as the house blueprint prints it above the primary
+ * block.
+ *
+ * Built from the populations the plan already defines rather than asked for
+ * again, so the line and Section 4 cannot disagree. The first population is the
+ * one named: a plan lists them in the order it relies on them, and the primary
+ * analysis runs on the first.
+ */
+function populationLine(sap: SapSpec): string | undefined {
+  const [primary] = sap.populations ?? [];
+  if (!primary?.name?.trim()) return undefined;
+
+  const definition = primary.definition?.trim();
+  const missing = sap.rules?.missing_data?.trim();
+  return [
+    `${primary.name.trim()}${definition ? ` - ${definition}` : ""}`,
+    missing ? `Missing data are handled as Section 4 states: ${missing}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }

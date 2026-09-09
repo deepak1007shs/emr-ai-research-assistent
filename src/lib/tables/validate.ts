@@ -423,6 +423,32 @@ export function validateTables(
         }
       }
 
+      // A ratio with no absolute measure beside it.
+      //
+      // The rule this application reproduces gives the absolute measure
+      // alongside any ratio, and the reason is arithmetic rather than style:
+      // an odds ratio of 2.4 on an outcome that happens to 2% of people is a
+      // risk difference of about three in a hundred, and only one of those two
+      // numbers tells a reader what the study found. Quoted alone, a ratio
+      // reads as the size of an effect it is not.
+      //
+      // A warning, because a ratio-only table is occasionally right - an
+      // estimation objective with no comparison group to difference against -
+      // and only the investigator knows when.
+      const RATIOS = ["odds ratio", "risk ratio", "hazard ratio", "rate ratio"];
+      const ABSOLUTE = ["risk difference", "mean difference", "median difference", "number needed to treat"];
+      const said = families([
+        ...t.columns,
+        ...t.rows.filter((r) => r.kind === "measure").map((r) => r.label),
+      ]);
+      const ratio = RATIOS.filter((name) => said.has(name));
+      if (ratio.length && !ABSOLUTE.some((name) => said.has(name))) {
+        warn(
+          "TBL32",
+          `Table ${t.number} reports ${ratio.join(" and ")} with no absolute measure beside it. A ratio says how many times more likely, not how much more likely: give the risk or prevalence difference, or the number needed to treat, so a reader can see the size of the effect and not only its direction.`,
+        );
+      }
+
       // An adjusted column must hold constant what the plan said it would.
       const adjusted = adjustedIds(t);
       if (adjusted.length) {
@@ -617,6 +643,73 @@ export function validateTables(
       warn(
         "TBL23",
         `The plan names ${sap.populations!.length} analysis populations but no sensitivity table compares them. A conclusion that holds in only one population is one the data will not carry.`,
+      );
+    }
+
+    // A declared variable that no table reports.
+    //
+    // The other direction of "not extra, not less", and the direction nothing
+    // checked. The case report form refuses to collect what no analysis uses;
+    // the tables did not refuse to leave a declared variable unreported, so a
+    // variable could be collected on the form, declared in the plan, and
+    // printed nowhere. It is then either an analysis nobody wrote or a field
+    // nobody needed, and only the investigator knows which.
+    //
+    // Administrative variables are exempt for the reason they are exempt on the
+    // form: an identifier structures the data and is not a result.
+    const onSomeTable = new Set<string>();
+    const labelled = new Set<string>();
+    for (const t of tables) {
+      for (const row of t.rows ?? []) {
+        if (row.variable_id) onSomeTable.add(row.variable_id);
+        // Many rows carry a label and no id, so a variable can be reported
+        // under its own name and still look absent by id alone.
+        if (row.label) labelled.add(row.label.trim().toLowerCase());
+      }
+      // A covariate is reported by being held constant, not by being a row.
+      for (const model of t.models ?? []) {
+        for (const id of model.adds ?? []) onSomeTable.add(id);
+      }
+      // An outcome is reported by the table that reports it, which names it
+      // rather than listing it as a row.
+      if (t.outcome_id) {
+        onSomeTable.add(t.outcome_id);
+        for (const id of byOutcome.get(t.outcome_id)?.source_variable_ids ?? []) {
+          onSomeTable.add(id);
+        }
+      }
+    }
+
+    // What a derived value is computed from. Height and weight are collected so
+    // a body mass index can be checked against them, and the two dates so a
+    // length of stay can be; none of the three belongs in a table of its own,
+    // and demanding one would be asking the plan to report its arithmetic.
+    const ingredients = new Set(
+      (sap.variables ?? []).flatMap((v) => v.derived_from ?? []),
+    );
+
+    // What an analysis compares heads the columns rather than filling a row.
+    // The stored plans showed it: "Trial arm" was called unreported by a study
+    // whose every table split its columns by it.
+    //
+    // Only where it is the analysis's one exposure. An analysis naming sixteen
+    // is a predictor set, and a predictor set belongs in the rows of the model
+    // table; exempting those would hide the very thing this looks for.
+    const compared = new Set(
+      (sap.analyses ?? [])
+        .filter((a) => (a.exposure_ids ?? []).length === 1)
+        .map((a) => a.exposure_ids[0]),
+    );
+
+    for (const variable of sap.variables ?? []) {
+      if (onSomeTable.has(variable.id)) continue;
+      if (compared.has(variable.id)) continue;
+      if (labelled.has(variable.label.trim().toLowerCase())) continue;
+      if (ingredients.has(variable.id)) continue;
+      if (variable.role === "mediator" || variable.role === "collider") continue;
+      warn(
+        "TBL33",
+        `The plan declares "${variable.label}" and no table reports it. Either an analysis is missing, or the variable is: a value collected and never reported costs the person filling the form and tells the reader nothing.`,
       );
     }
   }
