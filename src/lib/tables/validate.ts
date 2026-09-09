@@ -646,6 +646,36 @@ export function validateTables(
       );
     }
 
+    // A non-inferiority trial that names only one analysis population.
+    //
+    // The one design where the per-protocol set is not supportive. A treatment
+    // that looks non-inferior only because non-adherence pulled both arms
+    // towards each other has been flattered by the analysis, and the two sets
+    // are co-primary for that reason. Matched on the names a plan actually
+    // uses, so this is a warning: only the investigator can confirm that a set
+    // called something else is the one meant.
+    if (sap.design_family === "non_inferiority_trial") {
+      const named = (sap.populations ?? []).map((p) => p.name.toLowerCase());
+      const has = (re: RegExp) => named.some((n) => re.test(n));
+      const treated = has(/intention[- ]to[- ]treat|\bitt\b|full analysis set/);
+      const adherent = has(/per[- ]protocol|\bpp\b/);
+
+      if (!treated || !adherent) {
+        warn(
+          "TBL34",
+          `This is a non-inferiority trial and the plan names ${
+            named.length === 1 ? "one analysis population" : `${named.length} analysis populations`
+          }, ${
+            !treated && !adherent
+              ? "neither an intention-to-treat set nor a per-protocol set"
+              : !treated
+                ? "with no intention-to-treat set among them"
+                : "with no per-protocol set among them"
+          }. Non-inferiority is claimed on both together: non-adherence pulls the arms towards each other, so an intention-to-treat analysis alone can make an inferior treatment look non-inferior.`,
+        );
+      }
+    }
+
     // A declared variable that no table reports.
     //
     // The other direction of "not extra, not less", and the direction nothing

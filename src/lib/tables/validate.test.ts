@@ -282,6 +282,43 @@ describe("an absolute measure beside a ratio", () => {
   });
 });
 
+describe("a non-inferiority trial", () => {
+  const nonInferiority = () => {
+    const plan = sap();
+    plan.design_family = "non_inferiority_trial";
+    return plan;
+  };
+
+  it("is asked for both populations, because non-inferiority is claimed on both", () => {
+    const plan = nonInferiority();
+    plan.populations = [{ name: "Intention-to-treat", definition: "All randomised." }];
+    expect(codes(clean(), plan)).toContain("TBL34");
+  });
+
+  it("and the per-protocol set alone is not enough either", () => {
+    const plan = nonInferiority();
+    plan.populations = [{ name: "Per-protocol set", definition: "Adherent, no major deviation." }];
+    expect(codes(clean(), plan)).toContain("TBL34");
+  });
+
+  it("says nothing once both are named", () => {
+    const plan = nonInferiority();
+    plan.populations = [
+      { name: "Full analysis set", definition: "All randomised, as randomised." },
+      { name: "Per-protocol set", definition: "Adherent, no major deviation." },
+    ];
+    expect(codes(clean(), plan)).not.toContain("TBL34");
+  });
+
+  it("says nothing to a superiority trial with one population", () => {
+    // The per-protocol set is supportive everywhere else. Demanding it of every
+    // design would be a rule about nothing.
+    const plan = sap();
+    plan.populations = [{ name: "Full analysis set", definition: "All randomised." }];
+    expect(codes(clean(), plan)).not.toContain("TBL34");
+  });
+});
+
 describe("a variable no table reports", () => {
   it("is raised, because it is either a missing analysis or a wasted field", () => {
     // The form already refuses to collect what nothing analyses. The tables did
