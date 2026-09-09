@@ -461,3 +461,92 @@ describe("a plan that disagrees with itself", () => {
     expect(flagged?.message).toContain("median");
   });
 });
+
+/**
+ * Three faults one real trial's document showed and no fixture had.
+ *
+ * The plan for an incisional-NPWT trial laid out sixteen tables where fourteen
+ * were wanted: four of them were verbatim copies of earlier tables, one was an
+ * empty grid with no title, and every analytic title named the treatment group
+ * twice. All three are the deterministic half of the layout, so all three are
+ * fixed here rather than asked of a model.
+ */
+describe("the layout of a two-arm trial", () => {
+  /** The same analysis serving a primary objective and an exploratory one. */
+  function alsoExploratory(): SapRegistry {
+    const sap = peep();
+    sap.objectives.push({
+      id: "E1",
+      tier: "exploratory",
+      question: "Does the effect of PEEP on intubation hold in the smallest infants?",
+    });
+    sap.analyses.push({ ...sap.analyses[0], objective_ids: ["E1"], label: "E1 - the same again" });
+    return sap;
+  }
+
+  it("says what the comparison is once, not twice", () => {
+    // Two analyses of one outcome by one exposure, differing in something the
+    // title cannot show. Their titles collide, so the disambiguator appends
+    // what they compare - to a title that already opened by naming it.
+    // The pair that produced it: one crude comparison and one adjusted, of the
+    // same outcome by the same exposure. Their outcome tables share a title, so
+    // the disambiguator reaches for what they compare - which the title opened
+    // by naming.
+    const sap = peep();
+    sap.analyses.push({
+      ...sap.analyses[0],
+      label: "P1 - the same outcome, adjusted",
+      comparison: "adjusted",
+    });
+
+    const tables = mergeTables([], buildAnalyticTables(sap, ["PEEP 7", "PEEP 5"]), sap);
+    for (const table of tables) {
+      const said = table.title.toLowerCase().split("allocated peep level").length - 1;
+      expect(said, table.title).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("lays one analysis out once, however many objectives it serves", () => {
+    const sap = alsoExploratory();
+    const tables = mergeTables([], buildAnalyticTables(sap, ["PEEP 7", "PEEP 5"]), sap);
+
+    const shapes = tables.map((t) =>
+      JSON.stringify([t.role, t.outcome_id ?? null, t.columns, t.rows]),
+    );
+    expect(new Set(shapes).size, "two tables share a grid").toBe(shapes.length);
+  });
+
+  it("and keeps both objectives pointing at the table that answers them", () => {
+    // Dropped rather than merged, the exploratory objective would report
+    // nothing and TBL14 would say so. The reader needs one table, not none.
+    const sap = alsoExploratory();
+    const tables = mergeTables([], buildAnalyticTables(sap, ["PEEP 7", "PEEP 5"]), sap);
+    const fills = new Set(tables.flatMap((t) => t.fills ?? []));
+    expect(fills).toContain("P1");
+    expect(fills).toContain("E1");
+  });
+
+  it("reports a result for the objective that owns it, not the exploratory one", () => {
+    const sap = alsoExploratory();
+    const tables = mergeTables([], buildAnalyticTables(sap, ["PEEP 7", "PEEP 5"]), sap);
+    const merged = tables.find((t) => (t.fills ?? []).includes("E1") && (t.fills ?? []).includes("P1"));
+    expect(merged?.block, "a primary result is not an exploratory finding").toBe("primary");
+  });
+
+  it("prints no table for an empty grid", () => {
+    // A model supplied a descriptive block with no title, no columns and no
+    // rows. It printed as "Table 2." with nothing under it, and took a number
+    // from every table after it.
+    const empty = {
+      number: 0,
+      block: "descriptive" as const,
+      role: "descriptive" as TableRole,
+      title: "",
+      columns: [],
+      rows: [],
+    };
+    const tables = mergeTables([empty], buildAnalyticTables(peep(), ["PEEP 7", "PEEP 5"]), peep());
+    expect(tables.some((t) => !t.columns.length && !t.rows.length)).toBe(false);
+    expect(tables.map((t) => t.number)).toEqual(tables.map((_, i) => i + 1));
+  });
+});

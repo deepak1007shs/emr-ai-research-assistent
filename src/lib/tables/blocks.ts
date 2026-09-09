@@ -942,6 +942,14 @@ function disambiguate(
 ): ShellTable[] {
   // Before the denominator, which always ends a title.
   const qualify = (title: string, qualifier: string) => {
+    // A qualifier the title already carries. Matched on what it names rather
+    // than on the phrase, because the title names the same thing two ways: an
+    // outcome table opens "drain output by treatment group" and an adjusted one
+    // opens "Effect of treatment group on drain output". Both were given ", by
+    // treatment group" a second time, on every table of a two-arm trial.
+    const names = qualifier.replace(/^by /, "");
+    if (title.toLowerCase().includes(names.toLowerCase())) return title;
+
     const match = title.match(/^(.*?)(\s*\(n = [^)]*\))$/);
     return match ? `${match[1]}, ${qualifier}${match[2]}` : `${title}, ${qualifier}`;
   };
@@ -1044,12 +1052,36 @@ export function mergeTables(
   // Two analysis rows that differ only in something the table cannot show
   // produce the same table twice. A plan that does that has a problem, but
   // printing the identical table twice is not how to say so.
-  const seen = new Set<string>();
-  const unique = [...described, ...analytic].filter((t) => {
-    const key = JSON.stringify([t.role, t.fills, t.title, t.columns, t.rows]);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
+  //
+  // Keyed on the grid a reader sees, not on the title or the objectives it
+  // fills. Those were in the key, and they are exactly what differs between two
+  // copies of one table: an analysis serving a primary and an exploratory
+  // objective was laid out once per objective, and one real trial printed four
+  // tables in its exploratory block that were verbatim copies of its primary
+  // and secondary ones.
+  //
+  // Merged rather than dropped. The survivor keeps the earlier block, because a
+  // result reported for the primary objective is not an exploratory finding,
+  // and takes both objectives' links so neither loses the table that answers it.
+  const shape = (t: ShellTable) =>
+    JSON.stringify([t.role, t.outcome_id ?? null, t.columns, t.rows]);
+
+  const groups = new Map<string, ShellTable[]>();
+  for (const t of [...described, ...analytic]) {
+    // An empty grid is not a table. It reaches here when a model supplies a
+    // block with no columns and no rows, and printing "Table 2." with nothing
+    // under it is worse than not printing it: the variables it should have
+    // reported are then reported by no table, which is what TBL33 says.
+    if (!(t.columns ?? []).length && !(t.rows ?? []).length) continue;
+    groups.set(shape(t), [...(groups.get(shape(t)) ?? []), t]);
+  }
+
+  const unique = [...groups.values()].map((group) => {
+    if (group.length === 1) return group[0];
+    const best = group.reduce((a, b) =>
+      BLOCK_ORDER.indexOf(b.block) < BLOCK_ORDER.indexOf(a.block) ? b : a,
+    );
+    return { ...best, fills: [...new Set(group.flatMap((t) => t.fills ?? []))] };
   });
 
   return unique
