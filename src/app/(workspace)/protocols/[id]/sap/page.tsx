@@ -101,7 +101,7 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
           protocolId={id}
           exists
           blockedReason={blockedReason}
-          rebuildLabel="Rebuild"
+          rebuildLabel="Rebuild the plan and the form"
         />
       </DocumentToolbar>
 

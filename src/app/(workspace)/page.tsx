@@ -33,7 +33,7 @@ export default async function UploadPage() {
           Upload a thesis protocol, synopsis, or research proposal. You get back its
           design, PICO/PECO, objectives and outcomes, a sample-size verdict, and the
           issues to fix, each with the exact correction. From there you answer the
-          issues and build the analysis plan, the case report form and the shell tables.
+          issues and build the analysis plan and the case record form.
         </p>
       </header>
 
@@ -48,8 +48,8 @@ export default async function UploadPage() {
             "The review reads the protocol and lists the blockers, in the order to fix them.",
             "You answer each blocker in its own box. Your answers outrank the protocol.",
             "The Statistical Analysis Plan turns the objectives into answerable questions and picks each test.",
-            "The Case Report Form collects the raw data the plan needs, and nothing it can calculate.",
-            "The Shell Tables lay out every table the thesis will report, with the cells empty.",
+            "Its Section 6 lays out every table the thesis will report, with the cells empty.",
+            "The Case Record Form collects exactly what those tables report, and nothing the plan can calculate.",
           ].map((step, i) => (
             <li key={i} className="flex gap-2">
               <span className="mt-px flex size-4 shrink-0 items-center justify-center rounded-full bg-accent text-[0.6rem] font-semibold text-accent-foreground">

@@ -17,7 +17,7 @@ export type DocKind = "review" | "sap" | "crf";
 export const DOC_LABEL: Record<DocKind, string> = {
   review: "Protocol Review",
   sap: "Statistical Analysis Plan",
-  crf: "Case Report Form",
+  crf: "Case Record Form",
 };
 
 /** The short form, for the rail where the protocol name already takes the width. */

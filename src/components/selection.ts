@@ -65,7 +65,7 @@ export function describe(keys: Iterable<string>, protocols: ProtocolRow[]): stri
         : item.kind === "sap"
           ? "the analysis plan"
           : item.kind === "crf"
-            ? "the case report form"
+            ? "the case record form"
             : "the shell tables";
     names.push(owner ? `${label} of ${owner.filename}` : label);
   }

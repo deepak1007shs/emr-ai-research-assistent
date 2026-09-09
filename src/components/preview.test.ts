@@ -63,7 +63,7 @@ describe("the SAP preview", () => {
       "Aim",
       "Primary objective(s)",
       "Secondary objectives",
-      "Section 3 - Analysis Map",
+      "Analysis Map",
     ]) {
       expect(screen, heading).toContain(heading);
     }
@@ -278,6 +278,9 @@ describe("the plan on screen is the plan you download", () => {
   const SECTIONS = [
     "PICOT/PECO",
     "Section 1 - Objectives as Answerable Questions",
+    // Not "Section 3 - Analysis Map". The screen kept the numbered heading for
+    // a while after the document dropped it, and this list did not catch it
+    // because the shorter title is a substring of the longer one.
     "Analysis Map",
     "Section 6 - Shell (Dummy) Tables",
   ];
@@ -306,6 +309,7 @@ describe("the plan on screen is the plan you download", () => {
     // tests and write the footnotes. Held on both sides, because a section
     // surviving on screen alone is how the screen and the download drift.
     for (const gone of [
+      "Section 3 - Analysis Map",
       "Section 2 - Variable Table",
       "Section 4 - General Statistical Rules",
       "Section 5 - Step-by-Step Analysis Flow",
@@ -335,7 +339,7 @@ describe("a plan stored before the route map existed", () => {
 
     // What it does still have is still printed.
     const screen = screenText(SapPreview({ spec: old as never }));
-    expect(screen).toContain("Section 3 - Analysis Map");
+    expect(screen).toContain("Analysis Map");
   });
 });
 

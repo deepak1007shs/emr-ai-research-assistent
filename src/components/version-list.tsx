@@ -17,7 +17,7 @@ import type { DocumentVersion, VersionedKind } from "@/lib/workspace/versions";
 
 const NOUN: Record<VersionedKind, string> = {
   sap: "Statistical Analysis Plan",
-  crf: "Case Report Form",
+  crf: "Case Record Form",
   tables: "Shell Tables",
 };
 

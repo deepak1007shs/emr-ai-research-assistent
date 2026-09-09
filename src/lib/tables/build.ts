@@ -9,6 +9,7 @@ import type { TokenUsage } from "../protocol/pricing.ts";
 import type { SapSpec } from "../sap/types.ts";
 import { columnsForPlan } from "../crf/columns.ts";
 import type { ExtractedProtocol } from "../protocol/extract.ts";
+import { populationLine } from "./block-notes.ts";
 import { checkTableCoverage } from "./coverage.ts";
 import type { Finding } from "../sap/validate.ts";
 import type { ShellTable, ShellTablesSpec } from "./types.ts";
@@ -535,28 +536,3 @@ an outcome left out here is an outcome whose table has one unnamed row.`,
   };
 }
 
-/**
- * "Analysis population: ..." as the house blueprint prints it above the primary
- * block.
- *
- * Built from the populations the plan already defines rather than asked for
- * again, so the line and Section 4 cannot disagree. The first population is the
- * one named: a plan lists them in the order it relies on them, and the primary
- * analysis runs on the first.
- */
-function populationLine(sap: SapSpec): string | undefined {
-  const [primary] = sap.populations ?? [];
-  if (!primary?.name?.trim()) return undefined;
-
-  const definition = primary.definition?.trim();
-  const missing = sap.rules?.missing_data?.trim();
-  return [
-    `${primary.name.trim()}${definition ? ` - ${definition}` : ""}`,
-    // The rule itself, not a pointer to the section that used to hold it. The
-    // plan renders in the house format now, which has no Section 4 for a
-    // cross-reference to land in.
-    missing ? `Missing data: ${missing}` : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-}

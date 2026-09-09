@@ -77,7 +77,7 @@ describe("describe", () => {
 
   it("names a document by what it is and which study it belongs to", () => {
     expect(describeSelection([documentKey("crf", "c1")], protocols)).toEqual([
-      "the case report form of first-study.docx",
+      "the case record form of first-study.docx",
     ]);
   });
 

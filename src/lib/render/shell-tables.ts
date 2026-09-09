@@ -15,6 +15,7 @@ import {
   blockNote,
 } from "../tables/block-notes.ts";
 import { describe, rowLabels } from "../tables/describe.ts";
+import type { SapSpec } from "../sap/types.ts";
 import type { ShellTable, ShellTablesSpec } from "../tables/types.ts";
 
 /**
@@ -140,7 +141,7 @@ function oneTable(
  * inside the plan they duplicate its own numbering, and the blueprint carries
  * neither.
  */
-export function shellTableSection(spec: ShellTablesSpec): Block[] {
+export function shellTableSection(spec: ShellTablesSpec, sap?: SapSpec): Block[] {
   const labelOf = (id: string, fallback = "") => spec.labels?.[id] ?? fallback ?? id;
   const columnOf = (id: string) => spec.columns?.[id];
   const blocks: Block[] = [];
@@ -153,7 +154,7 @@ export function shellTableSection(spec: ShellTablesSpec): Block[] {
     // One line under the family heading and nowhere else: who is analysed for
     // the primary, what a secondary result may claim, the caveat over anything
     // exploratory, and the multiplicity rule that governs the family.
-    const note = blockNote(block, spec);
+    const note = blockNote(block, spec, sap);
     const label = BLOCK_NOTE_LABEL[block];
     if (note) {
       blocks.push(

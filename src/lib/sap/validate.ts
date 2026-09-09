@@ -182,7 +182,7 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
     ["MAP06", spec.rules?.missing_data, "No missing-data method is stated. Chosen after seeing the data, it is not a method."],
     ["MAP07", spec.rules?.multiplicity, "No multiplicity rule is stated."],
     ["MAP08", spec.interim, "Interim analyses are not mentioned. Where there are none, say so."],
-    ["MAP09", spec.baseline_comparison, "Section 4 does not say how baseline balance is reported."],
+    ["MAP09", spec.baseline_comparison, "The plan does not say how baseline balance is reported."],
     ["MAP10", spec.testing_hierarchy, "No testing hierarchy is stated, so the order of testing is not fixed."],
   ];
   for (const [code, value, message] of required) {
@@ -193,7 +193,7 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
     error("MAP11", "No analysis population is defined, so it is not stated who is analysed.");
   }
   if (!spec.steps?.length) {
-    error("MAP12", "Section 5 has no steps, so the plan says what to run but not in what order.");
+    error("MAP12", "The analysis has no ordered steps, so the plan says what to run but not in what order.");
   }
   // The assumptions belong to the tests actually chosen. One without the other
   // is either an unexamined test or an assumption for a test nobody runs.

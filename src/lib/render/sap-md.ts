@@ -45,10 +45,6 @@ function table(headers: string[], rows: string[][]): string {
   return [head, rule, ...body].join("\n");
 }
 
-/** The Item / Your study shape, which has no header row. */
-const facts = (rows: [string, string][]) =>
-  ["| | |", "|---|---|", ...rows.map(([k, v]) => `| **${cell(k)}** | ${cell(v)} |`)].join("\n");
-
 export function buildSapMarkdown(
   spec: SapSpec,
   /** Objective id to the table that reports it, once the shell tables exist. */
@@ -106,21 +102,6 @@ export function buildSapMarkdown(
   push("### Aim", "", plain(spec.aim), "");
 
   if (spec.hypothesis && !short) push("### Hypothesis", "", plain(spec.hypothesis), "");
-
-  if (spec.estimand && !short) {
-    push("### Primary estimand (ICH E9(R1))", "");
-    push("*The estimand, not the test, is what the study is trying to estimate.*", "");
-    push(
-      facts([
-        ["Treatment condition", spec.estimand.treatment_condition],
-        ["Population", spec.estimand.population],
-        ["Endpoint", spec.estimand.endpoint],
-        ["Intercurrent-event strategy", spec.estimand.intercurrent_strategy],
-        ["Population-level summary", spec.estimand.summary_measure],
-      ]),
-      "",
-    );
-  }
 
   const tier = (name: string, want: string) => {
     const items = objectives.filter((o) => o.tier === want);
@@ -261,7 +242,7 @@ export function buildSapMarkdown(
         if (!inBlock.length) continue;
 
         push(`### ${BLOCK_HEADING[block]}`, "");
-        const note = blockNote(block, shells);
+        const note = blockNote(block, shells, spec);
         const label = BLOCK_NOTE_LABEL[block];
         if (note) push(label ? `**${label}:** ${line(note)}` : `*${line(note)}*`, "");
 

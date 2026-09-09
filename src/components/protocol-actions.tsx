@@ -123,7 +123,7 @@ export function ProtocolActions({
           </button>
           <ConfirmDelete
             name={filename}
-            consequence="Its review, analysis plan, case report form and shell tables go with it, and so does the uploaded file."
+            consequence="Its review, analysis plan, case record form and shell tables go with it, and so does the uploaded file."
             onConfirm={remove}
           />
         </div>

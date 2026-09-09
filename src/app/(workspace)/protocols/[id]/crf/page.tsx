@@ -13,7 +13,7 @@ import { Breadcrumb } from "@/components/breadcrumb";
 import type { CrfSpec } from "@/lib/crf/types";
 import type { SapSpec } from "@/lib/sap/types";
 
-export const metadata = { title: "Case Report Form — EMR AI Research Assistant" };
+export const metadata = { title: "Case Record Form — EMR AI Research Assistant" };
 
 const DESCRIPTION =
   "The data collection plan first: every element against every visit, so a guide can see at a glance what is collected when. Then the form itself, collecting raw values rather than calculated ones, with every option pre-printed and every number carrying its unit.";
@@ -37,7 +37,7 @@ export default async function CrfPage({ params }: PageProps<"/protocols/[id]/crf
       <>
         <Breadcrumb protocol={filename} page="Case report form" />
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
-          <NotBuilt kind="Case Report Form" description={DESCRIPTION}>
+          <NotBuilt kind="Case Record Form" description={DESCRIPTION}>
             <BuildButton
               kind="crf"
               protocolId={id}

@@ -1,3 +1,4 @@
+import type { SapSpec } from "../sap/types.ts";
 import type { ShellTablesSpec, TableBlock } from "./types.ts";
 
 /**
@@ -34,14 +35,26 @@ export const BLOCK_HEADING: Record<TableBlock, string> = {
   exploratory: "Exploratory analyses",
 };
 
-export function blockNote(block: TableBlock, spec: ShellTablesSpec): string {
+export function blockNote(
+  block: TableBlock,
+  spec: ShellTablesSpec,
+  /**
+   * The plan, where the tables were stored before they carried the population
+   * line. Composing it here means every plan already in the database gains the
+   * line on its next download, rather than only the ones rebuilt after this.
+   */
+  sap?: SapSpec,
+): string {
   const said: string[] = [];
 
   if (block === "descriptive") said.push(DESCRIPTIVE);
 
   // Who is analysed and on what denominator, in front of the first result
-  // rather than in a section the reader passed thirty pages ago.
-  if (block === "primary" && spec.analysis_population) said.push(spec.analysis_population);
+  // rather than behind it.
+  if (block === "primary") {
+    const population = spec.analysis_population || (sap ? populationLine(sap) : undefined);
+    if (population) said.push(population);
+  }
 
   if (block === "secondary") said.push(SECONDARY);
   if (block === "exploratory") said.push(EXPLORATORY);
@@ -65,3 +78,30 @@ export function blockNote(block: TableBlock, spec: ShellTablesSpec): string {
 export const BLOCK_NOTE_LABEL: Partial<Record<TableBlock, string>> = {
   primary: "Analysis population",
 };
+
+/**
+ * "Analysis population: ..." as the house blueprint prints it above the primary
+ * block.
+ *
+ * Built from the populations the plan already declares rather than asked for
+ * again, so the line and the plan cannot disagree. The first population is the
+ * one named: a plan lists them in the order it relies on them, and the primary
+ * analysis runs on the first.
+ *
+ * The missing-data rule is stated rather than pointed at. There is no Section 4
+ * in the house format for a cross-reference to land in, and a reference that
+ * outlives what it refers to is how a plan starts lying.
+ */
+export function populationLine(sap: SapSpec): string | undefined {
+  const [primary] = sap.populations ?? [];
+  if (!primary?.name?.trim()) return undefined;
+
+  const definition = primary.definition?.trim();
+  const missing = sap.rules?.missing_data?.trim();
+  return [
+    `${primary.name.trim()}${definition ? ` - ${definition}` : ""}`,
+    missing ? `Missing data: ${missing}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}

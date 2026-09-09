@@ -351,7 +351,7 @@ export async function buildSapDocx(
     // saying the tables were in another document, which meant two documents,
     // one of which existed to say where the other was.
     if (options.shells?.tables?.length) {
-      doc.push(...shellTableSection(options.shells));
+      doc.push(...shellTableSection(options.shells, spec));
     } else {
       doc.push(
         para(

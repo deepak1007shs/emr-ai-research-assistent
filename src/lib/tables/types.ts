@@ -302,9 +302,10 @@ export type ShellTablesSpec = {
   /**
    * Who is analysed, copied from the plan and printed above the primary block.
    *
-   * The plan defines its populations in Section 4, which is thirty pages from
-   * the primary result. A reader arriving at that result needs the denominator
-   * in front of them, not behind them.
+   * The plan declares its populations and its missing-data rule and prints
+   * neither as a section of its own, so this line is the only place a reader
+   * meets them. It stands where they are needed: in front of the primary
+   * result, rather than behind it.
    */
   analysis_population?: string;
   /**

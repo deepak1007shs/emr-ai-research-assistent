@@ -1,3 +1,4 @@
+import type { SapSpec } from "@/lib/sap/types";
 import type { ShellTable, ShellTablesSpec } from "@/lib/tables/types";
 import { line, plain } from "@/lib/render/plain";
 import {
@@ -33,10 +34,13 @@ import { DocTable, Note } from "./document-shell";
  */
 export function ShellTableSection({
   spec,
+  /** The plan, for the population line where stored tables predate it. */
+  sap,
   /** Table numbers a finding flagged, so the reader shows what the rail says. */
   flagged = new Set<number>(),
 }: {
   spec: ShellTablesSpec;
+  sap?: SapSpec;
   flagged?: Set<number>;
 }) {
   const labelOf = (id: string, fallback: string) => spec.labels?.[id] ?? fallback ?? id;
@@ -56,12 +60,12 @@ export function ShellTableSection({
             {/* One line under the family heading, from the same composer the
                 download uses. Two renderers wording the same rule twice is how
                 a screen and a document come to disagree. */}
-            {blockNote(block, spec) && (
+            {blockNote(block, spec, sap) && (
               <Note>
                 {BLOCK_NOTE_LABEL[block] && (
                   <span className="font-semibold">{BLOCK_NOTE_LABEL[block]}: </span>
                 )}
-                {plain(blockNote(block, spec))}
+                {plain(blockNote(block, spec, sap))}
               </Note>
             )}
             {inBlock.map((table) => (

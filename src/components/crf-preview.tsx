@@ -6,7 +6,7 @@ import { line, plain } from "@/lib/render/plain";
 import { DocSection, DocTable, DocumentShell, Note, Td } from "./document-shell";
 
 /**
- * The case report form, on screen.
+ * The case record form, on screen.
  *
  * Mirrors crf-docx.ts: the data collection plan first, then the form itself
  * with its boxes and ruled blanks drawn as they print. The plan comes first

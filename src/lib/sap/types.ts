@@ -223,7 +223,9 @@ export type Estimand = {
   summary_measure: string;
 };
 
-/** Section 4, fixed before the data are seen so they are never re-decided. */
+/** The statistical rules, fixed before the data are seen so they are never
+ * re-decided. Resolved and never rendered as a section: they surface in the
+ * footnotes and the family note lines of Section 6. */
 export type StatisticalRules = {
   software: string;
   normality: string;
@@ -248,7 +250,7 @@ export type Subgroup = { subgroup: string; how_tested: string };
 export type AnalysisStep = { step: string; what: string };
 
 /**
- * Section 5A. The assumptions belong to the test that was chosen, so these are
+ * The assumptions belong to the test that was chosen, so these are
  * written after the tests are, and only for the tests actually planned.
  */
 export type AssumptionCheck = {

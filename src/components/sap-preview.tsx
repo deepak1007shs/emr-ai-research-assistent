@@ -177,7 +177,7 @@ export function SapPreview({
         )}
       </DocSection>
 
-      <DocSection title="Section 3 - Analysis Map">
+      <DocSection title="Analysis Map">
         <Note>
           One row per objective, or per group of objectives that share an analysis. Every question is linked to its analysis, unadjusted and adjusted, AND to the empty results tables it will fill.
         </Note>
@@ -261,7 +261,7 @@ export function SapPreview({
             plan. What is on screen is what the download contains. */}
         {shells?.tables?.length ? (
           <div className="mt-4">
-            <ShellTableSection spec={shells} />
+            <ShellTableSection spec={shells} sap={spec} />
           </div>
         ) : (
           <p className="mt-2 text-xs leading-relaxed text-muted">
