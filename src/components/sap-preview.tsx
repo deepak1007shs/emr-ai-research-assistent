@@ -1,6 +1,11 @@
 import { chooseTest, degreesOfFreedomNote } from "@/lib/sap/choose-test";
 import { PICOT_COLUMNS, PICOT_HEADING, picotRows } from "@/lib/sap/picot";
 import {
+  VARIABLE_LIST_COLUMNS,
+  VARIABLE_LIST_HEADING,
+  variableListRows,
+} from "@/lib/sap/variable-list";
+import {
   analysisCell,
   dataTypeCell,
   planKey,
@@ -251,6 +256,21 @@ export function SapPreview({
         )}
       </DocSection>
 
+      {variables.length > 0 && (
+        <DocSection title={VARIABLE_LIST_HEADING}>
+          <DocTable headers={VARIABLE_LIST_COLUMNS}>
+            {variableListRows(spec).map((row, i) => (
+              <tr key={i}>
+                <Td bold>{plain(row[0])}</Td>
+                {row.slice(1).map((cell, c) => (
+                  <Td key={c}>{plain(cell)}</Td>
+                ))}
+              </tr>
+            ))}
+          </DocTable>
+        </DocSection>
+      )}
+
       <DocSection title="Section 6 - Shell (Dummy) Tables">
         <p className="text-xs leading-relaxed">
           Every empty results table the thesis will contain, in the order it will appear. Cells
@@ -261,7 +281,7 @@ export function SapPreview({
             plan. What is on screen is what the download contains. */}
         {shells?.tables?.length ? (
           <div className="mt-4">
-            <ShellTableSection spec={shells} sap={spec} />
+            <ShellTableSection spec={shells} />
           </div>
         ) : (
           <p className="mt-2 text-xs leading-relaxed text-muted">

@@ -405,34 +405,28 @@ describe("Section 6 on screen and in the download", () => {
   });
 
   /**
-   * Read from the rendered document rather than from the helper that composes
-   * the line. A mark printed in the middle of a row label passed every
-   * function-level test it had, because the fault was in where the text landed
-   * and not in what the text said.
+   * The house documents go from the lettered family heading straight to
+   * "Table N.". There was an "Analysis population:" line here, composed from
+   * the plan; the document that is being matched carries no line under any
+   * family heading, and says who was analysed in the sensitivity table's rows
+   * and its footnote instead.
    */
-  it("opens the primary block with who is analysed, once", async () => {
+  it("goes from the family heading straight to the first table", async () => {
     const page = await pageText(await buildTablesDocx(tablesFixture));
-    const line = tablesFixture.analysis_population!;
-
-    expect(page).toContain(`Analysis population: ${line}`);
-    expect(page.split("Analysis population:").length - 1).toBe(1);
-
-    // Above the primary block, which is what makes it useful: the denominator
-    // in front of the first result rather than thirty pages behind it.
-    const at = page.indexOf("Analysis population:");
-    expect(at).toBeGreaterThan(page.indexOf("Primary outcome"));
-    expect(at).toBeLessThan(
-      page.indexOf(`Table ${primaryTable.number}. ${primaryTable.title}`),
-    );
-  });
-
-  it("says the same thing on screen as in the download", () => {
     const screen = screenText(
       SapPreview({ spec: sapFixture, shells: tablesFixture }),
     );
-    expect(screen).toContain(`Analysis population: ${tablesFixture.analysis_population}`);
-    expect(screen.split("Analysis population:").length - 1).toBe(1);
+
+    for (const text of [page, screen]) {
+      expect(text).not.toContain("Analysis population:");
+      const at = text.indexOf("B. Primary outcome");
+      expect(at).toBeGreaterThan(-1);
+      expect(
+        text.slice(at, at + "B. Primary outcome".length + 40),
+      ).toContain(`Table ${primaryTable.number}.`);
+    }
   });
+
 
   it("says the tables are not built yet rather than pointing nowhere", () => {
     const screen = screenText(SapPreview({ spec: sapFixture }));

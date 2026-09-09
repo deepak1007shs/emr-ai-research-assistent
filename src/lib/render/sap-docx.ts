@@ -16,6 +16,11 @@ import type { ShellTablesSpec } from "../tables/types.ts";
 import { chooseTest } from "../sap/choose-test.ts";
 import { PICOT_COLUMNS, PICOT_HEADING, picotRows } from "../sap/picot.ts";
 import {
+  VARIABLE_LIST_COLUMNS,
+  VARIABLE_LIST_HEADING,
+  variableListRows,
+} from "../sap/variable-list.ts";
+import {
   analysisCell,
   dataTypeCell,
   planKey,
@@ -64,13 +69,13 @@ function italic(text: string) {
   });
 }
 
-/** "P1: question" with the label in bold, as a bullet. */
+/** "P1. question" with the label in bold, as a bullet. */
 function objectiveBullet(id: string, question: string) {
   return new Paragraph({
     bullet: { level: 0 },
     spacing: { after: 100 },
     children: [
-      new TextRun({ text: `${line(id)}: `, bold: true }),
+      new TextRun({ text: `${line(id)}. `, bold: true }),
       new TextRun({ text: plain(question) }),
     ],
   });
@@ -122,7 +127,7 @@ const HEADERS = [
   "Outcome",
   "Predictor(s)",
   "Data type",
-  "Statistical test -> Table #",
+  "Statistical test",
 ];
 
 export async function buildSapDocx(
@@ -173,19 +178,8 @@ export async function buildSapDocx(
   }
   doc.push(
     new Paragraph({
-      children: [new TextRun({ text: plain(spec.title), bold: true })],
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 280 },
-    }),
-  );
-
-  doc.push(
-    new Paragraph({
       children: [
-        new TextRun({
-          text: plain(`${spec.design}. ${spec.setting}`),
-          italics: true,
-        }),
+        new TextRun({ text: `Statistical Analysis Plan - ${plain(spec.title)}`, bold: true }),
       ],
       alignment: AlignmentType.CENTER,
       spacing: { after: 280 },
@@ -211,12 +205,6 @@ export async function buildSapDocx(
       "Objectives as Answerable Questions",
     ),
   );
-  doc.push(
-    italic(
-      "Every objective is phrased as a question, because a question forces you to name an outcome and a predictor, which is exactly what the statistics need.",
-    ),
-  );
-
   doc.push(heading("Aim", HeadingLevel.HEADING_2));
   doc.push(para(spec.aim));
 
@@ -243,10 +231,7 @@ export async function buildSapDocx(
   }
   if (exploratory.length) {
     doc.push(
-      heading(
-        "Exploratory objectives (hypothesis-generating, not powered)",
-        HeadingLevel.HEADING_2,
-      ),
+      heading("Exploratory objectives", HeadingLevel.HEADING_2),
     );
     for (const o of exploratory) doc.push(objectiveBullet(o.id, o.question));
   }
@@ -274,11 +259,6 @@ export async function buildSapDocx(
 
   // ---- the analysis map
   doc.push(heading("Analysis Map", HeadingLevel.HEADING_1));
-  doc.push(
-    italic(
-      "One row per objective, or per group of objectives that share an analysis. Every question is linked to its analysis, unadjusted and adjusted, AND to the empty results tables it will fill.",
-    ),
-  );
 
   const reasons = new Map<string, string>();
   const avoided = new Map<string, string>();
@@ -338,20 +318,26 @@ export async function buildSapDocx(
     }),
   );
 
+  // ---- the master variable list
+  //
+  // Step 2's output, printed after the map it feeds. The form collects this
+  // list and the tables report it, so a supervisor checking "not extra, not
+  // less" has the whole set in one place rather than inferred from twenty
+  // tables.
+  if (!short && (spec.variables ?? []).length) {
+    doc.push(heading(VARIABLE_LIST_HEADING, HeadingLevel.HEADING_1));
+    doc.push(gridTable(VARIABLE_LIST_COLUMNS, variableListRows(spec)));
+  }
+
   /* ---- Section 6 --------------------------------------------------- */
 
   if (!short) {
     doc.push(heading("Section 6 - Shell (Dummy) Tables", HeadingLevel.HEADING_1));
-    doc.push(
-      para(
-        "Every empty results table the thesis will contain, in the order it will appear. Cells stay blank until the data arrive, and each table names the test that fills it.",
-      ),
-    );
     // Printed here rather than pointed at. This section used to hold a sentence
     // saying the tables were in another document, which meant two documents,
     // one of which existed to say where the other was.
     if (options.shells?.tables?.length) {
-      doc.push(...shellTableSection(options.shells, spec));
+      doc.push(...shellTableSection(options.shells));
     } else {
       doc.push(
         para(
@@ -360,12 +346,6 @@ export async function buildSapDocx(
       );
     }
   }
-
-  doc.push(
-    italic(
-      "Generated from the study specification. Do not edit this document: change the specification and rebuild, or the analysis plan, the case record form and the shell tables will disagree.",
-    ),
-  );
 
   return Packer.toBuffer(
     new Document({ styles: HOUSE_STYLES, sections: [{ children: doc }] }),

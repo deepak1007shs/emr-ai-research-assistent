@@ -1,6 +1,11 @@
 import { chooseTest, degreesOfFreedomNote } from "../sap/choose-test.ts";
 import { PICOT_COLUMNS, PICOT_HEADING, picotRows } from "../sap/picot.ts";
 import {
+  VARIABLE_LIST_COLUMNS,
+  VARIABLE_LIST_HEADING,
+  variableListRows,
+} from "../sap/variable-list.ts";
+import {
   analysisCell,
   dataTypeCell,
   planKey,
@@ -213,6 +218,13 @@ export function buildSapMarkdown(
       }
       push("", "Neither enters any model.", "");
     }
+  }
+
+  /* ---- the master variable list -------------------------------------- */
+
+  if (!short && (spec.variables ?? []).length) {
+    push("---", "", `## ${VARIABLE_LIST_HEADING}`, "");
+    push(table(VARIABLE_LIST_COLUMNS, variableListRows(spec)), "");
   }
 
   /* ---- Sections 6 and 7 -------------------------------------------- */

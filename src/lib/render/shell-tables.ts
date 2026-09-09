@@ -8,14 +8,8 @@ import {
   WidthType,
 } from "docx";
 import { HOUSE_BORDER, plain } from "./house-style.ts";
-import {
-  BLOCK_HEADING,
-  BLOCK_NOTE_LABEL,
-  BLOCK_ORDER,
-  blockNote,
-} from "../tables/block-notes.ts";
+import { BLOCK_HEADING, BLOCK_ORDER } from "../tables/block-notes.ts";
 import { describe, rowLabels } from "../tables/describe.ts";
-import type { SapSpec } from "../sap/types.ts";
 import type { ShellTable, ShellTablesSpec } from "../tables/types.ts";
 
 /**
@@ -141,7 +135,7 @@ function oneTable(
  * inside the plan they duplicate its own numbering, and the blueprint carries
  * neither.
  */
-export function shellTableSection(spec: ShellTablesSpec, sap?: SapSpec): Block[] {
+export function shellTableSection(spec: ShellTablesSpec): Block[] {
   const labelOf = (id: string, fallback = "") => spec.labels?.[id] ?? fallback ?? id;
   const columnOf = (id: string) => spec.columns?.[id];
   const blocks: Block[] = [];
@@ -151,18 +145,14 @@ export function shellTableSection(spec: ShellTablesSpec, sap?: SapSpec): Block[]
     if (!tables.length) continue;
     blocks.push(heading(BLOCK_HEADING[block], HeadingLevel.HEADING_2));
 
-    // One line under the family heading and nowhere else: who is analysed for
-    // the primary, what a secondary result may claim, the caveat over anything
-    // exploratory, and the multiplicity rule that governs the family.
-    const note = blockNote(block, spec, sap);
-    const label = BLOCK_NOTE_LABEL[block];
-    if (note) {
-      blocks.push(
-        label
-          ? footnote(label, note)
-          : new Paragraph({ text: line(note), spacing: { after: 80 } }),
-      );
-    }
+    // No line under the family heading. The house documents go from the
+    // lettered heading straight to "Table N.", and what those lines carried is
+    // carried elsewhere: the population and the missing-data handling by the
+    // sensitivity table's rows and its footnote, the test and its fallback by
+    // every table's own footnote.
+    //
+    // `blockNote` still composes them, and printing it here is one line. The
+    // one thing it said that nothing else says is the multiplicity rule.
 
     for (const table of tables) blocks.push(...oneTable(table, labelOf, columnOf));
   }

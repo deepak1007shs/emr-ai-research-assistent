@@ -14,6 +14,14 @@ import type { ShellTablesSpec, TableBlock } from "./types.ts";
  * Composed here from what the plan already declares, so the blueprint cannot
  * state a rule the plan does not, and so the screen and the document say the
  * same words without either of them owning the wording.
+ *
+ * Nothing prints these today. The house documents go from the lettered family
+ * heading straight to "Table N.", and what these lines said is said elsewhere:
+ * the population and the missing-data handling by the sensitivity table's rows
+ * and footnote, the test and its fallback by every table's own footnote. The
+ * one thing they said that nothing else says is the multiplicity rule, which is
+ * why this is kept rather than deleted: printing it again is one line in each
+ * renderer.
  */
 
 const DESCRIPTIVE =
@@ -28,11 +36,18 @@ const EXPLORATORY =
 /** The four families, in the order the blueprint prints them. */
 export const BLOCK_ORDER: TableBlock[] = ["descriptive", "primary", "secondary", "exploratory"];
 
+/**
+ * The four family headings, lettered as the house documents letter them.
+ *
+ * The letter is the reader's handle on the block: "the B tables" is how the
+ * primary outcome gets referred to in a supervision, and a heading without one
+ * gives them nothing to say.
+ */
 export const BLOCK_HEADING: Record<TableBlock, string> = {
-  descriptive: "Descriptive characteristics",
-  primary: "Primary outcome",
-  secondary: "Secondary outcomes",
-  exploratory: "Exploratory analyses",
+  descriptive: "A. Descriptive characteristics",
+  primary: "B. Primary outcome",
+  secondary: "C. Secondary outcomes",
+  exploratory: "D. Exploratory analyses",
 };
 
 export function blockNote(

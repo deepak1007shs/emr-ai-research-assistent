@@ -94,8 +94,9 @@ describe("the SAP document", () => {
     expect(visible).toContain("Aim");
     expect(visible).toContain("Primary objective(s)");
     expect(visible).toContain("Secondary objectives");
-    expect(visible).toContain("P1:");
-    expect(visible).toContain("S1:");
+    // "P1." as the house documents number them, not "P1:".
+    expect(visible).toContain("P1.");
+    expect(visible).toContain("S1.");
   });
 
   it("carries the five analysis-map columns", async () => {

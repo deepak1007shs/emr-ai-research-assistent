@@ -1,15 +1,9 @@
-import type { SapSpec } from "@/lib/sap/types";
 import type { ShellTable, ShellTablesSpec } from "@/lib/tables/types";
 import { line, plain } from "@/lib/render/plain";
-import {
-  BLOCK_HEADING,
-  BLOCK_NOTE_LABEL,
-  BLOCK_ORDER,
-  blockNote,
-} from "@/lib/tables/block-notes";
+import { BLOCK_HEADING, BLOCK_ORDER } from "@/lib/tables/block-notes";
 import { describe, rowLabels } from "@/lib/tables/describe";
 import { AlertTriangleIcon } from "./icons";
-import { DocTable, Note } from "./document-shell";
+import { DocTable } from "./document-shell";
 
 /**
  * Section 6 of the analysis plan, on screen.
@@ -34,13 +28,10 @@ import { DocTable, Note } from "./document-shell";
  */
 export function ShellTableSection({
   spec,
-  /** The plan, for the population line where stored tables predate it. */
-  sap,
   /** Table numbers a finding flagged, so the reader shows what the rail says. */
   flagged = new Set<number>(),
 }: {
   spec: ShellTablesSpec;
-  sap?: SapSpec;
   flagged?: Set<number>;
 }) {
   const labelOf = (id: string, fallback: string) => spec.labels?.[id] ?? fallback ?? id;
@@ -57,17 +48,8 @@ export function ShellTableSection({
           <section key={block} className="mb-10">
             <h2 className="mb-4 text-base font-bold text-ink">{BLOCK_HEADING[block]}</h2>
 
-            {/* One line under the family heading, from the same composer the
-                download uses. Two renderers wording the same rule twice is how
-                a screen and a document come to disagree. */}
-            {blockNote(block, spec, sap) && (
-              <Note>
-                {BLOCK_NOTE_LABEL[block] && (
-                  <span className="font-semibold">{BLOCK_NOTE_LABEL[block]}: </span>
-                )}
-                {plain(blockNote(block, spec, sap))}
-              </Note>
-            )}
+            {/* No line under the family heading: the house documents go from
+                the lettered heading straight to "Table N.". */}
             {inBlock.map((table) => (
               <ShellTableBlock
                 key={table.number}

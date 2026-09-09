@@ -23,13 +23,17 @@ export type PicotRow = [letter: string, element: string, value: string];
 
 const ELEMENTS: [string, string][] = [
   ["P", "Population"],
-  ["I", "Intervention / Exposure"],
+  ["I", "Intervention"],
   ["C", "Comparator / Control"],
   ["O", "Outcome"],
   ["T", "Time / Type of study"],
 ];
 
 export function picotRows(picot: NonNullable<SapSpec["picot"]>): PicotRow[] {
+  // The letter stays I in both frames; the word follows the design. A trial
+  // assigns an intervention and an observational study finds an exposure, and
+  // the house documents name whichever the study did.
+  const second = picot.framework === "PICOT" ? "Intervention" : "Intervention / Exposure";
   const values = [
     picot.population,
     picot.intervention_or_exposure,
@@ -37,5 +41,9 @@ export function picotRows(picot: NonNullable<SapSpec["picot"]>): PicotRow[] {
     picot.outcome,
     picot.time,
   ];
-  return ELEMENTS.map(([letter, element], i) => [letter, element, values[i] ?? ""]);
+  return ELEMENTS.map(([letter, element], i) => [
+    letter,
+    letter === "I" ? second : element,
+    values[i] ?? "",
+  ]);
 }
