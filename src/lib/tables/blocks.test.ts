@@ -139,10 +139,12 @@ describe("the tables a primary outcome gets", () => {
   it("puts the arms across the top and the outcome down the side", () => {
     const table = roleOf("outcome");
     expect(table.block).toBe("primary");
+    // Each arm heads its column with what the cells under it hold, as the
+    // house documents head them.
     expect(table.columns.slice(0, 4)).toEqual([
       "Outcome",
-      "PEEP 7 cm H2O",
-      "PEEP 5 cm H2O",
+      "PEEP 7 cm H2O - n (%)",
+      "PEEP 5 cm H2O - n (%)",
       "Total",
     ]);
     expect(table.rows.map((r) => r.label)).toEqual([
@@ -156,8 +158,8 @@ describe("the tables a primary outcome gets", () => {
     const table = roleOf("outcome");
     expect(table.columns).toEqual([
       "Outcome",
-      "PEEP 7 cm H2O",
-      "PEEP 5 cm H2O",
+      "PEEP 7 cm H2O - n (%)",
+      "PEEP 5 cm H2O - n (%)",
       "Total",
       "Risk ratio (95% CI)",
       "Risk difference (95% CI)",
@@ -531,6 +533,27 @@ describe("the layout of a two-arm trial", () => {
     const tables = mergeTables([], buildAnalyticTables(sap, ["PEEP 7", "PEEP 5"]), sap);
     const merged = tables.find((t) => (t.fills ?? []).includes("E1") && (t.fills ?? []).includes("P1"));
     expect(merged?.block, "a primary result is not an exploratory finding").toBe("primary");
+  });
+
+  it("qualifies a title only against a table that still exists", () => {
+    // The duplicate was removed after the titles were settled, so every table
+    // of one trial explained that it reported "a continuous measure" - telling
+    // it apart from a table that had already been merged away.
+    const sap = alsoExploratory();
+    const tables = mergeTables([], buildAnalyticTables(sap, ["PEEP 7", "PEEP 5"]), sap);
+    for (const table of tables) {
+      expect(table.title, table.title).not.toContain("as a proportion");
+    }
+  });
+
+  it("keeps the study's denominator out of an analytic title", () => {
+    // It was on every one of them. The study total is not the denominator of a
+    // table comparing two arms, and the house documents put the denominator in
+    // the column headings, per group, where it is true.
+    const tables = mergeTables([], buildAnalyticTables(peep(), ["PEEP 7", "PEEP 5"]), peep());
+    for (const table of tables.filter((t) => t.role !== "flow")) {
+      expect(table.title, table.title).not.toMatch(/\(n\s*=/);
+    }
   });
 
   it("prints no table for an empty grid", () => {

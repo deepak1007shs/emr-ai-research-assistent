@@ -140,8 +140,16 @@ export function validateTables(
     if (t.rows.length && t.rows.every((r) => r.heading)) {
       error("TBL07", `Table ${t.number} has only headings and no rows to fill.`);
     }
-    if (!/\(n\s*=/.test(t.title)) {
-      warn("TBL08", `Table ${t.number} does not carry its denominator. A table without "(n = ...)" cannot be read alone.`);
+    // Asked of the descriptive block, which is where a reader learns how many
+    // were in each group, and in the title or a column heading because the
+    // house documents use both. Asked of every table, it made each analytic
+    // title end in "(n = 98)" - the study's total, which is not the denominator
+    // of a table comparing two arms, and not what any of these documents show.
+    if (
+      t.block === "descriptive" &&
+      ![t.title, ...t.columns].some((text) => /\(n\s*=/.test(text ?? ""))
+    ) {
+      warn("TBL08", `Table ${t.number} does not carry its denominator. A table without "(n = ...)", in its title or its column headings, cannot be read alone.`);
     }
 
     if (TESTED_ROLES.has(t.role) && !t.test_applied) {

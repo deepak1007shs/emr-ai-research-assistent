@@ -258,6 +258,15 @@ function contrastLevels(row: AnalysisRow, sap: SapRegistry, fallback: string[]):
 }
 
 /** The denominator every title ends with, where the plan knows it. */
+/**
+ * The study's own denominator, for the one table that reports the whole cohort.
+ *
+ * Every analytic title used to end in "(n = 98)". The house documents put the
+ * denominator in the column headings instead, per group, where it belongs: a
+ * table comparing two arms has two denominators and the study's total is not
+ * either of them. Only the participant-flow table, whose subject is the whole
+ * cohort, still carries it in the title.
+ */
 function denominator(sap: SapRegistry): string {
   return sap.sample_size ? ` (n = ${sap.sample_size})` : "";
 }
@@ -345,6 +354,30 @@ function flowTable(sap: SapRegistry, groups: string[], randomised: boolean): She
  * they carry a count, a percentage or a mean, and this is the sentence that
  * does.
  */
+/**
+ * What a group column holds, appended to the group's name.
+ *
+ * "iNPWT - n (%)" rather than "iNPWT" with a line underneath saying what the
+ * cells contain. The house documents head their columns this way, and a reader
+ * meets the statistic before the cell rather than after it.
+ *
+ * Short forms, because this is a column heading and the long rule belongs in
+ * the footnote: a heading reading "mean +/- SD where the distribution allows
+ * it, median (IQR) where it does not" is a heading nobody can scan.
+ */
+const PER_CELL: Partial<Record<AnalysisRow["data_type"], string>> = {
+  binary: "n (%)",
+  count: "n, rate",
+  continuous: "Mean +/- SD",
+  ordinal: "Median (IQR)",
+  time_to_event: "n events",
+};
+
+function perGroup(level: string, row: AnalysisRow): string {
+  const said = PER_CELL[row.data_type];
+  return said ? `${level} - ${said}` : level;
+}
+
 function reportedAs(row: AnalysisRow): string {
   // The rule table's own summary line where it has one, so the cell statistic
   // and the test come from one source rather than being guessed twice. It
@@ -441,14 +474,14 @@ function predictorTables(row: AnalysisRow, tier: Tier, ctx: BlockContext): Shell
       // The rule table decides the test, from a row describing what this table
       // actually compares rather than what the whole analysis does.
       probe: { ...row, data_type: "binary" as const, comparison: "two_groups" as const },
-      title: `Association between categorical variables and ${midSentence(subject)}${denominator(sap)}`,
+      title: `Association between categorical variables and ${midSentence(subject)}`,
       cell: "n (%) within each outcome group, the percentage taken out of that group's total",
     },
     {
       job: "numerical",
       ids: split.numerical,
       probe: { ...row, data_type: "continuous" as const, comparison: "two_groups" as const },
-      title: `Comparison of numerical variables between patients with and without ${midSentence(subject)}${denominator(sap)}`,
+      title: `Comparison of numerical variables between patients with and without ${midSentence(subject)}`,
       cell: row.skewed
         ? "median (IQR), the same statistic used for both groups within a row"
         : "mean +/- SD where the distribution allows it, median (IQR) where it does not, the same statistic used for both groups within a row",
@@ -517,7 +550,7 @@ function outcomeTable(row: AnalysisRow, tier: Tier, ctx: BlockContext): ShellTab
   const withP = row.comparison !== "agreement";
 
   const estimates = measures.map((m) => `${m} (95% CI)`);
-  const title = capitalise(`${subject}${by ? ` by ${by}` : ""}${denominator(sap)}`);
+  const title = capitalise(`${subject}${by ? ` by ${by}` : ""}`);
 
   const base = {
     number: 0,
@@ -554,7 +587,7 @@ function outcomeTable(row: AnalysisRow, tier: Tier, ctx: BlockContext): ShellTab
       ...base,
       columns: [
         "Outcome",
-        ...contrastLevels(row, sap, groups),
+        ...contrastLevels(row, sap, groups).map((g) => perGroup(g, row)),
         "Total",
         ...estimates,
         ...(withP ? ["P value"] : []),
@@ -593,7 +626,7 @@ function outcomeTable(row: AnalysisRow, tier: Tier, ctx: BlockContext): ShellTab
       ...base,
       columns: [
         header,
-        ...contrastLevels(row, sap, groups),
+        ...contrastLevels(row, sap, groups).map((g) => perGroup(g, row)),
         "Total",
         ...estimates,
         ...(withP ? ["P value"] : []),
@@ -618,7 +651,7 @@ function outcomeTable(row: AnalysisRow, tier: Tier, ctx: BlockContext): ShellTab
     return {
       ...base,
       title: capitalise(
-        by ? `Effect of ${by} on ${subject}${denominator(sap)}` : `${subject}, estimated${denominator(sap)}`,
+        by ? `Effect of ${by} on ${subject}` : `${subject}, estimated`,
       ),
       columns: ["Measure", "Estimate", "95% CI", ...(withP ? ["P value"] : [])],
       rows: measures.map((measure) => ({
@@ -683,7 +716,7 @@ function adjustedTable(
     fills: row.objective_ids?.length ? [...row.objective_ids] : undefined,
     models,
     title: capitalise(
-      `Effect of ${by || "the study groups"} on ${subject}, adjusted${denominator(sap)}`,
+      `Effect of ${by || "the study groups"} on ${subject}, adjusted`,
     ),
     // The crude and the adjusted estimate on one row, per predictor, each with
     // its interval and its own p value, so a reader can see what the adjustment
@@ -719,7 +752,6 @@ function subgroupTable(row: AnalysisRow, tier: Tier, ctx: BlockContext): ShellTa
   const by = exposurePhrase(row, sap);
   const subject = subjectOf(row, sap);
   const measure = headlineMeasure(row);
-  const per = row.data_type === "binary" ? "n/N (%)" : "summary";
 
   return {
     number: 0,
@@ -733,11 +765,11 @@ function subgroupTable(row: AnalysisRow, tier: Tier, ctx: BlockContext): ShellTa
     outcome_id: ids.length === 1 ? ids[0] : undefined,
     fills: row.objective_ids?.length ? [...row.objective_ids] : undefined,
     title: capitalise(
-      `Effect of ${by || "the study groups"} on ${subject} within prespecified subgroups${denominator(sap)}`,
+      `Effect of ${by || "the study groups"} on ${subject} within prespecified subgroups`,
     ),
     columns: [
       "Subgroup",
-      ...contrastLevels(row, sap, groups).map((g) => `${g} ${per}`),
+      ...contrastLevels(row, sap, groups).map((g) => perGroup(g, row)),
       `${measure} (95% CI)`,
       "Interaction p",
     ],
@@ -800,7 +832,7 @@ function sensitivityTable(
     if_missing: IF_MISSING.sensitivity,
     outcome_id: ids.length === 1 ? ids[0] : undefined,
     fills: row.objective_ids?.length ? [...row.objective_ids] : undefined,
-    title: capitalise(`Sensitivity analyses for ${subject}${denominator(sap)}`),
+    title: capitalise(`Sensitivity analyses for ${subject}`),
     columns: ["Analysis", ...measures.map((m) => `${m} (95% CI)`)],
     rows,
     test_applied: plan.test,
@@ -914,7 +946,46 @@ export function buildAnalyticTables(
       if (table) out.push({ table, row });
     }
   }
-  return disambiguate(out, sap);
+  // Before disambiguation, not after. Two copies of one table collide on their
+  // title, so the disambiguator qualified both - and every table of the trial
+  // that prompted this ended up saying "as a continuous measure" to tell it
+  // apart from a table that no longer exists.
+  const kept = new Map<string, { table: ShellTable; row: AnalysisRow | null }>();
+  for (const pair of out) {
+    const key = tableShape(pair.table);
+    const prior = kept.get(key);
+    if (!prior) {
+      kept.set(key, pair);
+      continue;
+    }
+    const winner =
+      BLOCK_RANK.indexOf(pair.table.block) < BLOCK_RANK.indexOf(prior.table.block)
+        ? pair
+        : prior;
+    kept.set(key, {
+      ...winner,
+      table: {
+        ...winner.table,
+        fills: [...new Set([...(prior.table.fills ?? []), ...(pair.table.fills ?? [])])],
+      },
+    });
+  }
+
+  return disambiguate([...kept.values()], sap);
+}
+
+/**
+ * The grid a reader sees: what the table is for, what it reports, and its axes.
+ *
+ * Not the title and not the objectives it fills. Those are exactly what differs
+ * between two copies of one table, which is how an analysis serving a primary
+ * objective and an exploratory one came to be laid out twice.
+ */
+/** The four families, in the order a document prints them. */
+const BLOCK_RANK = ["descriptive", "primary", "secondary", "exploratory"];
+
+export function tableShape(t: ShellTable): string {
+  return JSON.stringify([t.role, t.outcome_id ?? null, t.columns, t.rows]);
 }
 
 /** How an analysis treats its outcome, for a title that must say. */
@@ -993,7 +1064,7 @@ function disambiguate(
 
 /* ---- merging the two halves --------------------------------------- */
 
-const BLOCK_ORDER = ["descriptive", "primary", "secondary", "exploratory"];
+
 
 /**
  * Within one outcome, the order a reader needs: how many had the outcome, what
@@ -1063,9 +1134,6 @@ export function mergeTables(
   // Merged rather than dropped. The survivor keeps the earlier block, because a
   // result reported for the primary objective is not an exploratory finding,
   // and takes both objectives' links so neither loses the table that answers it.
-  const shape = (t: ShellTable) =>
-    JSON.stringify([t.role, t.outcome_id ?? null, t.columns, t.rows]);
-
   const groups = new Map<string, ShellTable[]>();
   for (const t of [...described, ...analytic]) {
     // An empty grid is not a table. It reaches here when a model supplies a
@@ -1073,13 +1141,13 @@ export function mergeTables(
     // under it is worse than not printing it: the variables it should have
     // reported are then reported by no table, which is what TBL33 says.
     if (!(t.columns ?? []).length && !(t.rows ?? []).length) continue;
-    groups.set(shape(t), [...(groups.get(shape(t)) ?? []), t]);
+    groups.set(tableShape(t), [...(groups.get(tableShape(t)) ?? []), t]);
   }
 
   const unique = [...groups.values()].map((group) => {
     if (group.length === 1) return group[0];
     const best = group.reduce((a, b) =>
-      BLOCK_ORDER.indexOf(b.block) < BLOCK_ORDER.indexOf(a.block) ? b : a,
+      BLOCK_RANK.indexOf(b.block) < BLOCK_RANK.indexOf(a.block) ? b : a,
     );
     return { ...best, fills: [...new Set(group.flatMap((t) => t.fills ?? []))] };
   });
@@ -1087,7 +1155,7 @@ export function mergeTables(
   return unique
     .map((table, i) => ({ table, i }))
     .sort((a, b) => {
-      const block = BLOCK_ORDER.indexOf(a.table.block) - BLOCK_ORDER.indexOf(b.table.block);
+      const block = BLOCK_RANK.indexOf(a.table.block) - BLOCK_RANK.indexOf(b.table.block);
       if (block) return block;
       const objective = objectiveOf(a.table) - objectiveOf(b.table);
       if (objective) return objective;
