@@ -111,6 +111,24 @@ function midSentence(label: string): string {
 /** "P1 - delivery room intubation" reads as a subject once the id is dropped. */
 const stripId = (label: string) => label.replace(/^[A-Z]+\d+\s*[-:]\s*/, "").trim();
 
+/**
+ * A subject with the reviewer's note taken off it.
+ *
+ * A plan records what the protocol left unresolved on the row it affects, which
+ * is the right place for it and the wrong place to read a table title from. One
+ * table came out headed "Surgical site infection, flap necrosis, wound
+ * dehiscence (NOTE: none of the three has a stated diagnostic or grading
+ * criterion in the protocol; each must be operationally defined...)" - a
+ * paragraph where a heading was wanted. The note still reaches the reader,
+ * in the analysis map, on the row it is about.
+ */
+const withoutNote = (text: string) =>
+  text
+    .replace(/\s*\((?:NOTE|TODO)\b[^)]*\)/gi, "")
+    .replace(/\s*(?:NOTE|TODO)\b\s*:[\s\S]*$/i, "")
+    .replace(/[;,]\s*$/, "")
+    .trim();
+
 /** The designs whose allocation is random, and whose flow table says so. */
 const RANDOMISED = new Set([
   "randomised_trial",
@@ -209,9 +227,9 @@ function subjectOf(row: AnalysisRow, sap: SapRegistry): string {
   const ids = row.outcome_ids ?? [];
   if (ids.length === 1) {
     const outcome = outcomes.get(ids[0]);
-    if (outcome?.what) return outcome.what;
+    if (outcome?.what) return withoutNote(outcome.what);
   }
-  return stripId(row.label ?? "");
+  return withoutNote(stripId(row.label ?? ""));
 }
 
 function exposurePhrase(row: AnalysisRow, sap: SapRegistry): string {
@@ -1035,9 +1053,24 @@ function disambiguate(
     return ids.length === 1 ? `by ${first}` : `by ${first} and ${ids.length - 1} other variables`;
   };
 
+  /** Whether the analysis holds anything constant, and what. */
+  const byAdjustment = (row: AnalysisRow | null): string | null => {
+    if (!row) return null;
+    const ids = row.adjust_for_ids ?? [];
+    if (!ids.length) return "unadjusted";
+    const first = midSentence(variables.get(ids[0])?.label ?? ids[0]);
+    return ids.length === 1
+      ? `adjusted for ${first}`
+      : `adjusted for ${first} and ${ids.length - 1} others`;
+  };
+
   // The data type first, because that is what usually differs: one score
   // reported as a median and again as the proportion above its threshold. Where
-  // two tables share a data type as well, what they compare is what differs.
+  // two tables share a data type as well, what they compare is what differs,
+  // and where they share that too, what they hold constant does: one trial
+  // reported its primary outcome unadjusted and again adjusted for four
+  // variables under an exploratory objective, and the two tables came out with
+  // the same title.
   //
   // The pairs are carried through both passes rather than a map keyed by the
   // table, because each pass builds new tables and a map keyed by the old ones
@@ -1045,6 +1078,7 @@ function disambiguate(
   const discriminators = [
     (row: AnalysisRow | null) => (row ? (AS[row.data_type] ?? null) : null),
     byWhat,
+    byAdjustment,
   ];
 
   let out = pairs;

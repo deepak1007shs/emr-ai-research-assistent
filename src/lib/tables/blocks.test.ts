@@ -573,3 +573,62 @@ describe("the layout of a two-arm trial", () => {
     expect(tables.map((t) => t.number)).toEqual(tables.map((_, i) => i + 1));
   });
 });
+
+/**
+ * Two faults a real plan's own wording produced.
+ *
+ * A plan records what the protocol left unresolved on the row it affects, and
+ * one row's note ran to eighty words. It reached the shell tables as a title.
+ */
+describe("a title taken from the plan's own wording", () => {
+  it("carries none of the reviewer's note", () => {
+    const sap = peep();
+    sap.analyses[0].label =
+      "P1 - delivery room intubation (NOTE: no diagnostic criterion is stated in the protocol; it must be defined before data collection)";
+    sap.analyses[0].outcome_ids = [];
+
+    const tables = mergeTables([], buildAnalyticTables(sap, ["PEEP 7", "PEEP 5"]), sap);
+    for (const table of tables) {
+      expect(table.title, table.title).not.toContain("NOTE");
+      expect(table.title, table.title).not.toContain("must be defined");
+    }
+  });
+
+  it("tells the unadjusted table apart from the adjusted one", () => {
+    // A trial reported its primary outcome unadjusted, and again adjusted for
+    // four variables under an exploratory objective. Same outcome, same
+    // exposure, same data type: neither the data type nor the comparison told
+    // the two titles apart, and a reader citing one cited both.
+    const sap = peep();
+    sap.objectives.push({
+      id: "E1",
+      tier: "exploratory",
+      question: "Do the confounders modify the effect of PEEP on intubation?",
+    });
+    // A continuous, skewed outcome, as the trial that showed this had: the
+    // crude analysis reports a median difference and the adjusted one a mean
+    // difference, so the two tables differ in shape and both survive.
+    sap.analyses[0].adjust_for_ids = [];
+    sap.analyses[0].comparison = "two_groups";
+    sap.analyses[0].data_type = "continuous";
+    sap.analyses[0].skewed = true;
+    sap.analyses.push({
+      ...sap.analyses[0],
+      objective_ids: ["E1"],
+      label: "E1 - the same outcome, holding the confounders constant",
+      comparison: "adjusted",
+      adjust_for_ids: ["var_ga", "var_mode", "var_bw"],
+    });
+
+    const tables = mergeTables([], buildAnalyticTables(sap, ["PEEP 7", "PEEP 5"]), sap);
+    const titles = tables.map((t) => t.title);
+    expect(new Set(titles).size, titles.join(" | ")).toBe(titles.length);
+
+    // And it is the adjustment that tells them apart, since nothing else about
+    // them differs: same outcome, same exposure, same data type.
+    const outcomes = tables.filter((t) => t.role === "outcome");
+    expect(outcomes.length, "the two tables merged, so nothing is being told apart").toBe(2);
+    expect(outcomes.some((t) => t.title.includes("unadjusted"))).toBe(true);
+    expect(outcomes.some((t) => t.title.includes("adjusted for"))).toBe(true);
+  });
+});
