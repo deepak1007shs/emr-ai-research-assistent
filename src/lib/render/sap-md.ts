@@ -20,12 +20,7 @@ import {
   type SapVariant,
 } from "../sap/types.ts";
 import { line, plain } from "./plain.ts";
-import {
-  BLOCK_HEADING,
-  BLOCK_NOTE_LABEL,
-  BLOCK_ORDER,
-  blockNote,
-} from "../tables/block-notes.ts";
+import { BLOCK_HEADING, BLOCK_ORDER } from "../tables/block-notes.ts";
 import { rowLabels } from "../tables/describe.ts";
 import type { ShellTablesSpec } from "../tables/types.ts";
 
@@ -106,10 +101,6 @@ export function buildSapMarkdown(
   /* ---- Section 1 --------------------------------------------------- */
 
   push("---", "", section(1, "Objectives as Answerable Questions"), "");
-  push(
-    "*Every objective is phrased as a question, because a question forces you to name an outcome and a predictor, which is exactly what the statistics need.*",
-    "",
-  );
   push("### Aim", "", plain(spec.aim), "");
 
   if (spec.hypothesis && !short) push("### Hypothesis", "", plain(spec.hypothesis), "");
@@ -150,10 +141,6 @@ export function buildSapMarkdown(
   }
 
   push("---", "", "## Analysis Map", "");
-  push(
-    "*One row per objective, or per group of objectives that share an analysis. Every question is linked to its analysis, unadjusted and adjusted, AND to the empty results tables it will fill.*",
-    "",
-  );
 
   const reasons = new Map<string, string>();
   const avoided = new Map<string, string>();
@@ -237,10 +224,6 @@ export function buildSapMarkdown(
 
   if (!short) {
     push("---", "", "## Section 6 - Shell (Dummy) Tables", "");
-    push(
-      "Every empty results table the thesis will contain, in the order it will appear. Cells stay blank until the data arrive, and each table names the test that fills it.",
-      "",
-    );
     // The same tables the Word document draws. Two renderings of one plan that
     // named different tables would be two plans.
     const shells = options.shells;
@@ -260,10 +243,6 @@ export function buildSapMarkdown(
         if (!inBlock.length) continue;
 
         push(`### ${BLOCK_HEADING[block]}`, "");
-        const note = blockNote(block, shells, spec);
-        const label = BLOCK_NOTE_LABEL[block];
-        if (note) push(label ? `**${label}:** ${line(note)}` : `*${line(note)}*`, "");
-
         for (const table of inBlock) {
           push(`#### Table ${table.number}.  ${line(table.title)}`, "");
           const columns = table.columns.length ? table.columns : ["Variable"];
@@ -283,13 +262,6 @@ export function buildSapMarkdown(
       );
     }
   }
-
-  push(
-    "---",
-    "",
-    "*Generated from the study specification. Do not edit this document: change the specification and rebuild, or the analysis plan, the case record form and the shell tables will disagree.*",
-    "",
-  );
 
   return out.join("\n").replace(/\n{3,}/g, "\n\n");
 }

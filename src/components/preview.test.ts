@@ -301,6 +301,44 @@ describe("the plan on screen is the plan you download", () => {
     }
   });
 
+  /**
+   * One list, checked against all three renderings.
+   *
+   * Every one of these was removed from the Word file and left in the Markdown,
+   * the screen, or both, and the checks did not notice: the section-order test
+   * reads headings, and none of these is a heading. Downloading the plan as
+   * Markdown gave a different document from downloading it as Word.
+   */
+  const NOT_IN_THE_HOUSE_FORMAT = [
+    "Every objective is phrased as a question",
+    "One row per objective",
+    "Every empty results table the thesis will contain",
+    "Do not edit this document",
+    "Analysis population:",
+    "Section 2 - Variable Table",
+    "Section 3 - Analysis Map",
+    "Section 4 - General Statistical Rules",
+    "Section 5 - Step-by-Step Analysis Flow",
+    "Section 5A",
+    "Primary estimand",
+    "Contents:",
+    "Statistical test -> Table #",
+  ];
+
+  it("carries none of it, in any of the three renderings", async () => {
+    const screen = screenText(SapPreview({ spec: sapFixture, shells: tablesFixture }));
+    const page = await pageText(
+      await buildSapDocx(sapFixture, tableNumbers(tablesFixture), { shells: tablesFixture }),
+    );
+    const md = buildSapMarkdown(sapFixture, tableNumbers(tablesFixture), { shells: tablesFixture });
+
+    for (const gone of NOT_IN_THE_HOUSE_FORMAT) {
+      for (const [name, text] of [["screen", screen], ["document", page], ["markdown", md]] as const) {
+        expect(text, `"${gone}" in the ${name}`).not.toContain(gone);
+      }
+    }
+  });
+
   it("heads the analysis map identically in all three renderings", async () => {
     // The Word file's fifth column said "Statistical test" while the screen and
     // the Markdown said "Statistical test -> Table #". Nothing compared them:

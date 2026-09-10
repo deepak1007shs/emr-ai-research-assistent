@@ -146,11 +146,6 @@ export function SapPreview({
       )}
 
       <DocSection title="Section 1 - Objectives as Answerable Questions">
-        <Note>
-          Every objective is phrased as a question, because a question forces you to name an
-          outcome and a predictor, which is exactly what the statistics need.
-        </Note>
-
         <DocHeading>Aim</DocHeading>
         <p className="text-sm leading-relaxed">{plain(spec.aim)}</p>
 
@@ -179,9 +174,6 @@ export function SapPreview({
       </DocSection>
 
       <DocSection title="Analysis Map">
-        <Note>
-          One row per objective, or per group of objectives that share an analysis. Every question is linked to its analysis, unadjusted and adjusted, AND to the empty results tables it will fill.
-        </Note>
         <DocTable headers={HEADERS}>
           {rows.map((row, i) => (
             <tr key={i}>
@@ -268,10 +260,6 @@ export function SapPreview({
       )}
 
       <DocSection title="Section 6 - Shell (Dummy) Tables">
-        <p className="text-xs leading-relaxed">
-          Every empty results table the thesis will contain, in the order it will appear. Cells
-          stay blank until the data arrive, and each table names the test that fills it.
-        </p>
         {/* Drawn here, not pointed at. This said the tables were in a separate
             document, and that document no longer exists: they are part of the
             plan. What is on screen is what the download contains. */}
@@ -287,10 +275,6 @@ export function SapPreview({
         )}
       </DocSection>
 
-      <Note>
-        Generated from the study specification. Do not edit this document: change the specification
-        and rebuild, or the analysis plan, the case record form and the shell tables will disagree.
-      </Note>
     </DocumentShell>
   );
 }
