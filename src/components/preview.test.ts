@@ -11,6 +11,7 @@ import { sapFixture } from "@/lib/sap/fixture.ts";
 import { chooseTest } from "@/lib/sap/choose-test.ts";
 import { crfFixture } from "@/lib/crf/fixture.ts";
 import { tablesFixture } from "@/lib/tables/fixture.ts";
+import { describe as describeTable } from "@/lib/tables/describe.ts";
 import { tableNumbers } from "@/lib/tables/types.ts";
 import type { ShellTablesSpec } from "@/lib/tables/types.ts";
 
@@ -96,7 +97,7 @@ describe("the SAP preview", () => {
   it("names every objective and every table the document does", async () => {
     const screen = screenText(SapPreview({ spec: sapFixture }));
     for (const objective of sapFixture.objectives) {
-      expect(screen).toContain(`${objective.id}:`);
+      expect(screen).toContain(`${objective.id}.`);
     }
     for (const analysis of sapFixture.analyses) {
       for (const tableId of analysis.table_ids) {
@@ -327,15 +328,46 @@ describe("the plan on screen is the plan you download", () => {
   ];
 
   it("carries none of it, in any of the three renderings", async () => {
-    const screen = screenText(SapPreview({ spec: sapFixture, shells: tablesFixture }));
+    // With an exploratory objective, because the fixture has none and a
+    // heading that never renders cannot fail a check that it is absent. The
+    // rest of the list is exercised by the fixture as it stands: it carries an
+    // estimand, rules, populations, steps, assumption checks and variables,
+    // which are what the dropped sections were built from.
+    const spec = structuredClone(sapFixture);
+    spec.objectives.push({
+      id: "E1",
+      tier: "exploratory",
+      intent: "descriptive",
+      question: "Does conversion differ by surgeon experience?",
+    });
+
+    const screen = screenText(SapPreview({ spec, shells: tablesFixture }));
     const page = await pageText(
-      await buildSapDocx(sapFixture, tableNumbers(tablesFixture), { shells: tablesFixture }),
+      await buildSapDocx(spec, tableNumbers(tablesFixture), { shells: tablesFixture }),
     );
-    const md = buildSapMarkdown(sapFixture, tableNumbers(tablesFixture), { shells: tablesFixture });
+    const md = buildSapMarkdown(spec, tableNumbers(tablesFixture), { shells: tablesFixture });
 
     for (const gone of NOT_IN_THE_HOUSE_FORMAT) {
       for (const [name, text] of [["screen", screen], ["document", page], ["markdown", md]] as const) {
         expect(text, `"${gone}" in the ${name}`).not.toContain(gone);
+      }
+    }
+  });
+
+  it("footnotes every table identically in all three renderings", async () => {
+    // The Markdown printed the test name alone, so it lost the denominator,
+    // what must not be reported there, the degrees of freedom and the
+    // missing-data rule - four sentences the Word file and the screen carry.
+    const n = tableNumbers(tablesFixture);
+    const screen = screenText(SapPreview({ spec: sapFixture, tableNumbers: n, shells: tablesFixture }));
+    const page = await pageText(await buildSapDocx(sapFixture, n, { shells: tablesFixture }));
+    const md = buildSapMarkdown(sapFixture, n, { shells: tablesFixture });
+
+    for (const table of tablesFixture.tables) {
+      const said = describeTable(table, (id, fallback) => tablesFixture.labels?.[id] ?? fallback).analysis;
+      if (!said) continue;
+      for (const [name, text] of [["screen", screen], ["document", page], ["markdown", md]] as const) {
+        expect(text, `table ${table.number}'s footnote in the ${name}`).toContain(said);
       }
     }
   });

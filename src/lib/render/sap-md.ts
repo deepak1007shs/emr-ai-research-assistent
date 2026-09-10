@@ -21,7 +21,7 @@ import {
 } from "../sap/types.ts";
 import { line, plain } from "./plain.ts";
 import { BLOCK_HEADING, BLOCK_ORDER } from "../tables/block-notes.ts";
-import { rowLabels } from "../tables/describe.ts";
+import { describe as describeTable, rowLabels } from "../tables/describe.ts";
 import type { ShellTablesSpec } from "../tables/types.ts";
 
 /**
@@ -70,7 +70,8 @@ export function buildSapMarkdown(
   push("# STATISTICAL ANALYSIS PLAN", "");
   if (short) push("*Objectives, outcomes and the analysis map*", "");
   push(`**${plain(spec.title)}**`, "");
-  if (spec.design || spec.setting) {
+  // The working sheet names them; the house format has no line for them.
+  if (short && (spec.design || spec.setting)) {
     // Joined on a full stop the design usually ends with already, which gave
     // "...modified radical mastectomy.. Department of General Surgery".
     const said = [spec.design, spec.setting]
@@ -252,7 +253,13 @@ export function buildSapMarkdown(
             push(`| ${cell(name)} |${columns.slice(1).map(() => "  |").join("")}`);
           }
           push("");
-          if (table.test_applied) push(`Footnote: test used = ${line(table.test_applied)}`, "");
+          // The same footnote the Word file prints, from the same describer.
+          // This printed `test_applied` alone, so the Markdown lost the
+          // denominator, what must not be reported here, the degrees of
+          // freedom and the missing-data rule - four sentences the other two
+          // renderings carry.
+          const said = describeTable(table, labelOf, columnOf).analysis;
+          if (said) push(`Footnote: test used = ${line(said)}`, "");
         }
       }
     } else {

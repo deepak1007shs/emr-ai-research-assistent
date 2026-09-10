@@ -1,4 +1,4 @@
-import { chooseTest, degreesOfFreedomNote } from "@/lib/sap/choose-test";
+import { chooseTest } from "@/lib/sap/choose-test";
 import { PICOT_COLUMNS, PICOT_HEADING, picotRows } from "@/lib/sap/picot";
 import {
   VARIABLE_LIST_COLUMNS,
@@ -14,7 +14,6 @@ import {
 } from "@/lib/render/analysis-cells";
 import {
   outcomeCell,
-  outcomeDefinition,
   outcomeIndex,
   variableIndex,
   type SapSpec,
@@ -109,21 +108,6 @@ export function SapPreview({
     };
   });
 
-  const adjusted = analyses.find((a) => (a.adjust_for_ids ?? []).length > 0);
-  const dfNote =
-    spec.expected_events !== undefined && adjusted
-      ? degreesOfFreedomNote(spec.expected_events, (adjusted.adjust_for_ids ?? []).length).note
-      : null;
-
-  // The five questions in full, under the map rather than inside its cells.
-  const measured = (spec.outcomes ?? []).filter((o) =>
-    analyses.some((a) => (a.outcome_ids ?? []).includes(o.id)),
-  );
-
-  const excluded = variables.filter(
-    (v) => (v.role === "mediator" || v.role === "collider") && v.exclusion_reason,
-  );
-
   return (
     <DocumentShell kind="Statistical Analysis Plan" title={plain(spec.title)}>
       {spec.picot && (
@@ -190,58 +174,6 @@ export function SapPreview({
           ))}
         </DocTable>
 
-        {measured.length > 0 && (
-          <div className="space-y-1.5">
-            <DocHeading>How each outcome is defined</DocHeading>
-            {measured.map((outcome) => (
-              <p key={outcome.id} className="text-xs leading-relaxed">
-                <span className="font-semibold">{plain(outcome.what)}.</span>{" "}
-                {plain(outcomeDefinition(outcome))}
-              </p>
-            ))}
-          </div>
-        )}
-
-        {reasons.size > 0 && (
-          <div className="space-y-1.5">
-            <DocHeading>Why each analysis</DocHeading>
-            {[...reasons].map(([test, why]) => (
-              <p key={test} className="text-xs leading-relaxed">
-                <span className="font-semibold">{test}:</span> {plain(why)}.
-              </p>
-            ))}
-          </div>
-        )}
-
-        {avoided.size > 0 && (
-          <div className="space-y-1.5">
-            <DocHeading>What must not be done</DocHeading>
-            {[...avoided].map(([test, avoid]) => (
-              <p key={test} className="text-xs leading-relaxed">
-                <span className="font-semibold">{test}:</span> {plain(avoid)}.
-              </p>
-            ))}
-          </div>
-        )}
-
-        {dfNote && (
-          <div className="space-y-1.5">
-            <DocHeading>Degrees of freedom</DocHeading>
-            <p className="text-xs leading-relaxed">{plain(dfNote)}</p>
-          </div>
-        )}
-
-        {excluded.length > 0 && (
-          <div className="space-y-1.5">
-            <DocHeading>Not adjusted for</DocHeading>
-            {excluded.map((v) => (
-              <p key={v.id} className="text-xs leading-relaxed">
-                {plain(`${v.label} is a ${v.role}. ${v.exclusion_reason}`)}
-              </p>
-            ))}
-            <p className="text-xs leading-relaxed">Neither enters any model.</p>
-          </div>
-        )}
       </DocSection>
 
       {variables.length > 0 && (
@@ -286,7 +218,7 @@ function ObjectiveList({ items }: { items: SapSpec["objectives"] }) {
         <li key={o.id} className="flex gap-2 text-sm leading-relaxed">
           <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-accent" />
           <span>
-            <span className="font-semibold">{o.id}: </span>
+            <span className="font-semibold">{o.id}. </span>
             {plain(o.question)}
           </span>
         </li>

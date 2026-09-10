@@ -119,7 +119,7 @@ function ShellTableBlock({
       </div>
 
       <dl className="mt-2">
-        {said.analysis && <Field label="Footnote: test used">{plain(said.analysis)}</Field>}
+        {said.analysis && <Field label="Footnote: test used =">{plain(said.analysis)}</Field>}
       </dl>
     </div>
   );
