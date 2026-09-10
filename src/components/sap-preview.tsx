@@ -40,7 +40,7 @@ import type { ShellTablesSpec } from "@/lib/tables/types";
  * contains, so a supervisor can check the plan without opening Word.
  */
 
-const HEADERS = ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical test -> Table #"];
+const HEADERS = ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical test"];
 
 export function SapPreview({
   spec,
@@ -126,10 +126,6 @@ export function SapPreview({
 
   return (
     <DocumentShell kind="Statistical Analysis Plan" title={plain(spec.title)}>
-      <p className="-mt-3 text-center text-xs text-muted italic">
-        {plain(`${spec.design}. ${spec.setting ?? ""}`)}
-      </p>
-
       {spec.picot && (
         <DocSection title={PICOT_HEADING}>
           <Note>

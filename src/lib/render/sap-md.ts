@@ -38,7 +38,7 @@ import type { ShellTablesSpec } from "../tables/types.ts";
  * second renderer that drifts is worse than no second renderer.
  */
 
-const HEADERS = ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical test -> Table #"];
+const HEADERS = ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical test"];
 
 /** A pipe inside a cell would end the column early. */
 const cell = (value: string) => line(value).replace(/\|/g, "\\|");
@@ -76,7 +76,13 @@ export function buildSapMarkdown(
   if (short) push("*Objectives, outcomes and the analysis map*", "");
   push(`**${plain(spec.title)}**`, "");
   if (spec.design || spec.setting) {
-    push(`*${plain([spec.design, spec.setting].filter(Boolean).join(". "))}*`, "");
+    // Joined on a full stop the design usually ends with already, which gave
+    // "...modified radical mastectomy.. Department of General Surgery".
+    const said = [spec.design, spec.setting]
+      .filter(Boolean)
+      .map((part) => String(part).trim().replace(/\.$/, ""))
+      .join(". ");
+    push(`*${plain(said)}.*`, "");
   }
 
   /* ---- the clinical question --------------------------------------- */

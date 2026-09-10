@@ -5,6 +5,7 @@ import { SapPreview } from "./sap-preview.tsx";
 import { CrfPreview } from "./crf-preview.tsx";
 import { ShellTableSection } from "./tables-preview.tsx";
 import { buildSapDocx } from "@/lib/render/sap-docx.ts";
+import { buildSapMarkdown } from "@/lib/render/sap-md.ts";
 import { buildCrfDocx } from "@/lib/render/crf-docx.ts";
 import { sapFixture } from "@/lib/sap/fixture.ts";
 import { chooseTest } from "@/lib/sap/choose-test.ts";
@@ -297,6 +298,32 @@ describe("the plan on screen is the plan you download", () => {
         expect(found, `${section} is out of order`).toBeGreaterThan(at);
         at = found;
       }
+    }
+  });
+
+  it("heads the analysis map identically in all three renderings", async () => {
+    // The Word file's fifth column said "Statistical test" while the screen and
+    // the Markdown said "Statistical test -> Table #". Nothing compared them:
+    // the section-order checks read headings, and the header row is not one.
+    const screen = screenText(SapPreview({ spec: sapFixture }));
+    const page = await pageText(await buildSapDocx(sapFixture));
+    const md = buildSapMarkdown(sapFixture);
+
+    for (const header of ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical test"]) {
+      for (const [name, text] of [["screen", screen], ["document", page], ["markdown", md]] as const) {
+        expect(text, `${header} in the ${name}`).toContain(header);
+      }
+    }
+    for (const text of [screen, page]) {
+      expect(text).not.toContain("Statistical test -> Table #");
+    }
+  });
+
+  it("prints the design and the setting in neither, since the format has no line for them", async () => {
+    const screen = screenText(SapPreview({ spec: sapFixture }));
+    const page = await pageText(await buildSapDocx(sapFixture));
+    for (const [name, text] of [["screen", screen], ["document", page]] as const) {
+      expect(text, `the design in the ${name}`).not.toContain(sapFixture.design);
     }
   });
 
