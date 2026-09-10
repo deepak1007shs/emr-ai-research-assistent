@@ -323,6 +323,7 @@ describe("the plan on screen is the plan you download", () => {
     "Primary estimand",
     "Contents:",
     "Statistical test -> Table #",
+    "Exploratory objectives (hypothesis-generating, not powered)",
   ];
 
   it("carries none of it, in any of the three renderings", async () => {

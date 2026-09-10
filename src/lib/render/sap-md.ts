@@ -114,7 +114,7 @@ export function buildSapMarkdown(
   };
   tier("Primary objective(s)", "primary");
   tier("Secondary objectives", "secondary");
-  tier("Exploratory objectives (hypothesis-generating, not powered)", "exploratory");
+  tier("Exploratory objectives", "exploratory");
 
   /* ---- the outcomes, in the short document only --------------------- */
 

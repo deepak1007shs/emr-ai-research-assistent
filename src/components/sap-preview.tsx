@@ -167,7 +167,7 @@ export function SapPreview({
         )}
         {exploratory.length > 0 && (
           <>
-            <DocHeading>Exploratory objectives (hypothesis-generating, not powered)</DocHeading>
+            <DocHeading>Exploratory objectives</DocHeading>
             <ObjectiveList items={exploratory} />
           </>
         )}
