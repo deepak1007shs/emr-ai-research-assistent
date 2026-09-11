@@ -113,6 +113,10 @@ function shapeOf(
   // A diagnostic study never compares two groups. Its question is how well one
   // measurement agrees with a reference standard, and that is its own row.
   if (facts.design === "diagnostic_accuracy") return "diagnostic";
+  // The one question where the data may choose the variables. Judged by
+  // discrimination, calibration and validation rather than by the p value of
+  // any one predictor.
+  if (facts.question_type === "prediction") return "prediction";
   // A competing event changes the analysis more than the number of groups
   // does, so it is asked first. One minus the Kaplan-Meier estimate overstates
   // the risk whenever something else can get there first, and that is the sixth
@@ -252,6 +256,12 @@ export function buildAnalysis(
     ? facts.sample_size.per_group * Math.max(facts.groups.length, 1)
     : null;
 
+  if (!facts.exposure_fixed_at_baseline && facts.groups.length >= 2) {
+    todos.push(
+      "The exposure is defined by something that happens during follow-up, so everyone in the exposed group had to survive long enough to be exposed. Analysed as a baseline group it makes the exposure look protective when it does nothing. The exposure enters the model as a time-varying covariate, with follow-up counted from the same time zero in both groups; say which time zero that is.",
+    );
+  }
+
   if (clusteredByDesign(facts)) {
     todos.push(
       "State how many clusters were randomised and the average cluster size, and the intracluster correlation the sample size assumed. Below about 30 clusters the robust variance is optimistic, and the confidence intervals need a small-sample correction or a cluster bootstrap.",
@@ -315,9 +325,10 @@ export function buildAnalysis(
     /* ---- C: for a binary outcome, the model the frequency owes ------ */
     // Decision table C chooses between the risk-ratio models by how common the
     // event is. It has nothing to say about a matched design, whose model is
-    // fixed by the matching, or about a diagnostic one, which estimates
-    // accuracy rather than an effect.
-    const frequencyDecides = !["paired", "diagnostic"].includes(shape);
+    // fixed by the matching; about a diagnostic one, which estimates accuracy
+    // rather than an effect; or about a prediction model, which is judged by
+    // how well it separates people rather than by the size of any one effect.
+    const frequencyDecides = !["paired", "diagnostic", "prediction"].includes(shape);
 
     if (dataType === "binary" && adjustedModel && frequencyDecides) {
       const clustered = variable.timepoints.length > 1 || clusteredByDesign(facts);
@@ -390,6 +401,27 @@ export function buildAnalysis(
       );
     }
 
+    /* ---- the random effects a repeated model owes -------------------- */
+    // A multicentre study has a second level above the participant. Everyone in
+    // one centre is alike for reasons that have nothing to do with the arm, and
+    // a model with only a participant intercept attributes that to the arm.
+    if (shape === "repeated" && adjustedModel && clusteredByDesign(facts)) {
+      adjustedModel = adjustedModel.replace(
+        "a random intercept for each participant",
+        "a random intercept for each participant and for each centre",
+      );
+    }
+
+    /* ---- a row that is not a participant ----------------------------- */
+    // Two eyes, several lesions, each tooth. The rows from one participant are
+    // alike, and analysing them as separate participants gives standard errors
+    // that are too small and p values that are too easily believed.
+    if (facts.unit_of_analysis.repeats_within_participant && adjustedModel) {
+      if (!/robust|random intercept for each participant/.test(adjustedModel)) {
+        adjustedModel = `${adjustedModel}, with a random intercept for each participant because one participant contributes more than one ${facts.unit_of_analysis.unit}`;
+      }
+    }
+
     /* ---- a cluster trial's rows are not independent ------------------ */
     // The fourth of the eight commonest mistakes: rows that sit inside clinics,
     // wards or villages analysed as if each were a separate person. It is the
@@ -404,10 +436,9 @@ export function buildAnalysis(
     // model for that is a mixed model with time in it. "group by time" in a
     // study with one group names an interaction with nothing.
     if (facts.groups.length < 2 && adjustedModel) {
-      adjustedModel = adjustedModel.replace(
-        /with a group-by-time term/,
-        "with time as a fixed effect",
-      );
+      adjustedModel = adjustedModel
+        .replace(/fixed effects for group, visit, the group-by-visit interaction and /, "fixed effects for visit and ")
+        .replace(/with a group-by-time term/, "with time as a fixed effect");
     }
 
     /* ---- the two exceptions to unadjusted then adjusted ------------- */
@@ -420,10 +451,10 @@ export function buildAnalysis(
       ...(explore ? explore.reuses.slice(1) : []),
     ];
 
-    // A trajectory model in a randomised trial carries no covariates: rule 4.4
-    // writes it as outcome by group and time with a random intercept, and
-    // randomisation is what makes that enough. An observational study has no
-    // such protection and keeps its adjustment set.
+    // A trajectory model in a randomised trial carries no adjustment set, and
+    // randomisation is what makes that enough. It still carries the baseline
+    // value, which the model names as a fixed effect in its own right. An
+    // observational study has no such protection and keeps the whole set.
     const randomised = design === "trial" && facts.allocation.ratio.trim() !== "";
     const bareTrajectory = objective.kind === "shape" && randomised;
 
@@ -438,12 +469,14 @@ export function buildAnalysis(
       predictors,
       data_type: dataType,
       unit_of_analysis: clusterTrial
-        ? "per participant, inside a randomised cluster"
-        : "per participant",
+        ? `per ${facts.unit_of_analysis.unit}, inside a randomised cluster`
+        : `per ${facts.unit_of_analysis.unit}`,
       count:
         shape === "repeated"
           ? `${chain.time.length} readings per participant`
-          : "1 value per participant",
+          : facts.unit_of_analysis.repeats_within_participant
+            ? `more than one ${facts.unit_of_analysis.unit} per participant`
+            : "1 value per participant",
       expected_frequency: chain.expected_frequency,
       effect_measure: safety
         ? facts.groups.length >= 2

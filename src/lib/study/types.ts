@@ -282,6 +282,42 @@ export type FactsSheet = {
   comparator: string;
   /** The exact label, as prose: "two-arm parallel-group open-label superiority RCT". */
   design_label: string;
+  /**
+   * What the objective is actually asking for.
+   *
+   * The same model can be right or wrong depending on this. An effect or
+   * association question takes its variables from clinical knowledge, enters
+   * them together and is judged by the estimate; a prediction question may let
+   * the data choose the variables and is judged by discrimination, calibration
+   * and validation. A variable that helps prediction can wreck a causal
+   * estimate, which is why this is settled before any model is named.
+   */
+  question_type: "effect" | "association" | "prediction";
+  /**
+   * What one row of the data is, and how many rows a participant gives.
+   *
+   * Usually one row per person. Where it is an eye, a lesion, a tooth or a
+   * reading, two rows from one participant are alike, and analysing them as two
+   * participants gives standard errors that are too small and p values that are
+   * too easily believed.
+   */
+  unit_of_analysis: {
+    /** "participant", "eye", "lesion", "tooth", "reading". */
+    unit: string;
+    /** True where one participant contributes more than one row. */
+    repeats_within_participant: boolean;
+  };
+  /**
+   * True where everyone's exposure is settled at the moment follow-up starts.
+   *
+   * False for an exposure defined by something that happens during follow-up:
+   * "patients who received drug X during admission". Those patients had to
+   * survive long enough to receive it, so the untreated group carries the early
+   * deaths and the treatment looks protective when it does nothing. That is
+   * immortal-time bias, and the repair is to let the exposure change over time
+   * in the model rather than to fix it at baseline.
+   */
+  exposure_fixed_at_baseline: boolean;
   guideline: string;
   frame: Frame;
   groups: Group[];

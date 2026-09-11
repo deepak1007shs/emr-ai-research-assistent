@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { idaPreg } from "../facts/fixture.ts";
 import type { FactsSheet } from "../study/types.ts";
+import { effectMeasures } from "../analysis/decision-tables.ts";
 import { blockers, buildSap, warnings } from "./build.ts";
 import { renderSapMarkdown } from "./markdown.ts";
 
@@ -179,8 +180,8 @@ describe("what each shape is owed", () => {
     // The trajectory question survives, because one group still moves over
     // time. What it loses is the interaction with a group that is not there.
     const shape = build.analysis.find((r) => r.objective === "P1b")!;
-    expect(shape.adjusted!.model).toContain("time as a fixed effect");
-    expect(shape.adjusted!.model).not.toContain("group-by-time");
+    expect(shape.adjusted!.model).toContain("fixed effects for visit and");
+    expect(shape.adjusted!.model).not.toContain("group-by-visit");
   });
 
   it("counts a harm rather than differencing it where there is one group", () => {
@@ -442,5 +443,143 @@ describe("the model-choice deck", () => {
       exploratory_ideas: [],
     };
     expect(warnings(buildSap(thin)).map((c) => c.id)).toContain("S4-5");
+  });
+});
+
+/**
+ * The seven factors that decide the model, each fixed before any data is seen.
+ * Factor 1 is decision table B and is exercised everywhere above; these are the
+ * other six, and the mixed-model specification that goes with factor 5.
+ */
+describe("the seven factors", () => {
+  it("2: never holds constant something measured after the exposure", () => {
+    // A mediator sits on the path from the exposure to the outcome, and
+    // adjusting for it removes the effect being estimated. Nothing in the
+    // finished document shows that it happened.
+    const mediated: FactsSheet = {
+      ...idaPreg,
+      covariates: [
+        { measure: "adherence", at: "W4", inferred: false },
+        ...idaPreg.covariates,
+      ],
+    };
+    const build = buildSap(mediated);
+    expect(blockers(build).map((c) => c.id)).toContain("S4-7");
+    expect(blockers(build).find((c) => c.id === "S4-7")!.message).toContain(
+      "mediator",
+    );
+    expect(blockers(buildSap(idaPreg)).map((c) => c.id)).not.toContain("S4-7");
+  });
+
+  it("2: lets the data choose the variables for a prediction question only", () => {
+    const predicting: FactsSheet = {
+      ...idaPreg,
+      question_type: "prediction",
+      design: "prognostic_model",
+      frame: "PECO",
+      guideline: "TRIPOD",
+      title: "A score to predict failure of oral iron in pregnancy",
+      primary: {
+        ...idaPreg.primary,
+        what: "Failure to reach haemoglobin of 11.0 g/dL by week 6",
+        type: "binary",
+        unit: "Yes / No",
+        time: ["W6"],
+        expected_frequency: 0.35,
+      },
+      secondary: [],
+      exploratory_ideas: [],
+    };
+    const build = buildSap(predicting);
+    const primary = build.analysis.find((r) => r.objective === "P1")!;
+    expect(primary.adjusted!.model).toContain("LASSO");
+    expect(primary.unadjusted!.test).toContain("C-statistic");
+    expect(build.tables.map((t) => t.kind)).toContain("calibration");
+
+    // And an effect question never gets it: a variable that improves
+    // prediction can wreck a causal estimate.
+    expect(
+      JSON.stringify(buildSap(idaPreg).analysis),
+    ).not.toContain("LASSO");
+  });
+
+  it("3: catches a sample size that assumed a different result", () => {
+    const mismatched: FactsSheet = {
+      ...idaPreg,
+      sample_size: {
+        ...idaPreg.sample_size,
+        formula_family: "two-proportion power formula",
+      },
+    };
+    const warned = warnings(buildSap(mismatched));
+    expect(warned.map((c) => c.id)).toContain("S4-8");
+    expect(warned.find((c) => c.id === "S4-8")!.message).toContain(
+      "two-proportion power formula",
+    );
+    // The fixture assumed two means and estimates a mean difference.
+    expect(warnings(buildSap(idaPreg)).map((c) => c.id)).not.toContain("S4-8");
+  });
+
+  it("5: clusters on the participant where a participant gives several rows", () => {
+    // Two eyes, several lesions, each tooth. The rows are alike, and analysing
+    // them as separate participants gives standard errors that are too small.
+    const eyes: FactsSheet = {
+      ...idaPreg,
+      unit_of_analysis: { unit: "eye", repeats_within_participant: true },
+    };
+    const primary = buildSap(eyes).analysis.find((r) => r.objective === "P1a")!;
+    expect(primary.adjusted!.model).toContain(
+      "random intercept for each participant",
+    );
+    expect(primary.unit_of_analysis).toBe("per eye");
+    expect(primary.count).toBe("more than one eye per participant");
+  });
+
+  it("5: states all seven things a mixed model owes", () => {
+    const model = buildSap(idaPreg).analysis.find((r) => r.objective === "P1b")!
+      .adjusted!.model;
+    expect(model).toContain("long format, one row per participant per visit");
+    expect(model).toContain("fixed effects for group, visit, the group-by-visit interaction and the baseline value");
+    expect(model).toContain("random intercept for each participant");
+    expect(model).toContain("visit entered as a category");
+    expect(model).toContain("unstructured covariance matrix");
+    expect(model).toContain("missing at random");
+  });
+
+  it("5: adds a centre level where the study is multicentre", () => {
+    expect(
+      buildSap(clusterTrial).analysis.find((r) => r.objective === "P1b")!.adjusted!
+        .model,
+    ).toContain("for each participant and for each centre");
+  });
+
+  it("6: catches an exposure that begins after follow-up starts", () => {
+    // The treated group had to survive long enough to be treated, so the
+    // untreated group carries the early deaths and the treatment looks
+    // protective when it does nothing.
+    const immortal: FactsSheet = {
+      ...idaPreg,
+      design: "cohort",
+      frame: "PECO",
+      guideline: "STROBE",
+      allocation: { ratio: "", block: null, strata: [], matched: null },
+      exposure_fixed_at_baseline: false,
+    };
+    const todos = buildSap(immortal).todos.join(" ");
+    expect(todos).toContain("time-varying covariate");
+    expect(todos).toContain("same time zero");
+    expect(buildSap(idaPreg).todos.join(" ")).not.toContain("time-varying");
+  });
+
+  it("names the effect measure an ordered scale owes, and refuses the cut", () => {
+    const measure = buildSap(idaPreg);
+    void measure;
+    // Read straight from decision table A, where the wording lives.
+    const rows = effectMeasures();
+    const ordinal = rows.find((r) => r.Key === "*|ordinal")!;
+    expect(ordinal["Effect measure"]).toContain("Common odds ratio");
+    expect(ordinal.Never).toContain("cutting the scale into two");
+    const nominal = rows.find((r) => r.Key === "*|nominal")!;
+    expect(nominal["Effect measure"]).toContain("each category");
   });
 });

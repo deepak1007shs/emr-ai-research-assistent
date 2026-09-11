@@ -72,7 +72,7 @@ describe("Step 4, the Analysis Map", () => {
 
   it("tests a trajectory once, not once per visit", () => {
     expect(row("P1b").unadjusted!.test).toContain("no p value");
-    expect(row("P1b").adjusted!.model).toContain("group-by-time");
+    expect(row("P1b").adjusted!.model).toContain("group-by-visit interaction");
     expect(row("P1b").count).toBe("4 readings per participant");
   });
 

@@ -357,6 +357,7 @@ function situationOf(
   // a yes or no like any other, and drawing it as one gives a summary table
   // where the plan owes a two-by-two, sensitivity, specificity and calibration.
   if (facts.design === "diagnostic_accuracy") return "diagnostic";
+  if (facts.question_type === "prediction") return "prediction";
   if (isSafety(chain)) return "safety";
   if (rows.every((r) => r.exception === "estimation")) return "estimation";
   if (chain.type === "time_to_event") {
@@ -537,14 +538,23 @@ function drawTable(args: DrawArgs): ShellTable {
       };
 
     case "rate_of_change": {
-      const perWeek = `${outcome?.unit ?? measures[0]?.unit ?? ""} per ${timeUnit(chain.time)}`;
+      const unit = outcome?.unit ?? measures[0]?.unit ?? "";
+      const rate = `${unit} per ${timeUnit(chain.time)}`;
+      const last = visitLabel(facts, chain.time[chain.time.length - 1]);
+      // The interaction term is the main result, and the difference between the
+      // arms at the visit the study is about is the number a reader wants next.
+      // Reporting only the slopes answers how fast and never how far.
       return {
         ...base,
         title: `Rate of change in ${lower(measures[0]?.label ?? chain.what)} over the study period`,
-        columns: ["Term", `Estimate (${perWeek})`, "95% CI", "p"],
+        // The units differ by row - a slope is per unit of time and a contrast
+        // is not - so they sit in the row labels rather than in one heading
+        // that would be wrong for half the rows.
+        columns: ["Term", "Estimate", "95% CI", "p"],
         rows: [
-          ...codes.map((code) => blank(`Slope - ${code}`)),
-          blank(`Slope difference (${versus}) = ${ARM} by time`),
+          ...codes.map((code) => blank(`Slope, ${code} (${rate})`)),
+          blank(`Slope difference, ${versus} (${rate}) = ${ARM} by visit`),
+          blank(`Difference between arms at ${lower(last)} (${unit})`),
         ],
         footnote: footnoteFor(shape?.adjusted ?? null, shape?.adjusted?.model),
         fills: shape ? [shape.objective] : [],
@@ -709,6 +719,23 @@ function drawTable(args: DrawArgs): ShellTable {
         footnote:
           "predictive values depend on how common the condition is here and do not transfer to a setting with a different prevalence",
         fills: [level.objective],
+      };
+
+    case "prediction_model":
+      return {
+        ...base,
+        title: `The model predicting ${lower(chain.what)}: predictors retained, and how well it discriminates`,
+        columns: ["Predictor", "Coefficient", `${level.effect_measure.split(":")[0]} (95% CI)`],
+        rows: [
+          ...facts.covariates.map((c) =>
+            blank(byName.get(c.measure)?.label ?? c.measure),
+          ),
+          blank("**TODO:** list every candidate predictor offered to the model, not only those it kept"),
+          blank(`Discrimination: ${lower(level.unadjusted?.test ?? "the C-statistic")}`),
+        ],
+        footnote: footnoteFor(level.adjusted, level.adjusted?.model),
+        fills: [level.objective],
+        variables: facts.covariates.map((c) => c.measure),
       };
 
     case "calibration":

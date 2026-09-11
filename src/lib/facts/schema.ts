@@ -61,13 +61,24 @@ export const FACTS_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: [
-    "title", "aim", "hypothesis", "population", "intervention", "comparator", "design", "design_label", "guideline", "frame", "groups", "allocation",
+    "title", "aim", "hypothesis", "question_type", "unit_of_analysis", "exposure_fixed_at_baseline", "population", "intervention", "comparator", "design", "design_label", "guideline", "frame", "groups", "allocation",
     "timepoints", "measures", "visit_schedule", "primary", "secondary", "exploratory_ideas", "covariates",
     "proforma", "sample_size", "stated_rules", "open_items",
   ],
   properties: {
     title: { ...str, description: "The protocol's title, word for word, including the design phrase after the colon where it has one." },
     aim: { ...str, description: "The aim, in the protocol's own words." },
+    question_type: { type: "string", enum: ["effect", "association", "prediction"], description: "Read the wording of the objective. 'The effect of X on Y' or 'the association of X with Y' is effect or association. 'To develop a score to predict Y' is prediction, and is judged by discrimination and calibration rather than by the p value of each variable." },
+    unit_of_analysis: {
+      type: "object", additionalProperties: false,
+      required: ["unit", "repeats_within_participant"],
+      description: "What one row of the data is. Read the outcome definition: an outcome measured per eye, per lesion, per tooth or per reading gives more than one row per participant.",
+      properties: {
+        unit: { ...str, description: "'participant', 'eye', 'lesion', 'tooth', 'reading'." },
+        repeats_within_participant: { type: "boolean", description: "True where one participant contributes more than one row, apart from repeat visits, which the visit schedule already records." },
+      },
+    },
+    exposure_fixed_at_baseline: { type: "boolean", description: "True where everyone's group or exposure is settled at the moment follow-up starts. False where it is defined by something that happens during follow-up, such as 'patients who received drug X during admission', because those patients had to survive long enough to receive it." },
     hypothesis: { type: ["string", "null"], description: "The hypothesis in the protocol's own words, or null where there is none. Never write one that is not there." },
     population: {
       type: "object", additionalProperties: false,
@@ -221,6 +232,12 @@ export const factsSchema = z
     title: z.string(),
     aim: z.string(),
     hypothesis: z.string().nullable(),
+    question_type: z.enum(["effect", "association", "prediction"]),
+    unit_of_analysis: z.object({
+      unit: z.string(),
+      repeats_within_participant: z.boolean(),
+    }),
+    exposure_fixed_at_baseline: z.boolean(),
     population: z.object({
       eligibility: z.string(),
       setting: z.string(),

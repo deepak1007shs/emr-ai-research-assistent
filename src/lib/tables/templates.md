@@ -26,6 +26,7 @@ attaches to the table before it and takes that table's number with a letter.
 | time_to_event_competing | Time to an event, with a competing event | cumulative_incidence, overlap, cox, fit |
 | count_outcome | Counts | summary, unadjusted, adjusted, fit |
 | diagnostic | A test against a reference standard | two_by_two, accuracy, calibration |
+| prediction | A score built to predict an outcome | prediction_model, calibration |
 | safety | Harms, reported and not modelled | safety |
 | correlation | Two continuous variables | correlation |
 | subgroup | An effect asked separately within levels of something | subgroup |

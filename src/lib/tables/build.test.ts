@@ -113,7 +113,21 @@ describe("Step 6, the shell tables", () => {
   });
 
   it("writes the slope in the unit the visit codes imply", () => {
-    expect(table("6").columns[1]).toBe("Estimate (g/dL per week)");
+    // The unit is on the row and not on the column, because the contrast at
+    // the last visit is in g/dL and the slopes are in g/dL per week, and one
+    // heading cannot be right for both.
+    const labels = table("6").rows.map((r) => r.label);
+    expect(labels).toContain("Slope, FCM (g/dL per week)");
+    expect(labels).toContain(
+      "Slope difference, FCM minus Oral (g/dL per week) = arm by visit",
+    );
+  });
+
+  it("reports how far apart the arms are at the visit the study is about", () => {
+    // The interaction says how fast. On its own it never says how far.
+    expect(table("6").rows.map((r) => r.label)).toContain(
+      "Difference between arms at week 6 (g/dL)",
+    );
   });
 
   it("takes the model's own diagnostics into its fit table", () => {

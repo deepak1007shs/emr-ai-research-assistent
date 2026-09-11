@@ -24,5 +24,5 @@ above the general ones.
 | *\|count | Counts over person-time | Incidence rate ratio | Rate difference | |
 | *\|continuous | Continuous outcome | Mean difference | | |
 | *\|binary | Binary outcome | Risk ratio | Risk difference | |
-| *\|ordinal | Ordinal outcome | Difference in distribution | Median difference with a 95% confidence interval | Treating the scores as if the gaps between them were equal |
-| *\|nominal | Nominal outcome | Difference in proportions | | |
+| *\|ordinal | Ordinal outcome | Common odds ratio, across every cut of the scale | Median difference with a 95% confidence interval | Treating the scores as if the gaps between them were equal; cutting the scale into two |
+| *\|nominal | Nominal outcome | Odds ratio for each category against the reference category | Difference in proportions | One overall p value with no estimate per category |

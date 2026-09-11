@@ -40,7 +40,7 @@ describe("the decision tables", () => {
     expect(repeated.length).toBeGreaterThan(2);
     for (const row of repeated) {
       expect(row["Unadjusted test"]).toContain("no p value");
-      expect(row["Adjusted model"]).toContain("group-by-time");
+      expect(row["Adjusted model"]).toMatch(/group-by-time|group-by-visit/);
     }
   });
 

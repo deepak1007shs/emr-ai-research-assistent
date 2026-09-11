@@ -2,7 +2,11 @@
 
 `Key` is `<data type>/<shape of the comparison>`, matched exactly. The shapes
 are `two_groups`, `many_groups`, `paired`, `repeated`, `single`, `pair`,
-`competing` and `diagnostic`.
+`competing`, `diagnostic` and `prediction`.
+
+A prediction row is the one place the data may choose the variables. Every other
+row takes them from clinical knowledge and enters them together, because a
+variable that improves prediction can wreck a causal estimate.
 
 An empty cell means there is none: a paired continuous outcome has no adjusted
 model in this table, and a correlation has no adjusted model at all.
@@ -17,7 +21,7 @@ group-by-time term.
 | continuous/two_groups | Continuous, two independent groups | Independent t-test | Welch's t-test where the variances differ; Mann-Whitney with the Hodges-Lehmann difference where the outcome is skewed | Linear regression, as analysis of covariance with the baseline value | |
 | continuous/many_groups | Continuous, more than two groups | One-way analysis of variance | Kruskal-Wallis where the outcome is skewed | Linear regression | |
 | continuous/paired | Continuous, the same person measured twice | Paired t-test | Wilcoxon signed-rank where the differences are skewed | | |
-| continuous/repeated | Continuous, measured three times or more | Descriptive at each visit, with no p value | | Linear mixed model with a group-by-time term, random intercept for each person | Generalised estimating equations where the question is about the group average rather than about a participant; simplify the random effects, or transform the outcome, where the model will not converge |
+| continuous/repeated | Continuous, measured three times or more | Descriptive at each visit, with no p value | | Linear mixed model on the repeated measurements in long format, one row per participant per visit: fixed effects for group, visit, the group-by-visit interaction and the baseline value; a random intercept for each participant; visit entered as a category; an unstructured covariance matrix; missing visits assumed missing at random | Generalised estimating equations where the question is about the group average rather than about a participant; simplify the random effects, or transform the outcome, where the model will not converge |
 | continuous/single | Continuous, one group | Mean with a 95% confidence interval | Median with the interquartile range where the outcome is skewed | | |
 | continuous/pair | Two continuous variables | Pearson correlation with a 95% confidence interval | Spearman correlation where either is skewed | | |
 | binary/two_groups | Binary, independent groups | Chi-square test | Fisher's exact test where any expected count is below 5 | Log-binomial regression | Modified Poisson regression with robust variance |
@@ -25,6 +29,9 @@ group-by-time term.
 | binary/paired | Binary, the same person twice | McNemar's test | Exact McNemar where the discordant pairs are few | Conditional logistic regression | |
 | binary/repeated | Binary, measured three times or more | Proportion at each visit, with no p value | | Generalised estimating equations with a group-by-time term, robust variance clustered on the person | Random-intercept logistic regression |
 | binary/single | Binary, one group | Proportion with a 95% confidence interval, by the Wilson method | | | |
+| binary/prediction | A score built to predict a yes-or-no outcome | Discrimination: the C-statistic with a 95% confidence interval | | Logistic regression with the predictors chosen by LASSO, the penalty tuned by cross-validation, and the coefficients reported on the retained predictors | Ridge or elastic net where the predictors are strongly correlated |
+| time_to_event/prediction | A score built to predict the time to an event | Discrimination: Harrell's C with a 95% confidence interval | | Cox regression with the predictors chosen by LASSO, the penalty tuned by cross-validation | Ridge or elastic net where the predictors are strongly correlated |
+| continuous/prediction | A score built to predict a measured number | Discrimination: the root mean squared error and R-squared | | Linear regression with the predictors chosen by LASSO, the penalty tuned by cross-validation | Ridge or elastic net where the predictors are strongly correlated |
 | binary/diagnostic | An index test against a reference standard | Sensitivity, specificity, predictive values and likelihood ratios with exact binomial confidence intervals, and the area under the curve with a DeLong interval | | Calibration: the calibration slope, calibration in the large and the Brier score | Bootstrap optimism correction where the cut-off was chosen in these data |
 | ordinal/two_groups | Ordinal | Mann-Whitney test | Jonckheere-Terpstra where the groups are ordered and a trend is asked for | Cumulative-link (ordinal) regression | |
 | ordinal/many_groups | Ordinal, more than two groups | Kruskal-Wallis test | Jonckheere-Terpstra where the groups are ordered | Cumulative-link (ordinal) regression | |

@@ -18,6 +18,9 @@ import type { FactsSheet } from "../study/types.ts";
 export const idaPreg: FactsSheet = {
   title:
     "Intravenous ferric carboxymaltose versus oral ferrous ascorbate for the rise in haemoglobin in pregnant women with iron-deficiency anaemia: a randomised controlled trial",
+  question_type: "effect",
+  unit_of_analysis: { unit: "participant", repeats_within_participant: false },
+  exposure_fixed_at_baseline: true,
   aim: "To compare intravenous ferric carboxymaltose with oral ferrous ascorbate for the correction of iron-deficiency anaemia in pregnancy.",
   hypothesis:
     "A single infusion of ferric carboxymaltose raises haemoglobin faster and further than six weeks of oral iron, and the difference is larger in women on a vegetarian diet.",

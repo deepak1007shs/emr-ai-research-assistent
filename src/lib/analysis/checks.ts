@@ -158,5 +158,55 @@ export function step4Checks(
         },
   );
 
+  /* S4-7: nothing on the path from the exposure to the outcome. */
+  const first = facts.timepoints[0] ?? "";
+  const mediators = rows.flatMap((row) =>
+    (row.adjusted?.covariates ?? [])
+      .filter((covariate) => {
+        const variable = byName.get(covariate.var);
+        if (!variable) return false;
+        // A covariate taken at the first visit is measured before anything
+        // happened to the participant, so it cannot be on the path. One taken
+        // later may be, and the plan has to say it is not.
+        const takenAt = covariate.at ?? variable.timepoints[0] ?? first;
+        return takenAt !== first && variable.timepoints.length > 0;
+      })
+      .map((covariate) => `${row.objective}: ${covariate.var}`),
+  );
+  results.push(
+    mediators.length === 0
+      ? ok("S4-7", "No adjusted model holds constant anything measured after the exposure.")
+      : {
+          id: "S4-7",
+          pass: false,
+          failing: mediators,
+          message: `${mediators.join("; ")} is measured after the exposure and held constant by the model. Where it sits on the path from the exposure to the outcome it is a mediator, and adjusting for it removes the very effect being estimated. Take it out, or say in the plan why it cannot be on that path.`,
+        },
+  );
+
+  /* S4-8: the sample size assumed the result the analysis estimates. */
+  const primary = rows.find((r) => r.objective.startsWith("P1"));
+  const assumed = facts.sample_size.formula_family.toLowerCase();
+  const FAMILY: [RegExp, RegExp][] = [
+    [/two.mean|mean difference|t.test/, /mean difference|ratio of geometric means/i],
+    [/two.proportion|proportion|chi.square/, /risk ratio|odds ratio|prevalence ratio|risk difference/i],
+    [/survival|log.rank|hazard/, /hazard ratio/i],
+    [/rate|poisson/, /rate ratio/i],
+    [/correlation/, /correlation/i],
+  ];
+  const stated = FAMILY.find(([formula]) => formula.test(assumed));
+  const agrees =
+    !primary || !assumed.trim() || !stated || stated[1].test(primary.effect_measure);
+  results.push(
+    agrees
+      ? ok("S4-8", "The effect the sample size assumed is the effect the analysis estimates.")
+      : {
+          id: "S4-8",
+          pass: false,
+          failing: [primary!.objective],
+          message: `The sample size was calculated from a ${facts.sample_size.formula_family} and the primary analysis estimates ${primary!.effect_measure.toLowerCase()}. One of the two is wrong, and neither section shows it on its own.`,
+        },
+  );
+
   return results;
 }

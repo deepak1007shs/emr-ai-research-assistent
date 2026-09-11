@@ -97,6 +97,16 @@ export const CHECKS: Check[] = [
   // measured, and the loss is invisible once the outcome is a yes or no.
   { id: "S4-6", step: "step4", type: "warn",
     rule: "No outcome dichotomises an ordered scale without the ordinal analysis beside it." },
+  // Also not in the written process, and the one that changes an estimate
+  // rather than a presentation: adjusting for something on the path from the
+  // exposure to the outcome removes the very effect being measured.
+  { id: "S4-7", step: "step4", type: "block",
+    rule: "No adjusted model holds constant a variable measured after the exposure, which would be a mediator." },
+  // The sample size assumed a result. A plan that estimates a different one has
+  // either the wrong model or the wrong sample size, and neither is visible
+  // from either section alone.
+  { id: "S4-8", step: "step4", type: "warn",
+    rule: "The effect the sample-size calculation assumed is the effect the primary analysis estimates." },
 
   /* ---- Step 5: rules ------------------------------------------------ */
   { id: "S5-1", step: "step5", type: "block",
