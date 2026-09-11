@@ -344,6 +344,19 @@ const isRandomised = (facts: FactsSheet) =>
   facts.design === "non_inferiority_trial";
 
 const label = (chain: OutcomeChain) => chain.what;
+
+/** "Median follow-up, days (95% CI)" rather than two parentheses in a row. */
+const withUnit = (
+  text: string,
+  variable: Variable | undefined,
+  tail: string,
+) => (variable?.unit ? `${text}, ${variable.unit} ${tail}` : `${text} ${tail}`);
+
+/** Items down the side, groups across the top. */
+const survivalColumns = (codes: string[], comparative: boolean) => [
+  "Item",
+  ...(comparative && codes.length ? codes : ["All participants"]),
+];
 const label2 = (variable: Variable | undefined) => variable?.label ?? "Outcome";
 
 /** Which row of the template file this outcome reads. */
@@ -629,43 +642,65 @@ function drawTable(args: DrawArgs): ShellTable {
         fills: [level.objective],
       };
 
-    case "survival":
+    case "survival": {
       return {
         ...base,
         title: `${chain.what} by ${comparative ? "arm" : "group"}`,
-        columns: [
-          comparative ? "Arm" : "Group",
-          "Events / n",
-          `Median ${lower(chain.what)} (95% CI)`,
-          ...(comparative ? ["Log-rank p"] : []),
+        // Items down the side and arms across the top, as a published survival
+        // table is laid out. It is the only shape that takes any number of
+        // horizons without the table growing a column for each.
+        columns: survivalColumns(codes, comparative),
+        rows: [
+          blank("Participants, n"),
+          blank("Events, n (%)"),
+          blank("Censored, n (%)"),
+          // Computed by the reverse Kaplan-Meier method, with the censoring
+          // indicator reversed. The median of the observed follow-up times is
+          // not the same number: it is shortened by everyone who had the event
+          // early, which is exactly the group with the least follow-up.
+          blank(withUnit("Median follow-up", outcome, "(95% CI)")),
+          blank(withUnit(`Median ${lower(chain.what)}`, outcome, "(95% CI)")),
+          ...chain.time.map((code) =>
+            blank(`Survival at ${lower(visitLabel(facts, code))}, % (95% CI)`),
+          ),
+          ...(comparative ? [blank("Log-rank test, p")] : []),
         ],
-        rows: codes.length
-          ? codes.map((code) => blank(code))
-          : [blank("All participants")],
-        footnote: footnoteFor(level.unadjusted),
+        footnote: `${footnoteFor(level.unadjusted)}. The median is the time at which the curve crosses 50 per cent, and is not reached where fewer than half have the event. Median follow-up by the reverse Kaplan-Meier method, with the censoring indicator reversed, and not as the median of the observed follow-up times. Survival at each time point read off the same curve, with Greenwood confidence intervals`,
         fills: [level.objective],
       };
+    }
 
-    case "cumulative_incidence":
+    case "cumulative_incidence": {
       // Never one minus the Kaplan-Meier estimate. Where something else can
       // happen first, that overstates the risk of the event being studied, and
       // it is the sixth of the deck's eight commonest mistakes.
+      const other = lower(chain.competing_event ?? "the competing event");
       return {
         ...base,
-        title: `Cumulative incidence of ${lower(chain.what)}, and of ${lower(chain.competing_event ?? "the competing event")}, by ${comparative ? "arm" : "group"}`,
-        columns: [
-          comparative ? "Arm" : "Group",
-          "Events / n",
-          `Cumulative incidence of ${lower(chain.what)} at the horizon (95% CI)`,
-          `Cumulative incidence of ${lower(chain.competing_event ?? "the competing event")} (95% CI)`,
-          ...(comparative ? ["Gray's test p"] : []),
+        title: `Cumulative incidence of ${lower(chain.what)}, and of ${other}, by ${comparative ? "arm" : "group"}`,
+        columns: survivalColumns(codes, comparative),
+        rows: [
+          blank("Participants, n"),
+          blank(`${chain.what}, n (%)`),
+          blank(`${chain.competing_event ?? "Competing event"}, n (%)`),
+          blank("Censored without either event, n (%)"),
+          blank(withUnit("Median follow-up", outcome, "(95% CI)")),
+          ...chain.time.map((code) =>
+            blank(
+              `Cumulative incidence of ${lower(chain.what)} at ${lower(visitLabel(facts, code))}, % (95% CI)`,
+            ),
+          ),
+          ...chain.time.map((code) =>
+            blank(
+              `Cumulative incidence of ${other} at ${lower(visitLabel(facts, code))}, % (95% CI)`,
+            ),
+          ),
+          ...(comparative ? [blank("Gray's test, p")] : []),
         ],
-        rows: codes.length
-          ? codes.map((code) => blank(code))
-          : [blank("All participants")],
-        footnote: footnoteFor(level.unadjusted),
+        footnote: `${footnoteFor(level.unadjusted)}. Cumulative incidence functions, never one minus the Kaplan-Meier estimate, which overstates the risk wherever a competing event can occur first`,
         fills: [level.objective],
       };
+    }
 
     case "cox":
       return {

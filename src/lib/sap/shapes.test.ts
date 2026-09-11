@@ -306,6 +306,71 @@ describe("the model-choice deck", () => {
     expect(build.todos.join(" ")).toContain("AIC");
   });
 
+  it("branch 6: a survival table gives the median, the intervals and the follow-up", () => {
+    const survival = buildSap(timeToEvent).tables.find((t) => t.kind === "survival")!;
+    const labels = survival.rows.map((r) => r.label);
+
+    // The three a survival table is read for.
+    expect(labels).toContain(
+      "Median time to haemoglobin of 11.0 g/dL or above, days (95% CI)",
+    );
+    expect(labels).toContain("Survival at week 6, % (95% CI)");
+    expect(labels).toContain("Median follow-up, days (95% CI)");
+
+    // And the denominators they are read against.
+    expect(labels).toContain("Participants, n");
+    expect(labels).toContain("Events, n (%)");
+    expect(labels).toContain("Censored, n (%)");
+
+    // Items down the side, arms across the top, so any number of time points
+    // fits without the table growing a column for each.
+    expect(survival.columns).toEqual(["Item", "FCM", "Oral"]);
+  });
+
+  it("branch 6: says the median follow-up is not the median of the follow-up times", () => {
+    // Taking it that way shortens it by everyone who had the event early,
+    // which is exactly the group with the least follow-up.
+    const survival = buildSap(timeToEvent).tables.find((t) => t.kind === "survival")!;
+    expect(survival.footnote).toContain("reverse Kaplan-Meier");
+    expect(survival.footnote).toContain("not as the median of the observed follow-up times");
+    expect(survival.footnote).toContain("crosses 50 per cent");
+  });
+
+  it("branch 6: gives a survival table one row per follow-up point", () => {
+    const yearly: FactsSheet = {
+      ...timeToEvent,
+      timepoints: ["Y0", "Y1", "Y3", "Y5"],
+      visit_schedule: [
+        { timepoint: "Y0", label: "Enrolment", measures: ["haemoglobin"] },
+        { timepoint: "Y1", label: "Year 1", measures: ["haemoglobin"] },
+        { timepoint: "Y3", label: "Year 3", measures: ["haemoglobin"] },
+        { timepoint: "Y5", label: "Year 5", measures: ["haemoglobin"] },
+      ],
+      primary: { ...timeToEvent.primary, time: ["Y1", "Y3", "Y5"] },
+    };
+    const labels = buildSap(yearly)
+      .tables.find((t) => t.kind === "survival")!
+      .rows.map((r) => r.label);
+    expect(labels).toContain("Survival at year 1, % (95% CI)");
+    expect(labels).toContain("Survival at year 3, % (95% CI)");
+    expect(labels).toContain("Survival at year 5, % (95% CI)");
+  });
+
+  it("branch 6: a competing-risks table gives both incidences and the follow-up", () => {
+    const table = buildSap(competingRisk).tables.find(
+      (t) => t.kind === "cumulative_incidence",
+    )!;
+    const labels = table.rows.map((r) => r.label);
+    expect(labels).toContain("Median follow-up, days (95% CI)");
+    expect(labels).toContain(
+      "Cumulative incidence of time to relapse of anaemia at week 6, % (95% CI)",
+    );
+    expect(labels).toContain(
+      "Cumulative incidence of death from any cause at week 6, % (95% CI)",
+    );
+    expect(labels).toContain("Censored without either event, n (%)");
+  });
+
   it("branch 6: never reports one minus the Kaplan-Meier where something can intervene", () => {
     const build = buildSap(competingRisk);
     const table = build.tables.find((t) => t.kind === "cumulative_incidence")!;
