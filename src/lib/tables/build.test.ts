@@ -235,7 +235,9 @@ describe("Step 6 checks", () => {
   it("S6-1 catches a value left in a shell table", () => {
     const { tables, figures } = build();
     const filled = tables.map((t) =>
-      t.number === "4" ? { ...t, rows: [{ label: "Hb change 1.85", variable: null, indent: false }] } : t,
+      t.number === "4"
+        ? { ...t, rows: [{ label: "Hb change 1.85 (0.9 to 2.8), p = 0.002", variable: null, indent: false }] }
+        : t,
     );
     expect(
       step6Checks(idaPreg, filled, figures, counts(filled, figures)).find(

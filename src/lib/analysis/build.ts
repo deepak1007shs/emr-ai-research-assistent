@@ -293,6 +293,17 @@ export function buildAnalysis(
       effect = "Ratio of geometric means";
     }
 
+    /* ---- a study with no comparison has no group term --------------- */
+    // A single-group study still asks how its outcome moves over time, and the
+    // model for that is a mixed model with time in it. "group by time" in a
+    // study with one group names an interaction with nothing.
+    if (facts.groups.length < 2 && adjustedModel) {
+      adjustedModel = adjustedModel.replace(
+        /with a group-by-time term/,
+        "with time as a fixed effect",
+      );
+    }
+
     /* ---- the two exceptions to unadjusted then adjusted ------------- */
     const safety = isSafety(chain);
     const estimation = shape === "single";
@@ -326,17 +337,27 @@ export function buildAnalysis(
           ? `${chain.time.length} readings per participant`
           : "1 value per participant",
       expected_frequency: chain.expected_frequency,
-      effect_measure: safety ? "Risk difference" : effect,
+      effect_measure: safety
+        ? facts.groups.length >= 2
+          ? "Risk difference"
+          : "Proportion"
+        : effect,
       absolute: safety ? null : absolute,
       unadjusted: explore && explore.kind !== "correlation"
         ? null
         : safety
-        ? {
-            test: "Fisher's exact test, with the Newcombe confidence interval for the risk difference",
-            fallback: null,
-            table: "",
-          }
-        : { test, fallback, table: "" },
+          ? {
+              // A harm is compared between arms where there are arms, and
+              // counted where there are not. Reporting a risk difference in a
+              // study with one group names a difference from nothing.
+              test:
+                facts.groups.length >= 2
+                  ? "Fisher's exact test, with the Newcombe confidence interval for the risk difference"
+                  : "Proportions with 95% confidence intervals, by the Wilson method",
+              fallback: null,
+              table: "",
+            }
+          : { test, fallback, table: "" },
       adjusted:
         exception || !adjustedModel || explore?.kind === "correlation"
           ? null

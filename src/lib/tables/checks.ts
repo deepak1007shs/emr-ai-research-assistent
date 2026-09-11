@@ -21,8 +21,17 @@ const ok = (id: string, message: string): CheckResult => ({
   message,
 });
 
-/** Anything that looks like a number somebody has already filled in. */
-const HAS_VALUE = /\b\d+\.\d+\b|\b\d+\s*%|\bp\s*[<=]\s*0?\.\d+/;
+/**
+ * Text that is a result rather than a label.
+ *
+ * Not "any decimal number": a row label legitimately carries one. "Time to
+ * haemoglobin of 11.0 g/dL or above" is an outcome's name, and a check that
+ * read it as a filled-in cell refused a correct plan. What a label never
+ * carries is a p value or a confidence interval, and those are what a result
+ * looks like.
+ */
+const HAS_VALUE =
+  /\bp\s*[<=>]\s*0?\.\d+|\(\s*-?\d+(\.\d+)?\s*(to|,)\s*-?\d+(\.\d+)?\s*\)|\b\d+(\.\d+)?\s*±\s*\d/;
 
 export function step6Checks(
   facts: FactsSheet,

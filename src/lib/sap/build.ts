@@ -8,6 +8,7 @@ import { step5Checks } from "../rules/checks.ts";
 import { buildTables, numberTheMap } from "../tables/build.ts";
 import { step6Checks } from "../tables/checks.ts";
 import { gateB } from "../checks/step7.ts";
+import { checkById } from "../checks/registry.ts";
 import { buildVariables } from "../variables/build.ts";
 import { step2Checks, step3Checks } from "../variables/checks.ts";
 import { buildExploratory } from "../variables/exploratory.ts";
@@ -129,5 +130,17 @@ export function buildSap(facts: FactsSheet): SapBuild {
   };
 }
 
-/** The checks that stop the document being rendered, if any. */
-export const blockers = (build: SapBuild) => build.checks.filter((c) => !c.pass);
+/**
+ * A failing check, split the way the registry splits it.
+ *
+ * `block` stops the next step; `warn` is shown and the work continues. The
+ * difference is not severity. S4-5 says the sample cannot carry the adjustment,
+ * which is true and important and does not stop anything: the investigator
+ * either enlarges the study or drops a covariate, and both are decisions, not
+ * corrections.
+ */
+export const blockers = (build: SapBuild) =>
+  build.checks.filter((c) => !c.pass && checkById(c.id)?.type !== "warn");
+
+export const warnings = (build: SapBuild) =>
+  build.checks.filter((c) => !c.pass && checkById(c.id)?.type === "warn");

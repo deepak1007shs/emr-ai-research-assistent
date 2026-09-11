@@ -5,7 +5,7 @@ import { DocumentToolbar } from "@/components/document-toolbar";
 import { NotBuilt } from "@/components/not-built";
 import { SapDocument } from "@/components/sap-document";
 import { UsagePanel } from "@/components/usage-panel";
-import type { SapBuild } from "@/lib/sap/build";
+import { blockers, warnings, type SapBuild } from "@/lib/sap/build";
 import type { TokenUsage } from "@/lib/protocol/pricing";
 
 export const metadata = {
@@ -75,7 +75,8 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
     facts: plan.facts,
   } as SapBuild;
 
-  const failing = build.checks.filter((check) => !check.pass);
+  const failing = blockers(build);
+  const warned = warnings(build);
 
   return (
     <>
@@ -108,19 +109,23 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
             <UsagePanel usage={plan.usage as TokenUsage} model={plan.model} />
           )}
 
-          {failing.length > 0 && (
+          {(failing.length > 0 || warned.length > 0) && (
             <section className="no-print card p-4">
               <h2 className="text-sm font-semibold">
-                {failing.length === 1
-                  ? "One check did not pass"
-                  : `${failing.length} checks did not pass`}
+                {failing.length === 0
+                  ? warned.length === 1
+                    ? "One thing worth a look"
+                    : `${warned.length} things worth a look`
+                  : failing.length === 1
+                    ? "One check did not pass"
+                    : `${failing.length} checks did not pass`}
               </h2>
               <p className="mt-1 text-xs text-muted">
                 The plan is still here to read and to download. Each line names
                 what failed and what would fix it.
               </p>
               <ul className="mt-3 space-y-2">
-                {failing.map((check) => (
+                {[...failing, ...warned].map((check) => (
                   <li key={check.id} className="text-xs">
                     <span className="font-mono font-semibold">{check.id}</span>{" "}
                     {check.message}

@@ -71,19 +71,26 @@ const todo = (question: string) => `**TODO:** ${question}`;
  */
 function populationsFor(facts: FactsSheet, rows: AnalysisRow[]): Population[] {
   const safety = rows.filter((r) => r.exception === "safety");
+  const confirmatory = rows.filter(
+    (r) => !r.objective.startsWith("E"),
+  );
+  // Every objective is named on the set it is analysed on, observational or
+  // not. Check S5-1 reads these lines, and an observational plan that named
+  // none of its objectives failed the check while looking complete.
+  const efficacy = confirmatory
+    .filter((r) => !r.exception)
+    .map((r) => r.objective)
+    .join(", ");
+  const all = confirmatory.map((r) => r.objective).join(", ");
+
   if (!TRIALS.includes(facts.design)) {
     return [
       {
         name: "Analysis cohort",
-        definition: `Every participant meeting the eligibility criteria with the exposure recorded. Each outcome is analysed on its complete cases, and the denominator is stated in each table.`,
+        definition: `Every participant meeting the eligibility criteria with the exposure recorded${all ? `: ${all}` : ""}. Each outcome is analysed on its complete cases, and the denominator is stated in each table. There is no intention-to-treat set and no per-protocol set: nothing was assigned.`,
       },
     ];
   }
-
-  const efficacy = rows
-    .filter((r) => !r.exception && !r.objective.startsWith("E"))
-    .map((r) => r.objective)
-    .join(", ");
 
   const populations: Population[] = [
     {
@@ -134,11 +141,16 @@ function multiplicityFor(
     lines.primary = `Alpha of ${alpha}, ${sided}-sided, spent in a fixed sequence: ${primary.join(" then ")}. Each is tested only where the one before it is significant, so the family-wise error rate is held without splitting alpha.`;
   }
 
-  const secondary = inFamily("secondary").filter(
+  const allSecondary = inFamily("secondary");
+  const tested = allSecondary.filter(
     (id) => !rows.some((r) => r.objective === id && r.exception === "safety"),
   );
-  if (secondary.length) {
-    lines.secondary = `Supportive and hypothesis-generating. Effect estimates with ${facts.stated_rules.ci_level ?? "95%"} confidence intervals, tested in the fixed sequence ${secondary.join(" then ")}, with no confirmatory claim from any of them alone.`;
+  if (tested.length) {
+    lines.secondary = `Supportive and hypothesis-generating. Effect estimates with ${facts.stated_rules.ci_level ?? "95%"} confidence intervals, tested in the fixed sequence ${tested.join(" then ")}, with no confirmatory claim from any of them alone.`;
+  } else if (allSecondary.length) {
+    // Every secondary is a safety outcome. The family still needs its line, and
+    // the line is that nothing here is tested for significance at all.
+    lines.secondary = `Every secondary outcome here is a safety outcome. None is tested against a threshold, and none supports a confirmatory claim.`;
   }
 
   if (rows.some((r) => r.exception === "safety")) {

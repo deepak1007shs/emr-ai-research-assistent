@@ -3,7 +3,7 @@ import { extractProtocol, type ExtractedProtocol } from "../protocol/extract.ts"
 import { MODEL, analyzeProtocol } from "../protocol/analyze.ts";
 import { build as renderMarkdown } from "../render/markdown.ts";
 import { extractFacts } from "../facts/extract.ts";
-import { buildSap } from "../sap/build.ts";
+import { blockers, buildSap, warnings } from "../sap/build.ts";
 import { renderSapMarkdown } from "../sap/markdown.ts";
 import { costOf, type TokenUsage } from "../protocol/pricing.ts";
 import { STAGE_LABEL, stagesOf, type JobKind, type Produced, type Stage } from "./plan.ts";
@@ -228,7 +228,8 @@ async function runSap(
 
     await report.step("Building the objectives, the variables and the analysis map");
     const built = buildSap(extracted.facts);
-    const failed = built.checks.filter((check) => !check.pass);
+    const failed = blockers(built);
+    const warned = warnings(built);
 
     await report.step("Drawing the shell tables");
     const markdown = renderSapMarkdown(built);
@@ -254,7 +255,7 @@ async function runSap(
       kind: "sap",
       id: row.id,
       errors: failed.length,
-      warnings: built.todos.length,
+      warnings: warned.length + built.todos.length,
     };
     await report.finished(entry, extracted.usage);
     return entry;
