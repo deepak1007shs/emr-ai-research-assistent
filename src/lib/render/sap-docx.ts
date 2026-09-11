@@ -15,6 +15,7 @@ import { shellTableSection } from "./shell-tables.ts";
 import type { ShellTablesSpec } from "../tables/types.ts";
 import { chooseTest } from "../sap/choose-test.ts";
 import { PICOT_COLUMNS, PICOT_HEADING, picotRows } from "../sap/picot.ts";
+import { withoutNote } from "../sap/notes.ts";
 import {
   VARIABLE_LIST_COLUMNS,
   VARIABLE_LIST_HEADING,
@@ -71,6 +72,10 @@ function italic(text: string) {
 
 /** "P1. question" with the label in bold, as a bullet. */
 function objectiveBullet(id: string, question: string) {
+  // The question the study asks, without the review's commentary on it. See
+  // sap/notes.ts: a blocker is addressed by shaping the plan, not by a
+  // paragraph inside the first line a supervisor reads.
+  question = withoutNote(question);
   return new Paragraph({
     bullet: { level: 0 },
     spacing: { after: 100 },
@@ -288,7 +293,7 @@ export async function buildSapDocx(
     const where = tableCell(row, tableNumbers);
 
     return [
-      row.label,
+      withoutNote(row.label),
       (row.outcome_ids ?? [])
         .map((id) => {
           const outcome = byOutcome.get(id);

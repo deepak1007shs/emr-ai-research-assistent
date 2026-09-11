@@ -3,6 +3,7 @@ import { chooseTest, degreesOfFreedomNote, isToken } from "../sap/choose-test.ts
 import { outcomeIndex, variableIndex } from "../sap/types.ts";
 import type { ShellTable, TableModel, TableRole, TableRow } from "./types.ts";
 import { designRule } from "./design-tables.ts";
+import { withoutNote } from "../sap/notes.ts";
 
 /**
  * The analytic tables, laid out from the plan rather than asked for.
@@ -110,24 +111,6 @@ function midSentence(label: string): string {
 
 /** "P1 - delivery room intubation" reads as a subject once the id is dropped. */
 const stripId = (label: string) => label.replace(/^[A-Z]+\d+\s*[-:]\s*/, "").trim();
-
-/**
- * A subject with the reviewer's note taken off it.
- *
- * A plan records what the protocol left unresolved on the row it affects, which
- * is the right place for it and the wrong place to read a table title from. One
- * table came out headed "Surgical site infection, flap necrosis, wound
- * dehiscence (NOTE: none of the three has a stated diagnostic or grading
- * criterion in the protocol; each must be operationally defined...)" - a
- * paragraph where a heading was wanted. The note still reaches the reader,
- * in the analysis map, on the row it is about.
- */
-const withoutNote = (text: string) =>
-  text
-    .replace(/\s*\((?:NOTE|TODO)\b[^)]*\)/gi, "")
-    .replace(/\s*(?:NOTE|TODO)\b\s*:[\s\S]*$/i, "")
-    .replace(/[;,]\s*$/, "")
-    .trim();
 
 /** The designs whose allocation is random, and whose flow table says so. */
 const RANDOMISED = new Set([

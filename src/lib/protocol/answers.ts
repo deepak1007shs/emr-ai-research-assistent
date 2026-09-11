@@ -108,10 +108,23 @@ export function unresolvedBlock(
   if (!open.length) return null;
 
   return `The protocol was reviewed and these were raised. They have not been
-answered, so they are not decisions: they are what the review found. Address
-each one in the ${document}, or say in the ${document} why it does not apply.
-Do not invent a value, a variable or a definition the protocol does not carry;
-where something is missing, the ${document} says it is missing.
+answered, so they are not decisions: they are what the review found.
+
+Address each one by shaping the ${document}. An outcome the review says is
+missing becomes an outcome. A variable the protocol names and never collects
+becomes a variable. A definition nobody has fixed is marked TODO: in the field
+that would hold it - the coding, the timing, the cut-off - in a few words, so
+whoever fixes it knows where it goes.
+
+Do not invent a value, a variable or a definition the protocol does not carry.
+Where something is missing, the ${document} says so in the place it is missing
+from.
+
+Do not write the review's reasoning into an objective's question, an analysis
+label, an outcome's name or a table title. Those are read at a glance, and a
+supervisor opening the ${document} should meet the study rather than eighty
+words about the protocol. The review is its own document, it lists every one of
+these with the change it needs, and it is where the investigator was sent.
 
 <unresolved_from_the_review>
 ${open

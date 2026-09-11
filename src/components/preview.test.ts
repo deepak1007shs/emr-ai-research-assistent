@@ -354,6 +354,38 @@ describe("the plan on screen is the plan you download", () => {
     }
   });
 
+  it("prints the objective and not the review's note on it, in all three", async () => {
+    // A blocker reaching the plan was answered by appending eighty words about
+    // the protocol to the primary objective's question - the first line a
+    // supervisor reads. The renderers take it off; MAP18 says it was there.
+    const spec = structuredClone(sapFixture);
+    const note = "NOTE: the sample size was computed on a different outcome entirely.";
+    spec.objectives[0].question += ` ${note}`;
+    spec.analyses[0].label += ` (${note})`;
+
+    const n = tableNumbers(tablesFixture);
+    const screen = screenText(SapPreview({ spec, tableNumbers: n, shells: tablesFixture }));
+    const page = await pageText(await buildSapDocx(spec, n, { shells: tablesFixture }));
+    const md = buildSapMarkdown(spec, n, { shells: tablesFixture });
+
+    for (const [name, text] of [["screen", screen], ["document", page], ["markdown", md]] as const) {
+      expect(text, `the note in the ${name}`).not.toContain("computed on a different outcome");
+      expect(text, `the question in the ${name}`).toContain(
+        sapFixture.objectives[0].question,
+      );
+    }
+  });
+
+  it("numbers the objectives identically in all three renderings", async () => {
+    const screen = screenText(SapPreview({ spec: sapFixture }));
+    const page = await pageText(await buildSapDocx(sapFixture));
+    const md = buildSapMarkdown(sapFixture);
+    for (const [name, text] of [["screen", screen], ["document", page], ["markdown", md]] as const) {
+      expect(text, `P1. in the ${name}`).toContain("P1.");
+      expect(text, `P1: in the ${name}`).not.toContain("P1:");
+    }
+  });
+
   it("footnotes every table identically in all three renderings", async () => {
     // The Markdown printed the test name alone, so it lost the denominator,
     // what must not be reported there, the degrees of freedom and the

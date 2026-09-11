@@ -1,5 +1,6 @@
 import type { SapSpec } from "./types.ts";
 import { outcomeIndex, variableIndex } from "./types.ts";
+import { carriesNote } from "./notes.ts";
 import { chooseTest, plannedTests } from "./choose-test.ts";
 import { unmetRequirements } from "./design-variables.ts";
 
@@ -230,6 +231,29 @@ export function validateSap(spec: SapSpec): { ok: boolean; findings: Finding[] }
         `"${variable.label}" is named as a priority confounder but is a ${variable.role}, so adjusting for it would remove part of the effect being measured.`,
       );
     }
+  }
+
+  /* ---- the review's commentary, where the study should be ----------- */
+
+  // An unanswered blocker reaches the builder and the builder is told to
+  // address it by shaping the plan. One plan answered instead by appending
+  // eighty words about the protocol to its primary objective's question, which
+  // is the first line a supervisor reads.
+  //
+  // The renderers take it off, so the document is clean either way. This says
+  // so rather than leaving it silent: the text is still in the stored plan, and
+  // an investigator who wants it there should know it is not being printed.
+  const commentary: [string, string][] = [
+    ...(spec.objectives ?? []).map((o) => [`Objective ${o.id}`, o.question] as [string, string]),
+    ...(spec.analyses ?? []).map((a) => [`The analysis "${a.label}"`, a.label] as [string, string]),
+    ...(spec.outcomes ?? []).map((o) => [`The outcome "${o.what}"`, o.what] as [string, string]),
+  ];
+  for (const [what, text] of commentary) {
+    if (!carriesNote(text)) continue;
+    warn(
+      "MAP18",
+      `${what} carries the review's commentary in its own wording, so it is not printed. Address the blocker by shaping the plan - the outcome, the variable, a TODO in the field that holds the value - rather than by explaining it where the study should be.`,
+    );
   }
 
   /* ---- the five questions ------------------------------------------ */

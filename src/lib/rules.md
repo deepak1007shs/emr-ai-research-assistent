@@ -150,6 +150,7 @@ somebody audits the thesis.
 | No AI vocabulary | `AI_VOCABULARY` in `house-style.ts` |
 | Unresolved items render as bold `TODO:`, never as a guess | the builders |
 | The screen, the Word file and the Markdown say the same thing | `preview.test.ts` |
+| A blocker is addressed by shaping the plan, not by commentary in an objective, a label or a title | `MAP18` |
 
 The last one has been broken three times and repaired three times. It is checked
 now by comparing all three renderings of one plan, not by reading one of them.

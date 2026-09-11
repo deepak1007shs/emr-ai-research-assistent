@@ -1,5 +1,6 @@
 import { chooseTest, degreesOfFreedomNote } from "../sap/choose-test.ts";
 import { PICOT_COLUMNS, PICOT_HEADING, picotRows } from "../sap/picot.ts";
+import { withoutNote } from "../sap/notes.ts";
 import {
   VARIABLE_LIST_COLUMNS,
   VARIABLE_LIST_HEADING,
@@ -110,7 +111,7 @@ export function buildSapMarkdown(
     const items = objectives.filter((o) => o.tier === want);
     if (!items.length) return;
     push(`### ${name}`, "");
-    for (const o of items) push(`- **${line(o.id)}:** ${plain(o.question)}`);
+    for (const o of items) push(`- **${line(o.id)}.** ${plain(withoutNote(o.question))}`);
     push("");
   };
   tier("Primary objective(s)", "primary");
@@ -156,7 +157,7 @@ export function buildSapMarkdown(
         }
         const where = tableCell(row, tableNumbers);
         return [
-          row.label,
+          withoutNote(row.label),
           (row.outcome_ids ?? [])
             .map((id) => {
               const outcome = byOutcome.get(id);

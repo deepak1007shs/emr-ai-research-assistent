@@ -1,5 +1,6 @@
 import { chooseTest } from "@/lib/sap/choose-test";
 import { PICOT_COLUMNS, PICOT_HEADING, picotRows } from "@/lib/sap/picot";
+import { withoutNote } from "@/lib/sap/notes";
 import {
   VARIABLE_LIST_COLUMNS,
   VARIABLE_LIST_HEADING,
@@ -92,7 +93,7 @@ export function SapPreview({
     const where = tableCell(row, tableNumbers);
 
     return {
-      label: row.label,
+      label: withoutNote(row.label),
       outcome: (row.outcome_ids ?? [])
         .map((id) => {
           const outcome = byOutcome.get(id);
@@ -219,7 +220,7 @@ function ObjectiveList({ items }: { items: SapSpec["objectives"] }) {
           <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-accent" />
           <span>
             <span className="font-semibold">{o.id}. </span>
-            {plain(o.question)}
+            {plain(withoutNote(o.question))}
           </span>
         </li>
       ))}

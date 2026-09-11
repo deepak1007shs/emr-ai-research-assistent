@@ -7,6 +7,8 @@
  * documents cannot disagree about a string that exists in one place.
  */
 
+import { withoutNote } from "./notes.ts";
+
 export type DataType =
   | "binary" | "continuous" | "ordinal" | "nominal" | "count" | "time_to_event";
 
@@ -342,7 +344,10 @@ export function isLinkable(spec: SapSpec | null | undefined): boolean {
  * table reads as a sentence rather than a form.
  */
 export function outcomeCell(outcome: Outcome): string {
-  const parts = [outcome.what];
+  // The outcome's own name, without the review's commentary on it. The timing
+  // and the instrument keep any TODO they carry: that is a marker in the field
+  // whose value nobody has fixed, which is where a marker belongs.
+  const parts = [withoutNote(outcome.what)];
   if (outcome.when) parts.push(`at ${outcome.when}`);
   if (outcome.instrument) parts.push(`from ${outcome.instrument}`);
   return parts.join(", ");
