@@ -24,9 +24,12 @@ type Kind = keyof typeof TABLE;
 /**
  * Downloading a document.
  *
- * `?format=docx` is the Word file the supervisor reads; `?format=md` is the
- * markdown the row already holds. Both are rendered from the same stored
- * objects, so a download taken a month later is the document that was checked.
+ * `?format=docx` is the Word file the supervisor reads, and
+ * `&variant=short` is its first half: the question, the objectives, the
+ * outcomes and the analysis map, with no shell tables. `?format=md` is the
+ * markdown the row already holds. All of them are rendered from the same
+ * stored objects, so a download taken a month later is the document that was
+ * checked.
  */
 export async function GET(
   request: NextRequest,
@@ -34,6 +37,11 @@ export async function GET(
 ) {
   const { kind, id } = await params;
   const format = request.nextUrl.searchParams.get("format") ?? "docx";
+  // The short form is the question, the objectives, the outcomes and the
+  // analysis map, for the supervisor who wants to agree what is being asked
+  // before reading the empty tables.
+  const variant =
+    request.nextUrl.searchParams.get("variant") === "short" ? "short" : "full";
   const supabase = await createClient();
 
   const {
@@ -61,7 +69,9 @@ export async function GET(
   const protocol = row.protocols as unknown as { filename?: string } | { filename?: string }[] | null;
   const source =
     (Array.isArray(protocol) ? protocol[0]?.filename : protocol?.filename) ?? "protocol";
-  const stem = `${source.replace(/\.[^.]+$/, "")} - analysis plan`;
+  const stem = `${source.replace(/\.[^.]+$/, "")} - analysis plan${
+    variant === "short" ? " (summary)" : ""
+  }`;
 
   if (format === "md") {
     return new NextResponse(row.markdown ?? "", {
@@ -73,7 +83,7 @@ export async function GET(
   }
 
   const build = { ...(row.plan as object), facts: row.facts } as SapBuild;
-  const file = await buildSapDocx(build);
+  const file = await buildSapDocx(build, variant);
 
   return new NextResponse(new Uint8Array(file), {
     headers: {

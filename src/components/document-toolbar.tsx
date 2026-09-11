@@ -28,9 +28,8 @@ export function DocumentToolbar({
   meta,
   downloadHref,
   downloadLabel = "Download .docx",
-  /** A second format of the same document, where one exists. */
-  alsoHref,
-  alsoLabel,
+  /** Other things the same document can be taken away as. */
+  also = [],
   children,
 }: {
   title: string;
@@ -38,8 +37,9 @@ export function DocumentToolbar({
   meta?: ReactNode[];
   downloadHref?: string;
   downloadLabel?: string;
-  alsoHref?: string;
-  alsoLabel?: string;
+  /** A list rather than one, because a plan has a short form as well as a
+   *  Markdown form, and both belong beside the document they come from. */
+  also?: { href: string; label: string }[];
   /** The rebuild control, which knows how to stream. */
   children?: ReactNode;
 }) {
@@ -76,11 +76,11 @@ export function DocumentToolbar({
 
       <div className="flex flex-wrap items-center gap-2">
         {children}
-        {alsoHref && (
-          <a href={alsoHref} className="btn btn-quiet">
-            {alsoLabel}
+        {also.map((item) => (
+          <a key={item.href} href={item.href} className="btn btn-quiet">
+            {item.label}
           </a>
-        )}
+        ))}
         {downloadHref && (
           <a href={downloadHref} className="btn btn-primary">
             <DownloadIcon />

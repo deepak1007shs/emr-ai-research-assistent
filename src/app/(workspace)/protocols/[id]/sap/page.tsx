@@ -92,8 +92,13 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
         ]}
         downloadHref={`/api/documents/sap/${plan.id}?format=docx`}
         downloadLabel="Download the plan"
-        alsoHref={`/api/documents/sap/${plan.id}?format=md`}
-        alsoLabel="Markdown"
+        also={[
+          {
+            href: `/api/documents/sap/${plan.id}?format=docx&variant=short`,
+            label: "Short plan (.docx)",
+          },
+          { href: `/api/documents/sap/${plan.id}?format=md`, label: "Markdown" },
+        ]}
       >
         <BuildButton
           kind="sap"

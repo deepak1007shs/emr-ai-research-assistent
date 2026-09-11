@@ -105,10 +105,16 @@ export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/
         ]}
         downloadHref={`/api/reviews/${review.id}/export?doc=review&format=docx`}
         downloadLabel="Download the review"
-        alsoHref={
-          actions ? `/api/reviews/${review.id}/export?doc=actions&format=docx` : undefined
+        also={
+          actions
+            ? [
+                {
+                  href: `/api/reviews/${review.id}/export?doc=actions&format=docx`,
+                  label: "Action list",
+                },
+              ]
+            : []
         }
-        alsoLabel="Action list"
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">

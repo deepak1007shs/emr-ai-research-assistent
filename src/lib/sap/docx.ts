@@ -126,15 +126,38 @@ function shell(table: ShellTable): Block[] {
   ];
 }
 
-export async function buildSapDocx(build: SapBuild): Promise<Buffer> {
+/**
+ * Which of the two documents to build.
+ *
+ * `full` is the plan. `short` is the first half of it - the question, the
+ * objectives, the outcomes and the Analysis Map - for the supervisor who wants
+ * to agree what is being asked before reading forty pages of empty tables.
+ *
+ * One function builds both, on purpose. Two would answer the same question
+ * differently within a month, which is the failure this repository already has
+ * a test for.
+ */
+export type SapVariant = "full" | "short";
+
+export async function buildSapDocx(
+  build: SapBuild,
+  variant: SapVariant = "full",
+): Promise<Buffer> {
   const { facts, picot, objectives, analysis, tables, figures, rules, pinned } =
     build;
   const body: Block[] = [];
 
+  const short = variant === "short";
+
   body.push(
     new Paragraph({
       children: [
-        new TextRun({ text: "STATISTICAL ANALYSIS PLAN", bold: true }),
+        new TextRun({
+          text: short
+            ? "STATISTICAL ANALYSIS PLAN - SUMMARY"
+            : "STATISTICAL ANALYSIS PLAN",
+          bold: true,
+        }),
       ],
       alignment: AlignmentType.CENTER,
       spacing: { after: 130 },
@@ -146,6 +169,14 @@ export async function buildSapDocx(build: SapBuild): Promise<Buffer> {
       spacing: { after: 260 },
     }),
   );
+
+  if (short) {
+    body.push(
+      italic(
+        `The question, the objectives, the outcomes and the analysis for each one. The full plan carries these and the ${pinned.tables} empty results tables as well, along with every open item the plan will not decide on the investigator's behalf.`,
+      ),
+    );
+  }
 
   /* PICOT */
   body.push(heading(picot.frame, HeadingLevel.HEADING_1), italic(PICOT_LINE));
@@ -192,6 +223,38 @@ export async function buildSapDocx(build: SapBuild): Promise<Buffer> {
     }
   }
 
+  // The outcomes, walked down the chain. In the short form only: the full plan
+  // carries the same definitions in the title and footnote of every table that
+  // reports one, and printing them twice would be two places to edit.
+  if (short) {
+    body.push(
+      heading("Outcomes", HeadingLevel.HEADING_2),
+      italic(
+        "What each outcome measures, how, with which instrument, at which visits and in what unit. Every analysis below reports one of these and nothing else.",
+      ),
+      grid(
+        ["Family", "Outcome", "How it is measured", "Instrument", "Visits", "Unit", "Type"],
+        [
+          [facts.primary, "Primary"] as const,
+          ...facts.secondary.map((chain, i) => [chain, `Secondary ${i + 1}`] as const),
+        ].map(([chain, family]) => [
+          family,
+          chain.what,
+          chain.how,
+          chain.instrument,
+          chain.time
+            .map(
+              (code) =>
+                facts.visit_schedule.find((v) => v.timepoint === code)?.label ?? code,
+            )
+            .join(", "),
+          chain.unit,
+          chain.type.replace(/_/g, " "),
+        ]),
+      ),
+    );
+  }
+
   /* The Analysis Map */
   body.push(heading("Analysis Map", HeadingLevel.HEADING_1), italic(MAP_LINE));
   body.push(
@@ -224,6 +287,16 @@ export async function buildSapDocx(build: SapBuild): Promise<Buffer> {
       }),
     ),
   );
+
+  if (short) {
+    // The open items are left out because the short form is a summary of what
+    // is being asked, not the plan itself. The line above says where they are.
+    return Buffer.from(
+      await Packer.toBuffer(
+        new Document({ styles: HOUSE_STYLES, sections: [{ children: body }] }),
+      ),
+    );
+  }
 
   /* Section 6 */
   body.push(
