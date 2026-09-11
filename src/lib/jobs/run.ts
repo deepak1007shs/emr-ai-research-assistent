@@ -2,6 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { extractProtocol, type ExtractedProtocol } from "../protocol/extract.ts";
 import { MODEL, analyzeProtocol } from "../protocol/analyze.ts";
 import { build as renderMarkdown } from "../render/markdown.ts";
+import { extractFacts } from "../facts/extract.ts";
+import { buildSap } from "../sap/build.ts";
+import { renderSapMarkdown } from "../sap/markdown.ts";
 import { costOf, type TokenUsage } from "../protocol/pricing.ts";
 import { STAGE_LABEL, stagesOf, type JobKind, type Produced, type Stage } from "./plan.ts";
 
@@ -187,12 +190,88 @@ async function runReview(db: Db, userId: string, protocolId: string, report: Rep
   }
 }
 
+/**
+ * The Statistical Analysis Plan.
+ *
+ * One model call, then eight steps of rules. What is stored is the Facts Sheet
+ * and what the rules made of it; a rebuild re-reads the protocol only because
+ * the facts are the one thing rules cannot produce.
+ *
+ * The row is written whether or not the checks pass. A plan with a failing
+ * check is still the most useful thing the investigator can be shown: it names
+ * the object that failed and what to do about it, and hiding it behind an error
+ * would leave them with a message and no document.
+ */
+async function runSap(
+  db: Db,
+  userId: string,
+  protocolId: string,
+  report: Reporter,
+  signal: AbortSignal,
+): Promise<Produced> {
+  await report.step("Reading the protocol");
+  const protocol = await readProtocol(db, protocolId);
+
+  const { data: row, error: insertError } = await db
+    .from("sap_plans")
+    .insert({ protocol_id: protocolId, owner: userId, status: "ready" })
+    .select("id")
+    .single();
+  if (insertError) throw new Error(insertError.message);
+
+  try {
+    const extracted = await extractFacts(protocol, {
+      signal,
+      onProgress: (message) => void report.step(message),
+      onUsage: (usage) => report.meter(usage),
+    });
+
+    await report.step("Building the objectives, the variables and the analysis map");
+    const built = buildSap(extracted.facts);
+    const failed = built.checks.filter((check) => !check.pass);
+
+    await report.step("Drawing the shell tables");
+    const markdown = renderSapMarkdown(built);
+
+    const { facts, ...plan } = built;
+    void facts;
+
+    const { error: updateError } = await db
+      .from("sap_plans")
+      .update({
+        status: "ready",
+        facts: extracted.facts,
+        plan,
+        markdown,
+        pinned: built.pinned,
+        model: extracted.model,
+        usage: extracted.usage,
+      })
+      .eq("id", row.id);
+    if (updateError) throw new Error(updateError.message);
+
+    const entry: Produced = {
+      kind: "sap",
+      id: row.id,
+      errors: failed.length,
+      warnings: built.todos.length,
+    };
+    await report.finished(entry, extracted.usage);
+    return entry;
+  } catch (error) {
+    if (signal.aborted) throw error;
+    const message = error instanceof Error ? error.message : "The plan failed.";
+    await db.from("sap_plans").update({ status: "failed", error: message }).eq("id", row.id);
+    throw new Error(message);
+  }
+}
+
 export async function runJob(
   db: Db,
   job: { id: string; kind: JobKind; protocolId: string; userId: string },
 ): Promise<void> {
   const report = progress(db, job.id);
-  const stages = stagesOf();
+  const stages = stagesOf(job.kind);
 
   // Stop arrives as a different request, and possibly in a different process,
   // so the row is the only thing this runner and that request can both see. It
@@ -224,7 +303,11 @@ export async function runJob(
       }
 
       await report.enter(stage);
-      await runReview(db, job.userId, job.protocolId, report, stopping.signal);
+      if (stage === "review") {
+        await runReview(db, job.userId, job.protocolId, report, stopping.signal);
+      } else {
+        await runSap(db, job.userId, job.protocolId, report, stopping.signal);
+      }
     }
     if (asked) await report.cancelled(stoppedNote(report.produced()));
     else await report.done();

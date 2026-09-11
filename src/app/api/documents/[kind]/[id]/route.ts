@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { buildSapDocx } from "@/lib/sap/docx";
+import type { SapBuild } from "@/lib/sap/build";
 
 export const runtime = "nodejs";
 
@@ -15,11 +17,72 @@ export const runtime = "nodejs";
 const TABLE = {
   review: "reviews",
   sap: "sap_plans",
-  crf: "crf_forms",
-  tables: "shell_tables",
 } as const;
 
 type Kind = keyof typeof TABLE;
+
+/**
+ * Downloading a document.
+ *
+ * `?format=docx` is the Word file the supervisor reads; `?format=md` is the
+ * markdown the row already holds. Both are rendered from the same stored
+ * objects, so a download taken a month later is the document that was checked.
+ */
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ kind: string; id: string }> },
+) {
+  const { kind, id } = await params;
+  const format = request.nextUrl.searchParams.get("format") ?? "docx";
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+
+  if (kind !== "sap") {
+    return NextResponse.json(
+      { error: "Only the analysis plan is downloaded from here. The review has its own export." },
+      { status: 400 },
+    );
+  }
+
+  const { data: row } = await supabase
+    .from("sap_plans")
+    .select("id, facts, plan, markdown, protocols ( filename )")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!row?.plan || !row.facts) {
+    return NextResponse.json({ error: "Document not found." }, { status: 404 });
+  }
+
+  const protocol = row.protocols as unknown as { filename?: string } | { filename?: string }[] | null;
+  const source =
+    (Array.isArray(protocol) ? protocol[0]?.filename : protocol?.filename) ?? "protocol";
+  const stem = `${source.replace(/\.[^.]+$/, "")} - analysis plan`;
+
+  if (format === "md") {
+    return new NextResponse(row.markdown ?? "", {
+      headers: {
+        "Content-Type": "text/markdown; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${encodeURIComponent(stem)}.md"`,
+      },
+    });
+  }
+
+  const build = { ...(row.plan as object), facts: row.facts } as SapBuild;
+  const file = await buildSapDocx(build);
+
+  return new NextResponse(new Uint8Array(file), {
+    headers: {
+      "Content-Type":
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "Content-Disposition": `attachment; filename="${encodeURIComponent(stem)}.docx"`,
+    },
+  });
+}
 
 export async function DELETE(
   _request: NextRequest,

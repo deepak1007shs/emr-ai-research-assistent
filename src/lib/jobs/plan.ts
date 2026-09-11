@@ -1,31 +1,33 @@
 /**
  * What a build job is.
  *
- * There is one kind now. This file used to hold the order four documents had to
- * be built in and what each needed before it could start; the plan, the shell
- * tables and the case record form were removed, and a chain of one needs no
- * ordering. What is left is the shape of a job row and the rule for spotting a
- * job whose server died.
+ * Two kinds, and an order between them. The review reads the protocol and says
+ * what is wrong with it; the plan reads the same protocol and builds the
+ * analysis. They are independent - a plan does not need a review to have run -
+ * but a user who asks for both wants the review first, because its blockers are
+ * what the investigator answers before the plan is worth freezing.
  *
  * Kept apart from the runner because this is the part with a rule in it, and a
  * rule that cannot be tested without a database and an API key is a rule nobody
  * tests. Nothing here imports next/headers, Supabase or the model.
  */
 
-/** The one document this application builds. */
-export type Stage = "review";
+/** The documents this application builds. */
+export type Stage = "review" | "sap";
 
-export type JobKind = Stage;
+/** What was asked for: one document, or the review and the plan in order. */
+export type JobKind = Stage | "both";
 
-export const STAGES: Stage[] = ["review"];
+export const STAGES: Stage[] = ["review", "sap"];
 
 export const STAGE_LABEL: Record<Stage, string> = {
   review: "Protocol Review",
+  sap: "Statistical Analysis Plan",
 };
 
-/** The stages a job runs. One, since the chain was removed. */
-export function stagesOf(): Stage[] {
-  return [...STAGES];
+/** The stages a job runs, in the order it runs them. */
+export function stagesOf(kind: JobKind): Stage[] {
+  return kind === "both" ? [...STAGES] : [kind];
 }
 
 /**

@@ -8,12 +8,12 @@ export const runtime = "nodejs";
  * The whole chain, not one document.
  *
  * after() runs for the route's maximum duration, so this is the ceiling on a
- * four-stage run rather than on a single response. Nothing is streamed back;
- * the browser has long gone by the time the work is half done.
+ * run of both documents rather than on a single response. Nothing is streamed
+ * back; the browser has long gone by the time the work is half done.
  */
 export const maxDuration = 3600;
 
-const KINDS: JobKind[] = ["review"];
+const KINDS: JobKind[] = ["review", "sap", "both"];
 
 /**
  * Starts a build and returns its job id.
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "protocolId is required." }, { status: 400 });
   }
   if (!body.kind || !KINDS.includes(body.kind)) {
-    return NextResponse.json({ error: "kind must be one of review, sap, crf, tables, all, documents." }, { status: 400 });
+    return NextResponse.json({ error: "kind must be review, sap or both." }, { status: 400 });
   }
 
   const { data: protocol } = await supabase

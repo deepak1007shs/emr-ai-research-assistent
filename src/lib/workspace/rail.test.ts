@@ -3,12 +3,8 @@ import { loadRail } from "./rail.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * What the rail knows about a protocol.
- *
- * It used to track two more documents and the two ways each could fall behind:
- * the plan under it rebuilt, or the decisions edited after it was made. The
- * plan and the form were removed, and a review can fall behind neither. What is
- * left is which protocols exist and whether each has been reviewed.
+ * What the rail knows about a protocol: whether it has been reviewed, whether
+ * its analysis plan has been built, and what the plan's checks said.
  */
 
 type Row = Record<string, unknown>;
@@ -19,7 +15,7 @@ function client(tables: Record<string, Row[]>): SupabaseClient {
     from(table: string) {
       const rows = tables[table] ?? [];
       const chain: Record<string, unknown> = {};
-      for (const method of ["select", "eq", "order", "limit"]) {
+      for (const method of ["select", "eq", "not", "order", "limit"]) {
         chain[method] = () => chain;
       }
       chain.then = (resolve: (value: { data: Row[] }) => unknown) => resolve({ data: rows });
@@ -65,5 +61,41 @@ describe("loadRail", () => {
       }),
     );
     expect(protocol.documents.review.id).toBe("r2");
+  });
+});
+
+describe("the analysis plan in the rail", () => {
+  it("counts the failing checks as errors and the open items as warnings", async () => {
+    const [protocol] = await loadRail(
+      client({
+        protocols: [{ id: "p1", filename: "thesis.pdf", created_at: EARLY }],
+        reviews: [],
+        sap_plans: [
+          {
+            id: "s1",
+            protocol_id: "p1",
+            plan: {
+              checks: [{ pass: true }, { pass: false }, { pass: false }],
+              todos: ["one", "two"],
+            },
+          },
+        ],
+      }),
+    );
+    expect(protocol.documents.sap.id).toBe("s1");
+    expect(protocol.documents.sap.errors).toBe(2);
+    expect(protocol.documents.sap.warnings).toBe(2);
+  });
+
+  it("says nothing is built where no plan exists", async () => {
+    const [protocol] = await loadRail(
+      client({
+        protocols: [{ id: "p1", filename: "thesis.pdf", created_at: EARLY }],
+        reviews: [],
+        sap_plans: [],
+      }),
+    );
+    expect(protocol.documents.sap.id).toBeNull();
+    expect(protocol.documents.sap.errors).toBe(0);
   });
 });

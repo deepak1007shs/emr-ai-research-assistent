@@ -16,6 +16,8 @@ const fmtUsd = (n: number) => (n < 0.01 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}
 
 const VERB: Record<JobKind, { build: string; checked: string }> = {
   review: { build: "Review this protocol", checked: "The protocol was reviewed" },
+  sap: { build: "Build the analysis plan", checked: "The plan was built" },
+  both: { build: "Review it and build the plan", checked: "Both were built" },
 };
 
 /** "The plan was checked and 2 problems need your attention." */
@@ -55,9 +57,7 @@ export function BuildButton({
   // is not always the one this button would have started: the review page can
   // start a chain, and the plan page then shows it. So what is printed follows
   // the job, and falls back to this button only before one exists.
-  // There is one document, so a run is never a chain. The wording that said
-  // "three documents" went with the documents.
-  const chain = false;
+  const chain = (job?.kind ?? kind) === "both";
 
   return (
     <div className="no-print space-y-3">

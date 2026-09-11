@@ -2,19 +2,27 @@ import { describe, expect, it } from "vitest";
 import { STAGES, STAGE_LABEL, isStalled, stagesOf } from "./plan.ts";
 
 /**
- * What is left of the job plan.
- *
- * This file held the order four documents had to be built in, what each needed
- * before it could start, and the wording for refusing a stage whose
- * prerequisite was missing. The plan, the shell tables and the case record form
- * were removed; a chain of one has no order to get wrong. What still has a rule
- * in it is the stall.
+ * The job plan: which stages a job runs, in which order, and when a job is
+ * dead.
  */
-describe("the one stage", () => {
-  it("is the review, and a job runs exactly it", () => {
-    expect(STAGES).toEqual(["review"]);
-    expect(stagesOf()).toEqual(["review"]);
+describe("the stages", () => {
+  it("are the review and the plan, in that order", () => {
+    expect(STAGES).toEqual(["review", "sap"]);
     expect(STAGE_LABEL.review).toBe("Protocol Review");
+    expect(STAGE_LABEL.sap).toBe("Statistical Analysis Plan");
+  });
+
+  it("runs exactly the one asked for", () => {
+    expect(stagesOf("review")).toEqual(["review"]);
+    expect(stagesOf("sap")).toEqual(["sap"]);
+  });
+
+  it("runs the review before the plan when both are asked for", () => {
+    // The plan does not need the review to have run. It is put first because
+    // the review's blockers are what the investigator answers before the plan
+    // is worth freezing, and answering them after it is built means building
+    // it twice.
+    expect(stagesOf("both")).toEqual(["review", "sap"]);
   });
 });
 

@@ -38,7 +38,7 @@ const protocol = (over: Partial<ProtocolRow> = {}): ProtocolRow => ({
   id: "p1",
   filename: "thesis.docx",
   created_at: "2026-08-01T00:00:00.000Z",
-  documents: { review: doc() },
+  documents: { review: doc(), sap: doc({ kind: "sap", id: null }) },
   ...over,
 });
 

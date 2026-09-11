@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 /**
  * What the left rail knows.
  *
- * Every protocol the user owns, each with the state of its four documents. The
+ * Every protocol the user owns, each with the state of its documents. The
  * rail is rendered by the layout, which App Router does not re-render when you
  * move between the documents of one protocol, so this runs once per protocol
  * rather than once per document.
@@ -12,18 +12,20 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * tables are insert-only, so the newest ready row wins.
  */
 
-export type DocKind = "review";
+export type DocKind = "review" | "sap";
 
 export const DOC_LABEL: Record<DocKind, string> = {
   review: "Protocol Review",
+  sap: "Analysis Plan",
 };
 
 /** The short form, for the rail where the protocol name already takes the width. */
 export const DOC_SHORT: Record<DocKind, string> = {
   review: "Review",
+  sap: "Plan",
 };
 
-export const DOC_ORDER: DocKind[] = ["review"];
+export const DOC_ORDER: DocKind[] = ["review", "sap"];
 
 export type DocState = {
   kind: DocKind;
@@ -55,12 +57,18 @@ function newestByProtocol<T extends { protocol_id: string }>(rows: T[] | null): 
 }
 
 export async function loadRail(supabase: SupabaseClient): Promise<ProtocolRow[]> {
-  const [protocols, reviews] = await Promise.all([
+  const [protocols, reviews, plans] = await Promise.all([
     supabase.from("protocols").select("id, filename, created_at").order("created_at", { ascending: false }),
     supabase
       .from("reviews")
       .select("id, protocol_id, answers_updated_at")
       .eq("status", "complete")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("sap_plans")
+      .select("id, protocol_id, plan")
+      .eq("status", "ready")
+      .not("plan", "is", null)
       .order("created_at", { ascending: false }),
   ]);
 
@@ -71,9 +79,19 @@ export async function loadRail(supabase: SupabaseClient): Promise<ProtocolRow[]>
       answers_updated_at: string | null;
     }[],
   );
+  const latestPlan = newestByProtocol(
+    plans.data as unknown as {
+      protocol_id: string;
+      id: string;
+      plan: { checks?: { pass: boolean }[]; todos?: string[] } | null;
+    }[],
+  );
+
   return ((protocols.data as { id: string; filename: string; created_at: string }[] | null) ?? []).map(
     (protocol) => {
       const review = latestReview.get(protocol.id) ?? null;
+      const plan = latestPlan.get(protocol.id) ?? null;
+      const failing = (plan?.plan?.checks ?? []).filter((c) => !c.pass).length;
 
       return {
         id: protocol.id,
@@ -87,6 +105,16 @@ export async function loadRail(supabase: SupabaseClient): Promise<ProtocolRow[]>
             behindAnswers: false,
             errors: 0,
             warnings: 0,
+          },
+          sap: {
+            kind: "sap" as const,
+            id: plan?.id ?? null,
+            stale: false,
+            behindAnswers: false,
+            // A failing check is an error the investigator has to resolve; an
+            // open item is a question, and there are usually several.
+            errors: failing,
+            warnings: plan?.plan?.todos?.length ?? 0,
           },
         },
       };
