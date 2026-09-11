@@ -26,7 +26,7 @@ const observational: FactsSheet = {
   guideline: "STROBE",
   title:
     "Association of intravenous iron with the rise in haemoglobin in pregnancy: a cohort study",
-  allocation: { ratio: "", block: null, strata: [] },
+  allocation: { ratio: "", block: null, strata: [], matched: null },
 };
 
 const singleGroup: FactsSheet = {
@@ -60,12 +60,59 @@ const threeArms: FactsSheet = {
     { code: "Oral", label: "Oral ferrous ascorbate" },
     { code: "Sucrose", label: "IV iron sucrose" },
   ],
-  allocation: { ratio: "1:1:1", block: 6, strata: [] },
+  allocation: { ratio: "1:1:1", block: 6, strata: [], matched: null },
 };
 
 const stratified: FactsSheet = {
   ...idaPreg,
   allocation: { ...idaPreg.allocation, strata: ["residence"] },
+};
+
+const competingRisk: FactsSheet = {
+  ...idaPreg,
+  title: "Time to relapse of anaemia after intravenous versus oral iron: a randomised controlled trial",
+  primary: {
+    ...idaPreg.primary,
+    what: "Time to relapse of anaemia",
+    type: "time_to_event",
+    unit: "days",
+    time: ["W6"],
+    distribution: "unknown",
+    expected_frequency: 0.3,
+    competing_event: "death from any cause",
+  },
+  secondary: [idaPreg.secondary[2]],
+  exploratory_ideas: [],
+};
+
+const diagnostic: FactsSheet = {
+  ...idaPreg,
+  design: "diagnostic_accuracy",
+  frame: "PECO",
+  guideline: "STARD",
+  groups: [],
+  allocation: { ratio: "", block: null, strata: [], matched: null },
+  title: "Diagnostic accuracy of serum ferritin against bone marrow iron in pregnancy",
+  primary: {
+    ...idaPreg.primary,
+    what: "Serum ferritin below 30 ng/mL",
+    how: "Serum ferritin below 30 ng/mL, against bone marrow iron staining",
+    type: "binary",
+    unit: "Yes / No",
+    time: ["D0"],
+    measures: ["serum_ferritin"],
+    distribution: "unknown",
+    expected_frequency: 0.4,
+  },
+  secondary: [],
+  exploratory_ideas: [],
+};
+
+const clusterTrial: FactsSheet = {
+  ...idaPreg,
+  design: "cluster_trial",
+  title:
+    "A cluster-randomised trial of an iron supplementation programme across antenatal clinics",
 };
 
 const shapes: [string, FactsSheet][] = [
@@ -74,6 +121,8 @@ const shapes: [string, FactsSheet][] = [
   ["a time-to-event primary outcome", timeToEvent],
   ["three arms", threeArms],
   ["stratified randomisation", stratified],
+  ["a competing event", competingRisk],
+  ["a cluster-randomised trial", clusterTrial],
 ];
 
 describe.each(shapes)("%s", (_name, facts) => {
@@ -168,9 +217,11 @@ describe("what each shape is owed", () => {
   });
 
   it("warns rather than blocks where the sample cannot carry the adjustment", () => {
-    // Five expected events and two covariates. True, important, and not a
-    // reason to refuse to render the plan: the investigator either enlarges
-    // the study or drops a covariate, and both are decisions.
+    // Five expected events and two covariates. The model becomes Firth, which
+    // is what the few-event case is for, and the count is still a warning: it
+    // is true, it is important, and it is not a reason to refuse to render.
+    // The investigator either enlarges the study or drops a covariate, and
+    // both are decisions rather than corrections.
     const rare: FactsSheet = {
       ...idaPreg,
       secondary: idaPreg.secondary.map((o, i) =>
@@ -180,5 +231,216 @@ describe("what each shape is owed", () => {
     const build = buildSap(rare);
     expect(blockers(build)).toEqual([]);
     expect(warnings(build).map((c) => c.id)).toEqual(["S4-5"]);
+  });
+});
+
+/**
+ * The rules in `Regression Model Apply.pptx`, which is a decision tree keyed on
+ * the outcome column. Every one of these was checked against the deck slide by
+ * slide, and each test names the branch it comes from.
+ */
+describe("the model-choice deck", () => {
+  it("branch 1: names ANCOVA only where the outcome has a baseline", () => {
+    const primary = buildSap(idaPreg).analysis.find((r) => r.objective === "P1a")!;
+    expect(primary.adjusted!.model).toContain("analysis of covariance");
+
+    // Blood loss, operating time, a single post-operative score: measured once,
+    // at the end. Calling that ANCOVA promises a column nothing can fill.
+    const noBaseline: FactsSheet = {
+      ...idaPreg,
+      primary: {
+        ...idaPreg.primary,
+        what: "Intraoperative blood loss",
+        time: ["W6"],
+        measures: ["haemoglobin"],
+      },
+      visit_schedule: idaPreg.visit_schedule.map((v) =>
+        v.timepoint === "D0"
+          ? { ...v, measures: v.measures.filter((m) => m !== "haemoglobin") }
+          : v,
+      ),
+    };
+    const plain = buildSap(noBaseline).analysis.find((r) => r.objective === "P1")!;
+    expect(plain.adjusted!.model).toBe("Linear regression");
+  });
+
+  it("branch 2: plans Firth where the events are too few, whatever the frequency", () => {
+    const few: FactsSheet = {
+      ...idaPreg,
+      secondary: idaPreg.secondary.map((o, i) =>
+        i === 0 ? { ...o, expected_frequency: 0.04 } : o,
+      ),
+    };
+    const s1 = buildSap(few).analysis.find((r) => r.objective === "S1")!;
+    expect(s1.adjusted!.model).toContain("Firth");
+  });
+
+  it("branch 2: keeps the rows of a cluster trial out of an individual test", () => {
+    const build = buildSap(clusterTrial);
+    const primary = build.analysis.find((r) => r.objective === "P1a")!;
+    expect(primary.unadjusted!.test).toContain("cluster-level summary measures");
+    expect(primary.adjusted!.model).toContain("clustered on the randomised unit");
+    expect(primary.unit_of_analysis).toContain("inside a randomised cluster");
+    expect(build.todos.join(" ")).toContain("how many clusters were randomised");
+  });
+
+  it("branch 3: asks about the zeros rather than choosing a count model blind", () => {
+    const counts: FactsSheet = {
+      ...idaPreg,
+      primary: {
+        ...idaPreg.primary,
+        what: "Number of transfusion episodes",
+        type: "count",
+        unit: "episodes",
+        time: ["W6"],
+      },
+      secondary: [],
+      exploratory_ideas: [],
+    };
+    const build = buildSap(counts);
+    const primary = build.analysis.find((r) => r.objective === "P1")!;
+    expect(primary.adjusted!.model).toContain("Poisson");
+    expect(primary.adjusted!.fallback).toContain("Negative binomial");
+    expect(build.todos.join(" ")).toContain("could never have the event");
+    expect(build.todos.join(" ")).toContain("AIC");
+  });
+
+  it("branch 6: never reports one minus the Kaplan-Meier where something can intervene", () => {
+    const build = buildSap(competingRisk);
+    const table = build.tables.find((t) => t.kind === "cumulative_incidence")!;
+    expect(table.title).toContain("Cumulative incidence");
+    expect(table.title).toContain("death from any cause");
+    expect(build.tables.some((t) => t.kind === "survival")).toBe(false);
+  });
+
+  it("branch 6: makes the investigator pre-specify which hazard ratio is meant", () => {
+    expect(buildSap(competingRisk).todos.join(" ")).toContain(
+      "Say which competing-risks model",
+    );
+  });
+
+  it("branch 6: names the restricted mean survival time when the hazards are not", () => {
+    const build = buildSap({ ...competingRisk, primary: { ...competingRisk.primary, competing_event: null } });
+    const primary = build.analysis.find((r) => r.objective === "P1")!;
+    expect(primary.unadjusted!.test).toContain("Kaplan-Meier");
+    expect(primary.adjusted!.model).toContain("Cox");
+    expect(primary.adjusted!.fallback).toContain("restricted mean survival time");
+  });
+
+  it("the diagnostic branch reports accuracy and calibration, not a summary", () => {
+    const kinds = buildSap(diagnostic).tables.map((t) => t.kind);
+    expect(kinds).toContain("two_by_two");
+    expect(kinds).toContain("accuracy");
+    // The area under the curve alone says the test ranks people correctly and
+    // says nothing about whether the numbers it gives them are right.
+    expect(kinds).toContain("calibration");
+    expect(kinds).not.toContain("summary");
+  });
+
+  it("the diagnostic branch warns that predictive values do not travel", () => {
+    const accuracy = buildSap(diagnostic).tables.find((t) => t.kind === "accuracy")!;
+    expect(accuracy.footnote).toContain("do not transfer");
+    expect(accuracy.rows.map((r) => r.label)).toContain("Negative predictive value");
+  });
+
+  it("branch 1: names generalised estimating equations as the repeated alternative", () => {
+    // Both are correct and answer slightly different questions. A plan that
+    // names only one has taken a decision it did not say it was taking.
+    const shape = buildSap(idaPreg).analysis.find((r) => r.objective === "P1b")!;
+    expect(shape.adjusted!.fallback).toContain("Generalised estimating equations");
+    expect(shape.adjusted!.fallback).toContain("group average");
+  });
+
+  it("branch 2: keeps a matched set together", () => {
+    const matched: FactsSheet = {
+      ...idaPreg,
+      design: "case_control",
+      frame: "PECO",
+      guideline: "STROBE",
+      title: "Determinants of iron-deficiency anaemia in pregnancy: a matched case-control study",
+      allocation: {
+        ratio: "",
+        block: null,
+        strata: [],
+        matched: "1 case to 2 controls, matched on age and gestational age",
+      },
+      secondary: [idaPreg.secondary[0]],
+      exploratory_ideas: [],
+    };
+    const s1 = buildSap(matched).analysis.find((r) => r.objective === "S1")!;
+    expect(s1.unadjusted!.test).toContain("McNemar");
+    expect(s1.adjusted!.model).toContain("Conditional logistic");
+  });
+
+  it("asks how an observational comparison will make its groups alike", () => {
+    const todos = buildSap(observational).todos.join(" ");
+    expect(todos).toContain("propensity score");
+    expect(todos).toContain("standardised mean differences");
+    // A randomised trial is not asked: randomisation is the answer.
+    expect(buildSap(idaPreg).todos.join(" ")).not.toContain("propensity score");
+  });
+
+  it("catches an ordered scale cut into a yes or no", () => {
+    // The seventh of the eight commonest mistakes. A modified Rankin score of
+    // 0 to 5 reported as "good outcome, yes or no" keeps one distinction out
+    // of five, and nothing in the finished document shows the other four.
+    const dichotomised: FactsSheet = {
+      ...idaPreg,
+      measures: [
+        ...idaPreg.measures,
+        {
+          name: "mrs",
+          label: "Modified Rankin score",
+          type: "ordinal",
+          unit: null,
+          options: ["0", "1", "2", "3", "4", "5"],
+          block: null,
+          derived_from: [],
+          recipe: null,
+        },
+      ],
+      visit_schedule: idaPreg.visit_schedule.map((v) =>
+        v.timepoint === "W6" ? { ...v, measures: [...v.measures, "mrs"] } : v,
+      ),
+      secondary: [
+        ...idaPreg.secondary,
+        {
+          what: "Good functional outcome",
+          how: "Modified Rankin score of 2 or below at week 6",
+          instrument: "modified Rankin scale",
+          time: ["W6"],
+          unit: "Yes / No",
+          type: "binary",
+          distribution: "unknown",
+          expected_frequency: 0.5,
+          competing_event: null,
+          measures: ["mrs"],
+        },
+      ],
+    };
+    const failed = warnings(buildSap(dichotomised)).map((c) => c.id);
+    expect(failed).toContain("S4-6");
+    // And it does not fire on a laboratory threshold, which is not a scale.
+    expect(warnings(buildSap(idaPreg)).map((c) => c.id)).not.toContain("S4-6");
+  });
+
+  it("counts events, not participants, where a model is limited by events", () => {
+    // 400 people, 3% event rate, two covariates: twelve events cannot carry
+    // two, and counting the 400 hides it.
+    const thin: FactsSheet = {
+      ...idaPreg,
+      sample_size: { ...idaPreg.sample_size, per_group: 200 },
+      primary: {
+        ...idaPreg.primary,
+        what: "Time to relapse of anaemia",
+        type: "time_to_event",
+        unit: "days",
+        time: ["W6"],
+        expected_frequency: 0.03,
+      },
+      secondary: [],
+      exploratory_ideas: [],
+    };
+    expect(warnings(buildSap(thin)).map((c) => c.id)).toContain("S4-5");
   });
 });

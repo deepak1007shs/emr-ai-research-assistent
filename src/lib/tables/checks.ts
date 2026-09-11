@@ -87,16 +87,19 @@ export function step6Checks(
 
   /* S6-4: a fit table after every model, an overlap table before every
      adjusted one. */
-  const modelTables = tables.filter((t) =>
-    t.columns.some((c) => /Adjusted effect/.test(c)) || /rate of change/i.test(t.title),
-  );
+  // Keyed on the template row that drew each table, not on its title. The
+  // table reporting the unadjusted comparison is titled "Unadjusted comparison
+  // of ...", which contains the word "adjusted", and a check that read titles
+  // pointed the adjusted model at the wrong table once already.
+  const MODELS = ["adjusted", "rate_of_change", "ratio", "cox"];
+  const modelTables = tables.filter((t) => MODELS.includes(t.kind));
   const missingFit = modelTables.filter(
     (t) => !tables.some((f) => f.fit_table_of === t.number),
   );
-  const adjusted = tables.filter((t) => /^Adjusted comparison/i.test(t.title));
+  const adjusted = tables.filter((t) => t.kind === "adjusted" || t.kind === "cox");
   const missingOverlap = adjusted.filter((t) => {
     const before = numbered.slice(0, numbered.indexOf(t));
-    return !before.some((p) => /overlap/i.test(p.title));
+    return !before.some((p) => p.kind === "overlap");
   });
   const badModels = [...missingFit, ...missingOverlap];
   results.push(

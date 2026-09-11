@@ -22,9 +22,10 @@ attaches to the table before it and takes that table's number with a letter.
 | binary_common | Binary, expected in one in ten or more | ratio, fit |
 | binary_rare | Binary, expected in fewer than one in ten | ratio, fit |
 | binary_few_events | Binary, too few events to model | proportions |
-| time_to_event | Time to an event | survival, cox, fit |
+| time_to_event | Time to an event | survival, overlap, cox, fit |
+| time_to_event_competing | Time to an event, with a competing event | cumulative_incidence, overlap, cox, fit |
 | count_outcome | Counts | summary, unadjusted, adjusted, fit |
-| diagnostic | A test against a reference standard | two_by_two, accuracy |
+| diagnostic | A test against a reference standard | two_by_two, accuracy, calibration |
 | safety | Harms, reported and not modelled | safety |
 | correlation | Two continuous variables | correlation |
 | subgroup | An effect asked separately within levels of something | subgroup |

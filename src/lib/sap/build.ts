@@ -73,7 +73,7 @@ export function buildSap(facts: FactsSheet): SapBuild {
 
   const analysed = buildAnalysis(facts, objectives, variables, explored.outcomes);
   todos.push(...analysed.todos);
-  checks.push(...step4Checks(facts, objectives, analysed.rows));
+  checks.push(...step4Checks(facts, objectives, analysed.rows, variables));
 
   const ruled = buildRules(facts, objectives, analysed.rows);
   todos.push(...ruled.todos);

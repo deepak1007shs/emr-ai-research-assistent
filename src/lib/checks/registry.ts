@@ -92,6 +92,11 @@ export const CHECKS: Check[] = [
     rule: "The data-type cell states the unit of analysis and how many values each participant gives." },
   { id: "S4-5", step: "step4", type: "warn",
     rule: "The covariates are within the events-per-covariate cap, or the row says the analysis is unadjusted only." },
+  // Not in the written process. From the model-choice deck's list of the eight
+  // commonest mistakes: an ordered scale cut into two loses most of what was
+  // measured, and the loss is invisible once the outcome is a yes or no.
+  { id: "S4-6", step: "step4", type: "warn",
+    rule: "No outcome dichotomises an ordered scale without the ordinal analysis beside it." },
 
   /* ---- Step 5: rules ------------------------------------------------ */
   { id: "S5-1", step: "step5", type: "block",

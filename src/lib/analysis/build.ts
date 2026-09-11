@@ -55,6 +55,19 @@ const DESIGN_CLASS: Record<DesignFamily, string> = {
 const SAFETY = /adverse|safety|side.effect|tolerab|harm|complication/i;
 
 /**
+ * A design that allocates groups rather than people.
+ *
+ * Everyone in a cluster shares whatever the cluster does, so two people from
+ * one ward carry less information than two people from two wards. Ignoring that
+ * is the fourth of the deck's eight commonest mistakes, and unlike repeated
+ * measurement it is invisible in the data: every row still looks independent.
+ */
+const clusteredByDesign = (facts: FactsSheet) =>
+  facts.design === "cluster_trial";
+
+const covariatesExist = (facts: FactsSheet) => facts.covariates.length > 0;
+
+/**
  * The outcome chain a question is asked of.
  *
  * A level question is linked to the derived value, a shape question to the
@@ -94,10 +107,22 @@ function shapeOf(
   facts: FactsSheet,
   objective: Objective,
   exploratory: ExploratoryOutcome | undefined,
+  chain: OutcomeChain,
 ): string {
   if (exploratory?.kind === "correlation") return "pair";
+  // A diagnostic study never compares two groups. Its question is how well one
+  // measurement agrees with a reference standard, and that is its own row.
+  if (facts.design === "diagnostic_accuracy") return "diagnostic";
+  // A competing event changes the analysis more than the number of groups
+  // does, so it is asked first. One minus the Kaplan-Meier estimate overstates
+  // the risk whenever something else can get there first, and that is the sixth
+  // of the eight commonest mistakes.
+  if (chain.type === "time_to_event" && chain.competing_event) return "competing";
   if (objective.kind === "shape") return "repeated";
-  if (facts.design === "crossover_trial") return "paired";
+  // A within-person comparison, however it arose: the same person measured
+  // twice, or a case kept with the controls they were matched to. Breaking a
+  // matched set apart makes the real effect look smaller than it is.
+  if (facts.design === "crossover_trial" || facts.allocation.matched) return "paired";
   if (facts.groups.length > 2) return "many_groups";
   if (facts.groups.length === 2) return "two_groups";
   return "single";
@@ -223,6 +248,15 @@ export function buildAnalysis(
   const byName = new Map(variables.map((v) => [v.name, v]));
   const design = DESIGN_CLASS[facts.design];
   const skewed = skewedNames(facts);
+  const total = facts.sample_size.per_group
+    ? facts.sample_size.per_group * Math.max(facts.groups.length, 1)
+    : null;
+
+  if (clusteredByDesign(facts)) {
+    todos.push(
+      "State how many clusters were randomised and the average cluster size, and the intracluster correlation the sample size assumed. Below about 30 clusters the robust variance is optimistic, and the confidence intervals need a small-sample correction or a cluster bootstrap.",
+    );
+  }
 
   for (const objective of objectives) {
     const explore = exploratory.find((e) => e.id === objective.id);
@@ -231,7 +265,7 @@ export function buildAnalysis(
     const chain = chainFor(facts, objective, outcomeName);
     if (!variable || !chain) continue;
 
-    const shape = shapeOf(facts, objective, explore);
+    const shape = shapeOf(facts, objective, explore, chain);
     const dataType = variable.type;
 
     /* ---- A: the effect measure the design owes --------------------- */
@@ -250,6 +284,17 @@ export function buildAnalysis(
       );
       continue;
     }
+    // Rule from the first fork of the measured-number branch: the adjusted
+    // model is an analysis of covariance because the outcome was also measured
+    // at baseline. An outcome with no baseline value - blood loss, operating
+    // time, a single post-operative score - gets plain linear regression, and
+    // naming it ANCOVA promises a column that cannot be filled.
+    const hasBaseline = chain.measures.some((measure) =>
+      byName.get(measure)?.timepoints.includes(facts.timepoints[0] ?? ""),
+    );
+
+    const clusterTrial = clusteredByDesign(facts);
+
     const { test, fallback } = resolveSkew(
       // A correlation is skewed if either side of it is.
       explore?.kind === "correlation"
@@ -259,13 +304,36 @@ export function buildAnalysis(
     );
 
     let adjustedModel = testRow["Adjusted model"] || "";
+    if (!hasBaseline) {
+      adjustedModel = adjustedModel.replace(
+        /,\s*as analysis of covariance with the baseline value/,
+        "",
+      );
+    }
     let adjustedFallback = testRow["Adjusted fallback"] || null;
 
     /* ---- C: for a binary outcome, the model the frequency owes ------ */
-    if (dataType === "binary" && adjustedModel) {
-      const clustered = variable.timepoints.length > 1;
-      const key =
-        chain.expected_frequency === null
+    // Decision table C chooses between the risk-ratio models by how common the
+    // event is. It has nothing to say about a matched design, whose model is
+    // fixed by the matching, or about a diagnostic one, which estimates
+    // accuracy rather than an effect.
+    const frequencyDecides = !["paired", "diagnostic"].includes(shape);
+
+    if (dataType === "binary" && adjustedModel && frequencyDecides) {
+      const clustered = variable.timepoints.length > 1 || clusteredByDesign(facts);
+      // Ten events per covariate is the floor every one of these models needs.
+      // Below it the question is not which risk model to fit but whether any
+      // of them will fit at all, and the answer is the penalised one.
+      const covariates = Math.max(facts.covariates.length, 1);
+      const events =
+        total !== null && chain.expected_frequency !== null
+          ? chain.expected_frequency * total
+          : null;
+      const tooFew = events !== null && events / covariates < 10;
+
+      const key = tooFew
+        ? "few_events"
+        : chain.expected_frequency === null
           ? clustered
             ? "clustered"
             : "unknown"
@@ -291,6 +359,44 @@ export function buildAnalysis(
     if (dataType === "continuous" && skewed.has(outcomeName) && adjustedModel) {
       adjustedModel = `${adjustedModel} on the log scale`;
       effect = "Ratio of geometric means";
+    }
+
+    /* ---- an observational comparison owes a balance method ---------- */
+    // Randomisation is what makes two groups alike. Where there was none,
+    // adjustment helps and hides how different the groups were to begin with,
+    // and the overlap table below is the part of the answer this plan can
+    // draw without knowing which method the investigator wants.
+    if (
+      objective.family === "primary" &&
+      !explore &&
+      design !== "trial" &&
+      facts.groups.length >= 2 &&
+      covariatesExist(facts)
+    ) {
+      todos.push(
+        "This is an observational comparison, so the groups were not made alike by randomisation and the sicker patients may be the treated ones. Say which method handles that before the outcome is looked at: matching on the propensity score, inverse probability of treatment weighting, stratification on it, or adjustment for it. Whichever is chosen, the balance table with standardised mean differences before and after is reported, and so is how many participants were dropped.",
+      );
+    }
+
+    /* ---- the two branches that owe a decision, not a default -------- */
+    if (shape === "competing") {
+      todos.push(
+        `Say which competing-risks model ${objective.id} reports, and pre-specify it. A cause-specific model answers whether the treatment changes the rate of "${chain.what.toLowerCase()}" among those still at risk; a Fine-Gray model answers what share of participants will actually reach it, given that ${chain.competing_event} can get there first. The two hazard ratios are easily confused and are not the same number.`,
+      );
+    }
+    if (dataType === "count") {
+      todos.push(
+        `Say whether some participants could never have the event counted by "${chain.what.toLowerCase()}". Where that group can be described in clinical words, the plan is a zero-inflated model; where the zeros are simply because the event is uncommon, it is a negative binomial. Report the AIC of each model fitted, in the order they were fitted, rather than the best one alone.`,
+      );
+    }
+
+    /* ---- a cluster trial's rows are not independent ------------------ */
+    // The fourth of the eight commonest mistakes: rows that sit inside clinics,
+    // wards or villages analysed as if each were a separate person. It is the
+    // design that makes that true, not the outcome, so it applies to every
+    // model in the plan.
+    if (clusteredByDesign(facts) && adjustedModel && !/robust/i.test(adjustedModel)) {
+      adjustedModel = `${adjustedModel}, with robust (sandwich) variance clustered on the randomised unit`;
     }
 
     /* ---- a study with no comparison has no group term --------------- */
@@ -331,7 +437,9 @@ export function buildAnalysis(
       outcome: outcomeName,
       predictors,
       data_type: dataType,
-      unit_of_analysis: "per participant",
+      unit_of_analysis: clusterTrial
+        ? "per participant, inside a randomised cluster"
+        : "per participant",
       count:
         shape === "repeated"
           ? `${chain.time.length} readings per participant`
@@ -357,7 +465,15 @@ export function buildAnalysis(
               fallback: null,
               table: "",
             }
-          : { test, fallback, table: "" },
+          : {
+              // In a cluster trial the individual is not the unit that was
+              // allocated, so the unadjusted comparison is made between cluster
+              // summaries. Treating the rows as independent people is the
+              // fourth of the eight commonest mistakes.
+              test: clusterTrial ? `${test}, on cluster-level summary measures` : test,
+              fallback,
+              table: "",
+            },
       adjusted:
         exception || !adjustedModel || explore?.kind === "correlation"
           ? null

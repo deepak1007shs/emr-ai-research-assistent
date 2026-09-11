@@ -41,7 +41,7 @@ export const idaPreg: FactsSheet = {
     { code: "FCM", label: "IV ferric carboxymaltose" },
     { code: "Oral", label: "Oral ferrous ascorbate" },
   ],
-  allocation: { ratio: "1:1", block: 4, strata: [] },
+  allocation: { ratio: "1:1", block: 4, strata: [], matched: null },
   timepoints: ["D0", "W2", "W4", "W6"],
   measures: [
     { name: "participant_name", label: "Name", type: "text", unit: null, options: null, block: null, derived_from: [], recipe: null },
@@ -90,6 +90,7 @@ export const idaPreg: FactsSheet = {
     type: "continuous",
     distribution: "normal",
     expected_frequency: null,
+    competing_event: null,
     measures: ["haemoglobin"],
   },
   secondary: [
@@ -102,6 +103,7 @@ export const idaPreg: FactsSheet = {
       type: "binary",
       distribution: "unknown",
       expected_frequency: null,
+      competing_event: null,
       measures: ["haemoglobin"],
     },
     {
@@ -115,6 +117,7 @@ export const idaPreg: FactsSheet = {
       // that is known before the first sample is drawn.
       distribution: "skewed",
       expected_frequency: null,
+      competing_event: null,
       measures: ["serum_ferritin"],
     },
     {
@@ -126,6 +129,7 @@ export const idaPreg: FactsSheet = {
       type: "binary",
       distribution: "unknown",
       expected_frequency: null,
+      competing_event: null,
       measures: ["adverse_effects"],
     },
   ],

@@ -34,7 +34,7 @@ const DATA_TYPES = [
 const outcomeChain = {
   type: "object",
   additionalProperties: false,
-  required: ["what", "how", "instrument", "time", "unit", "type", "measures", "distribution", "expected_frequency"],
+  required: ["what", "how", "instrument", "time", "unit", "type", "measures", "distribution", "expected_frequency", "competing_event"],
   properties: {
     what: { ...str, description: "Exactly what is measured. 'Change in haemoglobin', not 'efficacy'." },
     how: { ...str, description: "The method or definition: how the value is arrived at." },
@@ -43,7 +43,8 @@ const outcomeChain = {
     unit: { ...str, description: "The unit, or the two categories for a binary outcome." },
     type: { type: "string", enum: DATA_TYPES, description: "What kind of value it is." },
     distribution: { type: "string", enum: ["normal", "skewed", "unknown"], description: "What the values are expected to look like, from what is known of the measure before the study starts. Serum ferritin, CRP and length of stay are skewed; haemoglobin and blood pressure are not. Use unknown rather than guessing." },
-    expected_frequency: { type: ["number", "null"], description: "For a binary outcome, the proportion expected to have it, as a number between 0 and 1. Null where the protocol does not say, which becomes a question for the investigator." },
+    expected_frequency: { type: ["number", "null"], description: "For a binary or time-to-event outcome, the proportion expected to have the event, as a number between 0 and 1. It is what limits the model: a binary or survival analysis is limited by its events and not by its participants. Null where the protocol does not say, which becomes a question for the investigator." },
+    competing_event: { type: ["string", "null"], description: "For a time-to-event outcome only: the event that can happen first and prevent it, such as death before relapse. Null for any other outcome type, where nothing can intervene, or where the event is death itself." },
     measures: { ...strArray, description: "The names, from `measures`, this outcome is built from. One for a raw outcome; for a change or a threshold, the one measure it is computed from." },
   },
 } as const;
@@ -101,6 +102,7 @@ export const FACTS_JSON_SCHEMA = {
         ratio: { ...str, description: "'1:1', or '' where there is no allocation." },
         block: { type: ["integer", "null"], description: "Block size, or null." },
         strata: { ...strArray, description: "Stratification factors. These enter the adjusted model." },
+        matched: { type: ["string", "null"], description: "How participants were matched, where they were: '1 case to 2 controls, matched on age and sex'. Null where they were not. Matching changes the analysis, so it is recorded even where the protocol mentions it only in passing." },
       },
     },
     timepoints: { ...strArray, description: "Every visit code in order: D0, W2, W4, W6. One entry for a single assessment." },
@@ -211,6 +213,7 @@ const chain = z.object({
   measures: z.array(z.string()),
   distribution: z.enum(["normal", "skewed", "unknown"]),
   expected_frequency: z.number().nullable(),
+  competing_event: z.string().nullable(),
 });
 
 export const factsSchema = z
@@ -235,6 +238,7 @@ export const factsSchema = z
       ratio: z.string(),
       block: z.number().int().nullable(),
       strata: z.array(z.string()),
+      matched: z.string().nullable(),
     }),
     timepoints: z.array(z.string()),
     measures: z.array(

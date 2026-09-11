@@ -196,7 +196,7 @@ export function buildTables(
     );
     if (!rows.length) continue;
 
-    const key = situationOf(chain, rows, skewed);
+    const key = situationOf(facts, chain, rows, skewed);
     const template = templates().find((t) => t.Key === key);
     if (!template) {
       todos.push(
@@ -348,13 +348,20 @@ const label2 = (variable: Variable | undefined) => variable?.label ?? "Outcome";
 
 /** Which row of the template file this outcome reads. */
 function situationOf(
+  facts: FactsSheet,
   chain: OutcomeChain,
   rows: AnalysisRow[],
   skewed: Set<string>,
 ): string {
+  // The design is asked first, and only here. A diagnostic study's outcome is
+  // a yes or no like any other, and drawing it as one gives a summary table
+  // where the plan owes a two-by-two, sensitivity, specificity and calibration.
+  if (facts.design === "diagnostic_accuracy") return "diagnostic";
   if (isSafety(chain)) return "safety";
   if (rows.every((r) => r.exception === "estimation")) return "estimation";
-  if (chain.type === "time_to_event") return "time_to_event";
+  if (chain.type === "time_to_event") {
+    return chain.competing_event ? "time_to_event_competing" : "time_to_event";
+  }
   if (chain.type === "count") return "count_outcome";
   if (chain.type === "binary" || chain.type === "nominal" || chain.type === "ordinal") {
     if (rows.some((r) => r.exception === "too_few_events")) return "binary_few_events";
@@ -563,7 +570,7 @@ function drawTable(args: DrawArgs): ShellTable {
         ],
         rows: covariates.map((c) => blank(byName.get(c.var)?.label ?? c.var)),
         footnote:
-          "positivity check. **TODO:** where a covariate does not overlap, the adjusted estimate is not estimable for the part that does not, and the adjusted column is dropped",
+          "positivity and balance check, with the standardised difference for every covariate. **TODO:** where a covariate does not overlap, the adjusted estimate is not estimable for the part that does not, and the adjusted column is dropped",
         fills: [level.objective],
         variables: covariates.map((c) => c.var),
       };
@@ -609,6 +616,117 @@ function drawTable(args: DrawArgs): ShellTable {
           blank(`${codes[1] ?? "Reference"} - 1 (reference)`),
         ],
         footnote: footnoteFor(level.adjusted, level.adjusted?.model),
+        fills: [level.objective],
+      };
+
+    case "survival":
+      return {
+        ...base,
+        title: `${chain.what} by ${comparative ? "arm" : "group"}`,
+        columns: [
+          comparative ? "Arm" : "Group",
+          "Events / n",
+          `Median ${lower(chain.what)} (95% CI)`,
+          ...(comparative ? ["Log-rank p"] : []),
+        ],
+        rows: codes.length
+          ? codes.map((code) => blank(code))
+          : [blank("All participants")],
+        footnote: footnoteFor(level.unadjusted),
+        fills: [level.objective],
+      };
+
+    case "cumulative_incidence":
+      // Never one minus the Kaplan-Meier estimate. Where something else can
+      // happen first, that overstates the risk of the event being studied, and
+      // it is the sixth of the deck's eight commonest mistakes.
+      return {
+        ...base,
+        title: `Cumulative incidence of ${lower(chain.what)}, and of ${lower(chain.competing_event ?? "the competing event")}, by ${comparative ? "arm" : "group"}`,
+        columns: [
+          comparative ? "Arm" : "Group",
+          "Events / n",
+          `Cumulative incidence of ${lower(chain.what)} at the horizon (95% CI)`,
+          `Cumulative incidence of ${lower(chain.competing_event ?? "the competing event")} (95% CI)`,
+          ...(comparative ? ["Gray's test p"] : []),
+        ],
+        rows: codes.length
+          ? codes.map((code) => blank(code))
+          : [blank("All participants")],
+        footnote: footnoteFor(level.unadjusted),
+        fills: [level.objective],
+      };
+
+    case "cox":
+      return {
+        ...base,
+        title: `Adjusted comparison of ${lower(chain.what)}`,
+        columns: ["Term", `${level.effect_measure} (95% CI)`, "p"],
+        rows: [
+          blank(
+            `${byName.get(ARM)?.label ?? ARM} - ${codes[0] ?? "the exposed group"} versus ${codes[1] ?? "the reference"}`,
+          ),
+          blank(`${codes[1] ?? "Reference"} - 1 (reference)`),
+          ...(level.adjusted?.covariates ?? []).map((c) =>
+            blank(
+              `${byName.get(c.var)?.label ?? c.var}${c.at ? ` at ${lower(visitLabel(facts, c.at))}` : ""}`,
+            ),
+          ),
+        ],
+        footnote: footnoteFor(level.adjusted, level.adjusted?.model),
+        fills: [level.objective],
+        variables: [
+          level.outcome,
+          ...(level.adjusted?.covariates ?? []).map((c) => c.var),
+        ],
+      };
+
+    case "two_by_two":
+      return {
+        ...base,
+        title: `${chain.what} against the reference standard`,
+        columns: ["Index test", "Reference standard positive", "Reference standard negative", "Total"],
+        rows: [blank("Positive"), blank("Negative"), blank("Total")],
+        footnote:
+          "counts at the pre-specified cut-off. **TODO:** name the reference standard, and confirm that whoever applied it was blind to the index test",
+        fills: [level.objective],
+      };
+
+    case "accuracy":
+      return {
+        ...base,
+        title: `Accuracy of ${lower(chain.what)} at the pre-specified cut-off`,
+        columns: ["Measure", "Estimate", "95% CI"],
+        rows: [
+          "Sensitivity",
+          "Specificity",
+          "Positive predictive value",
+          "Negative predictive value",
+          "Positive likelihood ratio",
+          "Negative likelihood ratio",
+          "Area under the curve",
+        ].map(blank),
+        footnote:
+          "predictive values depend on how common the condition is here and do not transfer to a setting with a different prevalence",
+        fills: [level.objective],
+      };
+
+    case "calibration":
+      // The area under the curve alone is not enough: it says the test ranks
+      // people correctly and says nothing about whether the numbers it gives
+      // them are right.
+      return {
+        ...base,
+        title: `Calibration of ${lower(chain.what)}`,
+        columns: ["Item", "Value"],
+        rows: [
+          "Calibration plot, observed against predicted by decile",
+          "Calibration slope",
+          "Calibration in the large",
+          "Brier score",
+          "**TODO:** where the cut-off was chosen in these data, the validation that corrects for it: bootstrap optimism at least, a separate sample for preference",
+        ].map(blank),
+        footnote: "discrimination and calibration reported together",
         fills: [level.objective],
       };
 

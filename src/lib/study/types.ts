@@ -70,6 +70,15 @@ export type Allocation = {
   ratio: string;
   block: number | null;
   strata: string[];
+  /**
+   * How participants were matched, where they were: "1 case to 2 controls,
+   * matched on age and sex". Null where they were not.
+   *
+   * It changes the analysis rather than describing it. Matched sets have to be
+   * kept together, and ignoring the matching makes the real effect look smaller
+   * than it is, which is the direction nobody notices.
+   */
+  matched: string | null;
 };
 
 /**
@@ -125,6 +134,16 @@ export type OutcomeChain = {
    * the two answer differently.
    */
   expected_frequency: number | null;
+  /**
+   * For a time-to-event outcome, the event that can happen first and stop it.
+   *
+   * Death before relapse is the usual one. It changes the analysis completely:
+   * one minus the Kaplan-Meier estimate overstates the risk when a competing
+   * event exists, and the plan owes cumulative incidence functions and either a
+   * cause-specific or a subdistribution model instead. Null where nothing else
+   * can intervene, or where the event is death itself.
+   */
+  competing_event: string | null;
 };
 
 /**

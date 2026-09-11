@@ -34,15 +34,31 @@ describe("Step 4, the Analysis Map", () => {
     expect(row("S1").effect_measure).not.toContain("Odds");
   });
 
-  it("plans a logistic model where the event is expected to be rare", () => {
+  it("plans a logistic model where the event is rare and the study is large", () => {
+    // 6% of a thousand women is sixty events, which three covariates can carry.
     const rare: FactsSheet = {
+      ...idaPreg,
+      sample_size: { ...idaPreg.sample_size, per_group: 500 },
+      secondary: idaPreg.secondary.map((o, i) =>
+        i === 0 ? { ...o, expected_frequency: 0.06 } : o,
+      ),
+    };
+    expect(row("S1", rare).adjusted!.model).toContain("Logistic regression");
+    expect(row("S1", rare).effect_measure).toContain("Odds ratio");
+  });
+
+  it("plans Firth where the events are too few for any of the others", () => {
+    // Five events between the arms. The question is no longer which risk model
+    // to fit but whether one will fit at all, and the penalised model is the
+    // answer to that.
+    const few: FactsSheet = {
       ...idaPreg,
       secondary: idaPreg.secondary.map((o, i) =>
         i === 0 ? { ...o, expected_frequency: 0.04 } : o,
       ),
     };
-    expect(row("S1", rare).adjusted!.model).toContain("Logistic regression");
-    expect(row("S1", rare).effect_measure).toContain("Odds ratio");
+    expect(row("S1", few).adjusted!.model).toContain("Firth");
+    expect(row("S1", few).adjusted!.fallback).toContain("Fisher's exact");
   });
 
   it("asks for the frequency rather than choosing silently", () => {
@@ -112,7 +128,7 @@ describe("Step 4, the Analysis Map", () => {
     const observed: FactsSheet = {
       ...idaPreg,
       design: "cohort",
-      allocation: { ratio: "", block: null, strata: [] },
+      allocation: { ratio: "", block: null, strata: [], matched: null },
     };
     expect(row("P1b", observed).adjusted!.covariates.length).toBeGreaterThan(0);
   });

@@ -14,7 +14,7 @@ const FROM_THE_DOCUMENT = [
   "S1-1", "S1-2", "S1-3", "S1-4",
   "S2-1", "S2-2", "S2-3", "S2-4", "S2-5",
   "S3-1",
-  "S4-1", "S4-2", "S4-3", "S4-4", "S4-5",
+  "S4-1", "S4-2", "S4-3", "S4-4", "S4-5", "S4-6",
   "S5-1", "S5-2", "S5-3",
   "S6-1", "S6-2", "S6-3", "S6-4", "S6-5", "S6-6",
   "S7-1", "S7-2", "S7-3", "S7-4", "S7-5", "S7-6",
@@ -60,11 +60,14 @@ describe("the check registry", () => {
   });
 
   it("warns only where the process says to warn", () => {
-    // Two, both at Step 4, plus the terminology check at Step 8. Everything
-    // else stops the next step.
+    // Two from the process, both at Step 4, plus the terminology check at Step
+    // 8. S4-6 is the one addition, and it warns for the same reason the other
+    // two do: it names a decision the investigator has to take, not a fault in
+    // the plan. Everything else stops the next step.
     expect(CHECKS.filter((c) => c.type === "warn").map((c) => c.id)).toEqual([
       "S4-4",
       "S4-5",
+      "S4-6",
       "CRF-2",
     ]);
   });

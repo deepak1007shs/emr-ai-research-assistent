@@ -3,6 +3,7 @@ import type {
   CheckResult,
   FactsSheet,
   Objective,
+  Variable,
 } from "../study/types.ts";
 
 /**
@@ -29,6 +30,7 @@ export function step4Checks(
   facts: FactsSheet,
   objectives: Objective[],
   rows: AnalysisRow[],
+  variables: Variable[] = [],
 ): CheckResult[] {
   const results: CheckResult[] = [];
   const mapped = new Set(rows.map((r) => r.objective));
@@ -117,12 +119,12 @@ export function step4Checks(
   const overFitted = rows.filter((r) => {
     const covariates = r.adjusted?.covariates.length ?? 0;
     if (!covariates || total === null) return false;
-    // Ten events per covariate for a binary outcome, ten to fifteen
-    // participants per covariate for a continuous one.
-    const carrying =
-      r.data_type === "binary"
-        ? (r.expected_frequency ?? 0.5) * total
-        : total;
+    // What limits a model is participants for a measured outcome and EVENTS
+    // for a binary or a survival one. A trial of 400 people with 12 deaths can
+    // carry one covariate, not four, and counting the 400 hides that.
+    const countsEvents =
+      r.data_type === "binary" || r.data_type === "time_to_event";
+    const carrying = countsEvents ? (r.expected_frequency ?? 0.5) * total : total;
     return carrying / covariates < 10;
   });
   results.push(
@@ -132,7 +134,27 @@ export function step4Checks(
           id: "S4-5",
           pass: false,
           failing: overFitted.map((r) => r.objective),
-          message: `${overFitted.map((r) => r.objective).join(", ")} adjusts for more covariates than ${total} participants can carry. Plan the unadjusted analysis and say why, rather than fitting a model that will not hold.`,
+          message: `${overFitted.map((r) => r.objective).join(", ")} adjusts for more covariates than this study can carry. A binary or survival model is limited by its events, not by its participants, and ten per covariate is the floor. Plan the unadjusted analysis and say why, rather than fitting a model that will not hold.`,
+        },
+  );
+
+  /* S4-6: an ordered scale cut into two. */
+  const byName = new Map(variables.map((v) => [v.name, v]));
+  const flattened = rows.filter((row) => {
+    if (row.data_type !== "binary") return false;
+    const variable = byName.get(row.outcome);
+    return (variable?.derived_from ?? []).some(
+      (input) => byName.get(input)?.type === "ordinal",
+    );
+  });
+  results.push(
+    flattened.length === 0
+      ? ok("S4-6", "No outcome cuts an ordered scale into two.")
+      : {
+          id: "S4-6",
+          pass: false,
+          failing: flattened.map((r) => r.objective),
+          message: `${flattened.map((r) => r.objective).join(", ")} turns an ordered scale into a yes or no. A six-point scale cut at one point throws away every distinction except that one, and the loss is invisible once the outcome is binary. Report the ordinal analysis beside it, or say why the cut-off is the only thing that matters clinically.`,
         },
   );
 

@@ -19,8 +19,8 @@ above the general ones.
 | cohort\|binary | Cohort, binary outcome | Risk ratio | Risk difference | Odds ratio, where the outcome is common |
 | cross_sectional\|binary | Cross-sectional, binary outcome | Prevalence ratio | Prevalence difference | Odds ratio |
 | case_control\|binary | Case-control | Odds ratio | | Risk ratio, which a case-control study cannot estimate |
-| diagnostic\|* | Diagnostic accuracy | Sensitivity, specificity, positive and negative predictive values, likelihood ratios and the area under the curve, each with a 95% confidence interval | | |
-| *\|time_to_event | Time to event | Hazard ratio | Median survival by group | Proportions that ignore time |
+| diagnostic\|* | Diagnostic accuracy | Sensitivity, specificity, positive and negative predictive values, likelihood ratios and the area under the curve, each with a 95% confidence interval | Calibration, as a calibration plot with the Brier score | The area under the curve alone; predictive values carried to a setting with a different prevalence |
+| *\|time_to_event | Time to event | Hazard ratio | Median survival by group, and the restricted mean survival time where the hazards are not proportional | Proportions that ignore time; one minus the Kaplan-Meier estimate where a competing event exists |
 | *\|count | Counts over person-time | Incidence rate ratio | Rate difference | |
 | *\|continuous | Continuous outcome | Mean difference | | |
 | *\|binary | Binary outcome | Risk ratio | Risk difference | |
