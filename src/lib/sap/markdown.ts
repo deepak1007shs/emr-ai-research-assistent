@@ -229,9 +229,7 @@ export function renderSapMarkdown(build: SapBuild): string {
 
     for (const table of mine) {
       say(shell(table));
-      for (const figure of figures.filter(
-        (f) => f.block === block && afterRateOfChange(table, f.number),
-      )) {
+      for (const figure of figures.filter((f) => f.after === table.number)) {
         say(`**Figure ${figure.number}.  ${figure.caption}**`);
         say(italic(`Footnote: ${figure.footnote}`));
       }
@@ -250,15 +248,4 @@ export function renderSapMarkdown(build: SapBuild): string {
   }
 
   return `${out.join("\n").replace(/\n{3,}/g, "\n\n").trim()}\n`;
-}
-
-/**
- * The figure follows the fit table of the model it illustrates.
- *
- * Rule 6.4.4 puts the figure after the rate-of-change table and its fit table,
- * which is where a reader has just been told what the slopes were.
- */
-function afterRateOfChange(table: ShellTable, figureNumber: string): boolean {
-  void figureNumber;
-  return table.kind === "fit" && table.footnote.includes("mixed model");
 }

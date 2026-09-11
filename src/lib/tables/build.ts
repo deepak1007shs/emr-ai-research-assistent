@@ -44,10 +44,30 @@ export function templates(): Row[] {
   return templateRows;
 }
 
+/**
+ * A figure, and the table it is printed after.
+ *
+ * `after` is stored rather than worked out at render time. The markdown
+ * renderer used to find the figure's place by asking whether a fit table's
+ * footnote mentioned a mixed model, which is true of every such table in the
+ * block: a study with two repeated outcomes printed both figures twice, under a
+ * heading that pinned the count at two. The Word renderer answered the question
+ * differently again and put them at the end of the block. One stored answer,
+ * three renderers.
+ */
+export type Figure = {
+  number: string;
+  block: string;
+  caption: string;
+  footnote: string;
+  /** The number of the table this figure follows. */
+  after: string;
+};
+
 export type TableSet = {
   tables: ShellTable[];
   /** "Figure 1" and what it shows, kept apart because it is numbered apart. */
-  figures: { number: string; block: string; caption: string; footnote: string }[];
+  figures: Figure[];
   todos: string[];
 };
 
@@ -209,13 +229,23 @@ export function buildTables(
       rows.find((r) => r.objective === stem || r.objective === `${stem}a`) ?? rows[0];
     const shape = rows.find((r) => r.objective === `${stem}b`) ?? null;
 
+    // `previous` is the last model table, which is what a fit table attaches
+    // to. `lastAdded` is the last table of any kind, which is what a figure
+    // follows: rule 6.4.4 puts it after the rate-of-change table *and* its fit
+    // table, where a reader has just been told what the slopes were.
     let previous: ShellTable | null = null;
+    let lastAdded: ShellTable | null = null;
     for (const kind of template.Tables.split(",").map((k) => k.trim())) {
+      if (skip(kind, level, shape)) continue;
+
       if (kind === "fit") {
+        // One fit table per model table. Where the model table the template
+        // meant was skipped, this would otherwise attach a second fit table to
+        // whatever came before it, under a number that already exists.
         if (!previous) continue;
         const model = previous.footnote;
         const assumption = assumptionFor(model);
-        add({
+        lastAdded = add({
           number: `${previous.number}a`,
           block,
           kind: "fit",
@@ -227,12 +257,14 @@ export function buildTables(
           fills: previous.fills,
           variables: [],
         });
+        previous = null;
         continue;
       }
 
       if (kind === "figure") {
         figures.push({
           number: `${figures.length + 1}`,
+          after: lastAdded?.number ?? "",
           block,
           caption: `${label(chain)} over time by ${comparative ? "arm" : "group"}, on one continuous time axis from ${lower(visitLabel(facts, chain.time[0]))} to ${lower(visitLabel(facts, chain.time[chain.time.length - 1]))}`,
           footnote: "means with 95% confidence intervals at each visit",
@@ -240,7 +272,7 @@ export function buildTables(
         continue;
       }
 
-      previous = add(
+      previous = lastAdded = add(
         drawTable({
           kind,
           number: next(),
@@ -345,12 +377,51 @@ const isRandomised = (facts: FactsSheet) =>
 
 const label = (chain: OutcomeChain) => chain.what;
 
+/** "Risk difference (95% CI)", without a second interval where one is named. */
+const interval = (measure: string) =>
+  /confidence interval|95% CI/i.test(measure)
+    ? measure.replace(/\s*with a 95% confidence interval/i, " (95% CI)")
+    : `${measure} (95% CI)`;
+
 /** "Median follow-up, days (95% CI)" rather than two parentheses in a row. */
 const withUnit = (
   text: string,
   variable: Variable | undefined,
   tail: string,
 ) => (variable?.unit ? `${text}, ${variable.unit} ${tail}` : `${text} ${tail}`);
+
+/**
+ * A table the template asks for and this outcome has nothing to put in.
+ *
+ * A template is a fixed list, which is the point: the table set is pinned and
+ * nothing chooses it. But a single-group study has no adjusted model, and
+ * drawing its "Adjusted comparison" anyway gave a table with one row, no
+ * covariates and the footnote "descriptive only" - a model table for a model
+ * that was never planned. An overlap check with no covariates reads the same
+ * way: as a check that was run and found nothing, rather than one that was
+ * never needed.
+ */
+function skip(
+  kind: string,
+  level: AnalysisRow,
+  shape: AnalysisRow | null,
+): boolean {
+  switch (kind) {
+    case "overlap":
+      return !level.adjusted?.covariates.length;
+    case "adjusted":
+    case "cox":
+    case "ratio":
+      return !level.adjusted;
+    case "rate_of_change":
+    case "figure":
+      return !shape?.adjusted;
+    case "per_time_point":
+      return !shape;
+    default:
+      return false;
+  }
+}
 
 /** Items down the side, groups across the top. */
 const survivalColumns = (codes: string[], comparative: boolean) => [
@@ -376,12 +447,20 @@ function situationOf(
   if (chain.type === "time_to_event") {
     return chain.competing_event ? "time_to_event_competing" : "time_to_event";
   }
-  if (chain.type === "count") return "count_outcome";
-  if (chain.type === "binary" || chain.type === "nominal" || chain.type === "ordinal") {
+  const repeated = rows.some((r) => r.objective.endsWith("b"));
+  if (chain.type === "count") return repeated ? "count_repeated" : "count_outcome";
+  // An ordered scale is not a yes or no. Drawn as one it gets a two-by-two
+  // ratio table with "1 (reference)" in it, which is the seventh of the eight
+  // commonest mistakes committed by the plan that warns about it - and the
+  // table then contradicts its own footnote, which names a cumulative-link
+  // model.
+  if (chain.type === "ordinal") return repeated ? "ordinal_repeated" : "ordinal_outcome";
+  if (chain.type === "nominal") return "nominal_outcome";
+  if (chain.type === "binary") {
     if (rows.some((r) => r.exception === "too_few_events")) return "binary_few_events";
     return (chain.expected_frequency ?? 0.5) < 0.1 ? "binary_rare" : "binary_common";
   }
-  if (rows.some((r) => r.objective.endsWith("b"))) return "continuous_repeated";
+  if (repeated) return "continuous_repeated";
   if (skewed.has(variableName(chain.what))) return "skewed_continuous";
   return "continuous_single";
 }
@@ -542,7 +621,12 @@ function drawTable(args: DrawArgs): ShellTable {
       return {
         ...base,
         title: `${measures[0]?.label ?? chain.what} at each visit by ${comparative ? "arm" : "group"} (descriptive)`,
-        columns: ["Visit", ...codes.map((c) => `${c} - Mean ± SD (n)`)],
+        columns: [
+          "Visit",
+          ...(codes.length
+            ? codes.map((c) => `${c} - Mean ± SD (n)`)
+            : ["Mean ± SD (n)"]),
+        ],
         rows: chain.time.map((code) => blank(visitLabel(facts, code))),
         // Rule 4.13: k tests at k visits for one question is wrong, and the
         // one test is in the rate-of-change table below.
@@ -576,11 +660,6 @@ function drawTable(args: DrawArgs): ShellTable {
 
     case "overlap": {
       const covariates = level.adjusted?.covariates ?? [];
-      if (!covariates.length) {
-        todos.push(
-          `Table ${number} checks that the arms overlap on the covariates of the adjusted model for ${level.objective}, and that model has none.`,
-        );
-      }
       return {
         ...base,
         title: "Covariate overlap check before adjustment",
@@ -605,9 +684,23 @@ function drawTable(args: DrawArgs): ShellTable {
         title: `Adjusted comparison of ${lower(chain.what)}`,
         columns: ["Term", "Unadjusted effect (95% CI)", "Adjusted effect (95% CI)", "p"],
         rows: [
-          blank(
-            `${byName.get(ARM)?.label ?? ARM} - ${codes[0] ?? "the exposed group"} versus ${codes[1] ?? "the reference"}`,
-          ),
+          // A multinomial model estimates one effect per outcome category
+          // against the reference category, not one effect overall.
+          ...(byName.get(level.outcome)?.type === "nominal" &&
+          (byName.get(level.outcome)?.options?.length ?? 0) > 1
+            ? byName
+                .get(level.outcome)!
+                .options!.slice(1)
+                .map((option) =>
+                  blank(
+                    `${byName.get(ARM)?.label ?? ARM} - ${codes[0] ?? "the exposed group"} versus ${codes[1] ?? "the reference"}, for ${option} against ${byName.get(level.outcome)!.options![0]}`,
+                  ),
+                )
+            : [
+                blank(
+                  `${byName.get(ARM)?.label ?? ARM} - ${codes[0] ?? "the exposed group"} versus ${codes[1] ?? "the reference"}`,
+                ),
+              ]),
           ...(level.adjusted?.covariates ?? []).map((c) =>
             blank(
               `${byName.get(c.var)?.label ?? c.var}${c.at ? ` at ${lower(visitLabel(facts, c.at))}` : ""}`,
@@ -630,7 +723,7 @@ function drawTable(args: DrawArgs): ShellTable {
           "Comparison",
           ...codes.map((c) => `${c} n/N (%)`),
           `${level.effect_measure} (95% CI)`,
-          `${level.absolute ?? "Absolute difference"} (95% CI)`,
+          interval(level.absolute ?? "Absolute difference"),
           "p",
         ],
         rows: [
@@ -791,6 +884,39 @@ function drawTable(args: DrawArgs): ShellTable {
         footnote: "discrimination and calibration reported together",
         fills: [level.objective],
       };
+
+    case "distribution": {
+      const variable = byName.get(level.outcome);
+      const ordered = chain.type === "ordinal";
+      const categories = variable?.options?.length
+        ? variable.options.map((option) => blank(option))
+        : [
+            blank(
+              `**TODO:** list the categories of ${lower(chain.what)}, in the order they are printed`,
+            ),
+          ];
+      const at = chain.time.length
+        ? ` at ${lower(visitLabel(facts, chain.time[chain.time.length - 1]))}`
+        : "";
+      return {
+        ...base,
+        title: `${chain.what}${at} by ${comparative ? "arm" : "group"}`,
+        columns: [
+          "Category",
+          ...(codes.length ? codes.map((c) => `${c} n (%)`) : ["n (%)"]),
+          ...(comparative ? ["p"] : []),
+        ],
+        rows: [
+          ...categories,
+          // The whole distribution is reported, and the median beside it. A
+          // cut of the scale into two is what the ordinal model exists to
+          // avoid, so no row here is a threshold.
+          ...(ordered ? [blank("Median (IQR)")] : []),
+        ],
+        footnote: footnoteFor(level.unadjusted),
+        fills: [level.objective],
+      };
+    }
 
     case "proportions":
       return {

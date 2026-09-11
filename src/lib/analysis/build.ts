@@ -287,10 +287,22 @@ export function buildAnalysis(
     }
 
     /* ---- B: the test the data type owes ---------------------------- */
-    const testRow = matchKey(tests(), `${dataType}/${shape}`);
+    // Where the exact combination is not in the table, the nearest row for the
+    // same data type is used and the gap is written down. Dropping the
+    // objective instead was worse: it left a question in Section 1 with no
+    // analysis, no table and nothing but a note to say so.
+    let testRow = matchKey(tests(), `${dataType}/${shape}`);
+    if (!testRow) {
+      testRow =
+        matchKey(tests(), `${dataType}/two_groups`) ??
+        matchKey(tests(), `${dataType}/single`);
+      todos.push(
+        `${objective.id} asks about a ${dataType.replace(/_/g, " ")} outcome compared as ${shape.replace(/_/g, " ")}, which is not a combination the decision tables cover. The plan uses the nearest row for a ${dataType.replace(/_/g, " ")} outcome${testRow ? ` and names ${testRow["Unadjusted test"].toLowerCase()}` : ""}. Confirm the test, or name the one this design actually needs.`,
+      );
+    }
     if (!testRow) {
       todos.push(
-        `${objective.id} asks about a ${dataType} outcome compared as ${shape.replace(/_/g, " ")}, and no decision table row covers that. Name the test.`,
+        `${objective.id} has no test at all: nothing in the decision tables covers a ${dataType.replace(/_/g, " ")} outcome. Name the analysis.`,
       );
       continue;
     }

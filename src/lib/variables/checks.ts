@@ -34,18 +34,37 @@ export function step2Checks(
   const results: CheckResult[] = [];
   const names = new Set(variables.map((v) => v.name));
 
-  /* S2-1: every outcome is a variable. */
-  const missingOutcomes = [facts.primary, ...facts.secondary]
-    .map((c) => ({ what: c.what, name: variableName(c.what) }))
-    .filter((c) => !names.has(c.name));
+  /* S2-1: every outcome is a variable, and no two outcomes are the same one. */
+  const chains = [facts.primary, ...facts.secondary].map((c) => ({
+    what: c.what,
+    name: variableName(c.what),
+  }));
+  const missingOutcomes = chains.filter((c) => !names.has(c.name));
+
+  // Two outcomes described in the same words become one variable, and the
+  // second one silently inherits the first one's recipe. Both objectives then
+  // point at it, and the plan reports the first outcome's number under the
+  // second outcome's title. Nothing else catches it: every check downstream
+  // finds a variable where it expects one.
+  const byShortName = new Map<string, string[]>();
+  for (const chain of chains) {
+    byShortName.set(chain.name, [...(byShortName.get(chain.name) ?? []), chain.what]);
+  }
+  const collided = [...byShortName.entries()].filter(([, whats]) => whats.length > 1);
+
   results.push(
-    missingOutcomes.length === 0
-      ? ok("S2-1", "Every primary and secondary outcome is on the variable list.")
+    missingOutcomes.length === 0 && collided.length === 0
+      ? ok("S2-1", "Every primary and secondary outcome is its own variable on the list.")
       : {
           id: "S2-1",
           pass: false,
-          failing: missingOutcomes.map((c) => c.name),
-          message: `${missingOutcomes.map((c) => `"${c.what}"`).join(", ")} is an outcome with no variable. Its table would have a title and no row.`,
+          failing: [
+            ...missingOutcomes.map((c) => c.name),
+            ...collided.map(([name]) => name),
+          ],
+          message: collided.length
+            ? `${collided.map(([, whats]) => whats.map((w) => `"${w}"`).join(" and ")).join("; ")} are different outcomes written in the same words, so they become one variable and the second takes the first one's definition. Word them apart, or say which one the study actually measures.`
+            : `${missingOutcomes.map((c) => `"${c.what}"`).join(", ")} is an outcome with no variable. Its table would have a title and no row.`,
         },
   );
 

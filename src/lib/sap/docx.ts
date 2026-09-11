@@ -266,13 +266,15 @@ export async function buildSapDocx(build: SapBuild): Promise<Buffer> {
       body.push(italic(`Safety: ${rules.multiplicity.safety}`));
     }
 
-    for (const table of mine) body.push(...shell(table));
-
-    for (const figure of figures.filter((f) => f.block === block)) {
-      body.push(
-        tableTitle(`Figure ${figure.number}.  ${figure.caption}`),
-        italic(`Footnote: ${figure.footnote}`),
-      );
+    for (const table of mine) {
+      body.push(...shell(table));
+      // Where the build put it, not where this renderer would have guessed.
+      for (const figure of figures.filter((f) => f.after === table.number)) {
+        body.push(
+          tableTitle(`Figure ${figure.number}.  ${figure.caption}`),
+          italic(`Footnote: ${figure.footnote}`),
+        );
+      }
     }
   }
 

@@ -648,3 +648,134 @@ describe("the seven factors", () => {
     expect(nominal["Effect measure"]).toContain("each category");
   });
 });
+
+/** The bugs the sweep found, each held down by the case that showed it. */
+describe("what the sweep found", () => {
+  const ordinal: FactsSheet = {
+    ...idaPreg,
+    title: "Effect of intravenous versus oral iron on functional outcome: a randomised controlled trial",
+    measures: [
+      ...idaPreg.measures,
+      {
+        name: "mrs",
+        label: "Modified Rankin score",
+        type: "ordinal",
+        unit: null,
+        options: ["0", "1", "2", "3", "4", "5"],
+        block: null,
+        derived_from: [],
+        recipe: null,
+      },
+    ],
+    visit_schedule: idaPreg.visit_schedule.map((v) =>
+      v.timepoint === "W6" ? { ...v, measures: [...v.measures, "mrs"] } : v,
+    ),
+    primary: {
+      ...idaPreg.primary,
+      what: "Functional outcome on the modified Rankin scale",
+      type: "ordinal",
+      unit: "score",
+      time: ["W6"],
+      measures: ["mrs"],
+      distribution: "unknown",
+    },
+    secondary: [],
+    exploratory_ideas: [],
+  };
+
+  it("draws an ordered scale as a distribution, not as a two-by-two", () => {
+    // It was drawn with the binary template: "n/N (%)" per arm and a row
+    // reading "1 (reference)". That is the plan committing the mistake it
+    // warns about, and the table then contradicted its own footnote, which
+    // named a cumulative-link model.
+    const build = buildSap(ordinal);
+    const kinds = build.tables.map((t) => t.kind);
+    expect(kinds).toContain("distribution");
+    expect(kinds).not.toContain("ratio");
+
+    const table = build.tables.find((t) => t.kind === "distribution")!;
+    expect(table.rows.map((r) => r.label)).toEqual([
+      "0", "1", "2", "3", "4", "5", "Median (IQR)",
+    ]);
+    expect(table.columns.join(" ")).not.toContain("n/N");
+    expect(JSON.stringify(table.rows)).not.toContain("1 (reference)");
+  });
+
+  it("gives a repeated count its trajectory table", () => {
+    // The count template had no per-visit or rate-of-change entry, so P1b had
+    // an analysis row and no table anywhere in the document.
+    const counts: FactsSheet = {
+      ...idaPreg,
+      primary: {
+        ...idaPreg.primary,
+        what: "Number of transfusion episodes",
+        type: "count",
+        unit: "episodes",
+      },
+      secondary: [],
+      exploratory_ideas: [],
+    };
+    const build = buildSap(counts);
+    expect(build.objectives.map((o) => o.id)).toContain("P1b");
+    expect(build.tables.some((t) => t.fills.includes("P1b"))).toBe(true);
+    expect(build.tables.map((t) => t.kind)).toContain("rate_of_change");
+  });
+
+  it("draws no adjusted table where no model was planned", () => {
+    // A single-group study was given an "Adjusted comparison" with one row, no
+    // covariates and the footnote "descriptive only".
+    const single: FactsSheet = {
+      ...idaPreg,
+      design: "cross_sectional",
+      frame: "PECO",
+      groups: [],
+      allocation: { ratio: "", block: null, strata: [], matched: null },
+      secondary: [],
+      exploratory_ideas: [],
+    };
+    const build = buildSap(single);
+    for (const table of build.tables.filter((t) => t.kind === "adjusted")) {
+      const row = build.analysis.find((r) => table.fills.includes(r.objective))!;
+      expect(row.adjusted, `T${table.number}`).toBeTruthy();
+    }
+    expect(build.tables.filter((t) => t.kind === "overlap")).toEqual([]);
+  });
+
+  it("refuses two outcomes that are the same words twice", () => {
+    // They became one variable, and the second silently took the first one's
+    // definition. Both objectives then pointed at it, so the plan reported the
+    // primary's number under the secondary's title, and every check
+    // downstream found a variable exactly where it expected one.
+    const clash: FactsSheet = {
+      ...idaPreg,
+      secondary: [
+        {
+          ...idaPreg.secondary[1],
+          what: "Change in haemoglobin",
+          how: "A different definition entirely",
+        },
+      ],
+      exploratory_ideas: [],
+    };
+    const failed = blockers(buildSap(clash));
+    expect(failed.map((c) => c.id)).toContain("S2-1");
+    expect(failed.find((c) => c.id === "S2-1")!.message).toContain(
+      "the same words",
+    );
+    expect(blockers(buildSap(idaPreg)).map((c) => c.id)).not.toContain("S2-1");
+  });
+
+  it("keeps an objective when the decision tables have no row for it", () => {
+    // A crossover trial with an ordered outcome asks for ordinal/paired. When
+    // that cell was missing the objective was dropped: no analysis row, no
+    // table, and a note nobody would read.
+    const odd: FactsSheet = {
+      ...ordinal,
+      design: "crossover_trial",
+      title: "A crossover trial of intravenous against oral iron, with functional outcome",
+    };
+    const build = buildSap(odd);
+    expect(build.analysis.map((r) => r.objective)).toContain("P1");
+    expect(build.tables.some((t) => t.fills.includes("P1"))).toBe(true);
+  });
+});

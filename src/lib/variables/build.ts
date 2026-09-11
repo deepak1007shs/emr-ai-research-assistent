@@ -39,7 +39,6 @@ export type VariableList = {
 };
 
 const NUMERIC = ["continuous", "count", "time_to_event"];
-const CATEGORICAL = ["binary", "nominal", "ordinal"];
 
 /** The visits a measure is recorded at, read off the schedule. */
 function visitsOf(facts: FactsSheet, name: VariableName): Timepoint[] {
@@ -67,9 +66,25 @@ function inputVisits(facts: FactsSheet, measure: { derived_from: string[] }) {
  * "0 (none) to 3 (severe)", which is the failure this whole rebuild exists to
  * stop.
  */
-function derivedOptions(type: string): string[] | null {
+function derivedOptions(
+  type: string,
+  inputs: { type: string; options: string[] | null }[],
+): string[] | null {
+  // An outcome that is one measure reported at one visit has that measure's
+  // categories: "Functional outcome on the modified Rankin scale" is the
+  // Rankin score, and its rows are 0 to 5. Inherited only where the input is
+  // the same kind of thing, so that a yes-or-no computed from a laboratory
+  // value does not acquire the laboratory value's categories.
+  const [only] = inputs;
+  if (inputs.length === 1 && only.type === type && only.options?.length) {
+    return [...only.options];
+  }
   if (type === "binary") return [...YES_NO];
-  return CATEGORICAL.includes(type) ? null : null;
+  // Anything else is left empty on purpose: check S2-4 reports it and the
+  // investigator supplies the categories. Splitting the outcome's unit on a
+  // slash would work for "Yes / No" and would quietly produce nonsense for a
+  // grade written "0 (none) to 3 (severe)".
+  return null;
 }
 
 export function buildVariables(
@@ -133,7 +148,12 @@ export function buildVariables(
       roles: {},
       type: outcome.type,
       unit: NUMERIC.includes(outcome.type) ? outcome.unit : null,
-      options: derivedOptions(outcome.type),
+      options: derivedOptions(
+        outcome.type,
+        outcome.measures
+          .map((name) => byName.get(name))
+          .filter((v): v is Variable => Boolean(v)),
+      ),
       // The reading happens four times; the change happens once, at the end
       // of the window the recipe spans. A derived variable carrying every
       // visit its inputs were taken at would put a change column under day 0.

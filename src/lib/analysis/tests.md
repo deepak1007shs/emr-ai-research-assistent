@@ -45,3 +45,21 @@ group-by-time term.
 | time_to_event/single | Time to event, one group | Kaplan-Meier curve with the median survival | | | |
 | nominal/two_groups | Nominal with more than two categories | Chi-square test | Fisher's exact test where any expected count is below 5 | Multinomial logistic regression | |
 | nominal/single | Nominal, one group | Proportions with 95% confidence intervals | | | |
+| ordinal/paired | Ordinal, the same person twice | Wilcoxon signed-rank test | | Cumulative-link mixed model with a random intercept for each participant | |
+| ordinal/pair | Two ordered scales | Spearman rank correlation with a 95% confidence interval | | | |
+| ordinal/diagnostic | An ordered index test against a reference standard | The area under the ROC curve with a DeLong interval, and sensitivity and specificity at each cut of the scale | | Calibration: the calibration slope, calibration in the large and the Brier score | Bootstrap optimism correction where the cut-off was chosen in these data |
+| ordinal/prediction | A score built to predict an ordered outcome | Discrimination: the C-statistic with a 95% confidence interval | | Cumulative-link regression with the predictors chosen by LASSO, the penalty tuned by cross-validation | Ridge or elastic net where the predictors are strongly correlated |
+| count/many_groups | Counts, more than two groups | Comparison of rates across the groups | Kruskal-Wallis on the rates where the counts are very skewed | Poisson regression with an offset for time at risk | Negative binomial regression where the variance is well above the mean |
+| count/paired | Counts, the same person twice | Wilcoxon signed-rank test on the paired counts | | Poisson mixed model with a random intercept for each participant and an offset | Negative binomial mixed model |
+| count/pair | A count against a measured number | Spearman rank correlation with a 95% confidence interval | | | |
+| count/diagnostic | A count as an index test against a reference standard | The area under the ROC curve with a DeLong interval | | Calibration: the calibration slope, calibration in the large and the Brier score | |
+| count/prediction | A score built to predict a count | Discrimination: the root mean squared error | | Poisson regression with the predictors chosen by LASSO, the penalty tuned by cross-validation | Negative binomial where the variance is well above the mean |
+| nominal/many_groups | Nominal, more than two groups | Chi-square test | Fisher's exact test where any expected count is below 5 | Multinomial logistic regression | |
+| nominal/paired | Nominal, the same person twice | Stuart-Maxwell test of marginal homogeneity | | Conditional multinomial logistic regression, keeping each set together | |
+| nominal/repeated | Nominal, measured three times or more | The distribution at each visit, with no p value | | Multinomial generalised estimating equations with a group-by-visit term, robust variance clustered on the participant | |
+| nominal/prediction | A score built to predict an unordered outcome | Discrimination: the multiclass C-statistic | | Multinomial logistic regression with the predictors chosen by LASSO | |
+| binary/pair | Two yes-or-no variables | The phi coefficient with a 95% confidence interval, and the odds ratio beside it | | | |
+| continuous/diagnostic | A measured number as an index test against a reference standard | The area under the ROC curve with a DeLong interval, and sensitivity and specificity at the pre-specified cut-off | | Calibration: the calibration slope, calibration in the large and the Brier score | Bootstrap optimism correction where the cut-off was chosen in these data |
+| time_to_event/many_groups | Time to event, more than two groups | Kaplan-Meier curves with the log-rank test across the groups, and the median survival by group | | Cox proportional-hazards regression | Where the hazards are not proportional: the restricted mean survival time to a fixed horizon, or stratification on the offending covariate |
+| time_to_event/paired | Time to event, matched or within-person | Stratified log-rank test within the matched sets | | Cox regression stratified on the matched set, or a shared-frailty model | |
+| nominal/pair | Two unordered categorical variables | Cramer's V with a 95% confidence interval | | | |

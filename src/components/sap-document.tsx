@@ -293,20 +293,22 @@ export function SapDocument({ build }: { build: SapBuild }) {
                 </p>
               )}
               {mine.map((table) => (
-                <Shell key={table.number} table={table} />
+                <div key={table.number} className="space-y-4">
+                  <Shell table={table} />
+                  {figures
+                    .filter((f) => f.after === table.number)
+                    .map((figure) => (
+                      <figure key={figure.number} className="space-y-1">
+                        <figcaption className="text-sm font-semibold">
+                          Figure {figure.number}. {figure.caption}
+                        </figcaption>
+                        <p className="text-xs italic text-muted">
+                          Footnote: {figure.footnote}
+                        </p>
+                      </figure>
+                    ))}
+                </div>
               ))}
-              {figures
-                .filter((f) => f.block === key)
-                .map((figure) => (
-                  <figure key={figure.number} className="space-y-1">
-                    <figcaption className="text-sm font-semibold">
-                      Figure {figure.number}. {figure.caption}
-                    </figcaption>
-                    <p className="text-xs italic text-muted">
-                      Footnote: {figure.footnote}
-                    </p>
-                  </figure>
-                ))}
             </div>
           );
         })}

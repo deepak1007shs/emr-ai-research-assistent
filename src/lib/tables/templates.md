@@ -22,9 +22,13 @@ attaches to the table before it and takes that table's number with a letter.
 | binary_common | Binary, expected in one in ten or more | ratio, fit |
 | binary_rare | Binary, expected in fewer than one in ten | ratio, fit |
 | binary_few_events | Binary, too few events to model | proportions |
+| ordinal_outcome | An ordered scale | distribution, adjusted, fit |
+| ordinal_repeated | An ordered scale, measured three times or more | distribution, per_time_point, rate_of_change, fit, adjusted, fit |
+| nominal_outcome | Unordered categories | distribution, adjusted, fit |
 | time_to_event | Time to an event | survival, overlap, cox, fit |
 | time_to_event_competing | Time to an event, with a competing event | cumulative_incidence, overlap, cox, fit |
-| count_outcome | Counts | summary, unadjusted, adjusted, fit |
+| count_outcome | Counts | summary, unadjusted, overlap, adjusted, fit |
+| count_repeated | Counts, measured three times or more | summary, unadjusted, per_time_point, rate_of_change, fit, overlap, adjusted, fit |
 | diagnostic | A test against a reference standard | two_by_two, accuracy, calibration |
 | prediction | A score built to predict an outcome | prediction_model, calibration |
 | safety | Harms, reported and not modelled | safety |

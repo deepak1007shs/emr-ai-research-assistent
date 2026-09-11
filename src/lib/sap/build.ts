@@ -5,7 +5,7 @@ import { buildObjectives, buildPicot } from "../objectives/build.ts";
 import { step1Checks } from "../objectives/checks.ts";
 import { buildRules } from "../rules/build.ts";
 import { step5Checks } from "../rules/checks.ts";
-import { buildTables, numberTheMap } from "../tables/build.ts";
+import { buildTables, numberTheMap, type Figure } from "../tables/build.ts";
 import { step6Checks } from "../tables/checks.ts";
 import { gateB } from "../checks/step7.ts";
 import { checkById } from "../checks/registry.ts";
@@ -47,7 +47,7 @@ export type SapBuild = {
   analysis: AnalysisRow[];
   rules: Rules;
   tables: ShellTable[];
-  figures: { number: string; block: string; caption: string; footnote: string }[];
+  figures: Figure[];
   pinned: Pinned;
   checks: CheckResult[];
   /** Everything waiting for the investigator, deduplicated, in build order. */
