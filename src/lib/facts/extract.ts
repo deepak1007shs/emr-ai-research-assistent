@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { ExtractedProtocol } from "../protocol/extract.ts";
 import { apiMessage, explainApiError } from "../protocol/api-error.ts";
-import { type Mode, runMessage, usageOf } from "../model/call.ts";
+import { type Mode, runMessage } from "../model/call.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { FactsSheet } from "../study/types.ts";
 import { FACTS_JSON_SCHEMA, factsSchema } from "./schema.ts";
@@ -162,7 +162,7 @@ export async function extractFacts(
   options.onProgress?.("Reading the protocol");
 
   try {
-    const message = await runMessage(
+    const { message, usage } = await runMessage(
       client,
       {
         model: MODEL,
@@ -244,7 +244,7 @@ export async function extractFacts(
       facts,
       model: MODEL,
       effort: EFFORT,
-      usage: usageOf(message),
+      usage,
     };
   } catch (error) {
     if (error instanceof ExtractionError) throw error;

@@ -5,7 +5,7 @@ import { build as renderMarkdown } from "../render/markdown.ts";
 import { extractFacts } from "../facts/extract.ts";
 import { blockers, buildSap, warnings } from "../sap/build.ts";
 import { renderSapMarkdown } from "../sap/markdown.ts";
-import { costOf, type TokenUsage } from "../protocol/pricing.ts";
+import { addUsage as add, costOf, type TokenUsage } from "../protocol/pricing.ts";
 import { STAGE_LABEL, stagesOf, type JobKind, type Produced, type Stage } from "./plan.ts";
 
 /**
@@ -33,12 +33,7 @@ const ZERO: TokenUsage = {
   cache_read_input_tokens: 0,
 };
 
-const add = (a: TokenUsage, b: TokenUsage): TokenUsage => ({
-  input_tokens: a.input_tokens + b.input_tokens,
-  output_tokens: a.output_tokens + b.output_tokens,
-  cache_creation_input_tokens: a.cache_creation_input_tokens + b.cache_creation_input_tokens,
-  cache_read_input_tokens: a.cache_read_input_tokens + b.cache_read_input_tokens,
-});
+
 
 /**
  * Writes the job row as the work goes.

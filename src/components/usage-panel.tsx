@@ -7,35 +7,49 @@ import {
 } from "@/lib/protocol/pricing";
 
 /**
- * What this one review cost, broken down so the number is checkable rather than
+ * What one document cost, broken down so the number is checkable rather than
  * simply asserted.
+ *
+ * It says only what happened on this run. It used to promise that "the next
+ * review within the hour reads it at a tenth of the rate", which was true of
+ * the pricing and never once true of this application: twelve reviews, twelve
+ * cache writes, no reads. A line that describes how the bill could work, on a
+ * panel that exists to show how it did, is the wrong kind of help.
  */
 export function UsagePanel({
   usage,
   model,
+  what = "review",
 }: {
   usage: TokenUsage;
   model: string | null;
+  /** The document this paid for, for the heading. */
+  what?: "review" | "plan";
 }) {
   const cost = costOf(model, usage);
   const readIn =
     usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens;
   const cacheHit = usage.cache_read_input_tokens > 0;
+  const cacheWrite = usage.cache_creation_input_tokens > 0;
 
   const rows: [string, string, string][] = [
-    ["Protocol and prompt read", formatTokens(usage.input_tokens), formatUsd(cost.input)],
-    [
-      cacheHit ? "Knowledge base (from cache)" : "Knowledge base (cached this run)",
-      formatTokens(cacheHit ? usage.cache_read_input_tokens : usage.cache_creation_input_tokens),
-      formatUsd(cacheHit ? cost.cacheRead : cost.cacheWrite),
-    ],
-    ["Review written", formatTokens(usage.output_tokens), formatUsd(cost.output)],
+    ["Protocol and instructions read", formatTokens(usage.input_tokens), formatUsd(cost.input)],
+    ...(cacheHit || cacheWrite
+      ? [
+          [
+            cacheHit ? "Reference material, from cache" : "Reference material, written to cache",
+            formatTokens(cacheHit ? usage.cache_read_input_tokens : usage.cache_creation_input_tokens),
+            formatUsd(cacheHit ? cost.cacheRead : cost.cacheWrite),
+          ] as [string, string, string],
+        ]
+      : []),
+    [what === "plan" ? "Facts written" : "Review written", formatTokens(usage.output_tokens), formatUsd(cost.output)],
   ];
 
   return (
     <section className="no-print rounded-xl border border-border bg-surface px-5 py-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold">What this review cost</h2>
+        <h2 className="text-sm font-semibold">What this {what} cost</h2>
         <p className="font-mono text-sm">
           {cost.known ? formatUsd(cost.total) : "cost unknown"}
         </p>
@@ -57,9 +71,8 @@ export function UsagePanel({
         {formatTokens(totalTokens(usage))} tokens total ({formatTokens(readIn)} in,{" "}
         {formatTokens(usage.output_tokens)} out) on{" "}
         <span className="font-mono">{model ?? "an unknown model"}</span>.
-        {cacheHit
-          ? " The knowledge base came from cache, at a tenth of the usual rate."
-          : " The knowledge base was written to cache this run; the next review within the hour reads it at a tenth of the rate."}
+        {usage.batch && " Sent as a batch, at half the live price."}
+        {cacheHit && " The reference material came from cache, at a tenth of the input rate."}
       </p>
     </section>
   );

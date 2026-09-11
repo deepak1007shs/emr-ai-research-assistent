@@ -11,7 +11,7 @@ import {
 import type { ExtractedProtocol } from "./extract.ts";
 import type { TokenUsage } from "./pricing.ts";
 import { apiMessage, explainApiError } from "./api-error.ts";
-import { type Mode, runMessage, usageOf } from "../model/call.ts";
+import { type Mode, runMessage } from "../model/call.ts";
 
 /**
  * The review model and effort.
@@ -149,7 +149,7 @@ export async function analyzeProtocol(
   options.onProgress?.("Reading the protocol");
 
   try {
-    const message = await runMessage(
+    const { message, usage } = await runMessage(
       client,
       {
       model: MODEL,
@@ -159,16 +159,26 @@ export async function analyzeProtocol(
         effort: EFFORT,
         format: { type: "json_schema", schema: MODEL_REVIEW_JSON_SCHEMA },
       },
-      // The knowledge block is byte-identical on every request, so it sits
-      // behind a cache breakpoint; the protocol itself follows in `messages`
-      // and never invalidates it.
+      // No cache breakpoint on the knowledge block, on purpose.
+      //
+      // It had one, with a 1-hour lifetime, on the reasoning that the block is
+      // byte-identical on every request. It is, and it was never read: twelve
+      // reviews in Supabase, 26,940 tokens written to the cache each time,
+      // zero read back, because reviews run days apart and the entry expires
+      // within the hour. A 1-hour write bills at twice the input rate, so each
+      // review paid double for these tokens to buy nothing - about a tenth of
+      // what a review costs. Batching does not change that: each build is its
+      // own batch, sent when someone presses the button.
+      //
+      // The marker changes billing and nothing else; the model receives the
+      // same bytes with or without it. Put it back when reviews start to run
+      // within the same hour - the pricing page puts break-even for a 1-hour
+      // entry at two reads per write - and check `cache_read_input_tokens` is
+      // no longer zero. The block stays separate from the role so the marker
+      // has somewhere to go.
       system: [
         { type: "text", text: ROLE },
-        {
-          type: "text",
-          text: knowledge,
-          cache_control: { type: "ephemeral", ttl: "1h" },
-        },
+        { type: "text", text: knowledge },
       ],
       messages: [{ role: "user", content: userContent(protocol) }],
       },
@@ -229,7 +239,7 @@ export async function analyzeProtocol(
       actionSpec: toActionSpec(result.data),
       model: message.model,
       effort: EFFORT,
-      usage: usageOf(message),
+      usage,
     };
   } catch (error) {
     if (error instanceof AnalysisError) throw error;

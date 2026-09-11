@@ -102,7 +102,7 @@ describe("the batched path", () => {
     const got = await drive(runMessage(client, params, { mode: "batch" }));
     vi.useRealTimers();
 
-    expect(got).toBe(message);
+    expect(got.message).toBe(message);
     // Same model, same prompt, same settings: the only thing batch changes is
     // when the answer arrives. The params go through untouched.
     expect(batches.create).toHaveBeenCalledWith({
@@ -123,6 +123,9 @@ describe("the batched path", () => {
       output_tokens: 30000,
       cache_creation_input_tokens: 0,
       cache_read_input_tokens: 27000,
+      cache_creation_1h_input_tokens: 0,
+      // Marked, so the cost shown is half the live price and not the full one.
+      batch: true,
     });
   });
 
@@ -222,7 +225,7 @@ describe("a batch a dead build left behind", () => {
     );
     vi.useRealTimers();
 
-    expect(got).toBe(message);
+    expect(got.message).toBe(message);
     expect(batches.create).not.toHaveBeenCalled();
     expect(batches.results).toHaveBeenCalledWith("batch_old");
     expect(onBatch).toHaveBeenCalledWith("batch_old");
@@ -263,7 +266,7 @@ describe("a batch a dead build left behind", () => {
     );
     vi.useRealTimers();
 
-    expect(got).toBe(message);
+    expect(got.message).toBe(message);
     expect(batches.create).toHaveBeenCalledTimes(1);
   });
 
@@ -287,6 +290,26 @@ describe("a batch a dead build left behind", () => {
     expect(onBatch).toHaveBeenCalledWith("batch_1");
     await drive(running);
     vi.useRealTimers();
+  });
+});
+
+describe("what a call reports it cost", () => {
+  it("marks a batched call, and records the 1-hour share of the cache write", async () => {
+    vi.useFakeTimers();
+    const withWrites = {
+      ...message,
+      usage: {
+        ...message.usage,
+        cache_creation_input_tokens: 27000,
+        cache_creation: { ephemeral_1h_input_tokens: 27000, ephemeral_5m_input_tokens: 0 },
+      },
+    } as unknown as Anthropic.Message;
+    const { client } = fakeClient({ type: "succeeded", message: withWrites });
+    const { usage } = await drive(runMessage(client, params, { mode: "batch" }));
+    vi.useRealTimers();
+
+    expect(usage.batch).toBe(true);
+    expect(usage.cache_creation_1h_input_tokens).toBe(27000);
   });
 });
 

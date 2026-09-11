@@ -140,7 +140,7 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
         <div className="mx-auto w-full max-w-[var(--sheet-w)] space-y-6">
           {plan.usage && (
-            <UsagePanel usage={plan.usage as TokenUsage} model={plan.model} />
+            <UsagePanel usage={plan.usage as TokenUsage} model={plan.model} what="plan" />
           )}
 
           {(failing.length > 0 || warned.length > 0) && (

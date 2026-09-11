@@ -63,12 +63,26 @@ const ZERO: TokenUsage = {
   cache_read_input_tokens: 0,
 };
 
-export const usageOf = (message: Anthropic.Message): TokenUsage => ({
+/**
+ * What a message cost, in the terms `pricing.ts` bills.
+ *
+ * Records the two things a bare token count cannot say: how much of the cache
+ * write was a 1-hour entry, which bills at 2x rather than 1.25x, and whether the
+ * call was batched, which halves everything. Without them a batched run would
+ * be reported at twice what it cost.
+ */
+export const usageOf = (message: Anthropic.Message, mode: Mode = "live"): TokenUsage => ({
   input_tokens: message.usage.input_tokens ?? 0,
   output_tokens: message.usage.output_tokens ?? 0,
   cache_creation_input_tokens: message.usage.cache_creation_input_tokens ?? 0,
   cache_read_input_tokens: message.usage.cache_read_input_tokens ?? 0,
+  cache_creation_1h_input_tokens:
+    message.usage.cache_creation?.ephemeral_1h_input_tokens ?? 0,
+  ...(mode === "batch" ? { batch: true } : {}),
 });
+
+/** A finished call: the message, and what it cost to get. */
+export type CallResult = { message: Anthropic.Message; usage: TokenUsage };
 
 /** "4 minutes", for a progress line somebody is watching. */
 export function waited(ms: number): string {
@@ -205,7 +219,7 @@ async function batched(
     const result = entry.result;
 
     if (result.type === "succeeded") {
-      options.onUsage?.(usageOf(result.message));
+      options.onUsage?.(usageOf(result.message, "batch"));
       return result.message;
     }
     if (result.type === "errored") {
@@ -232,9 +246,11 @@ export async function runMessage(
   params: Anthropic.Messages.MessageCreateParamsNonStreaming,
   options: CallOptions = {},
   now: () => number = Date.now,
-): Promise<Anthropic.Message> {
+): Promise<CallResult> {
   const mode = options.mode ?? buildMode();
-  return mode === "batch"
-    ? batched(client, params, options, now)
-    : live(client, params, options);
+  const message =
+    mode === "batch"
+      ? await batched(client, params, options, now)
+      : await live(client, params, options);
+  return { message, usage: usageOf(message, mode) };
 }
