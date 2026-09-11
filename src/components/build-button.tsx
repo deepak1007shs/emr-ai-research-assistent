@@ -113,7 +113,10 @@ export function BuildButton({
               its fourth stage is not mistaken for one that did nothing. */}
           {job && job.produced.length > 0 && (
             <p className="mt-1.5 text-xs text-muted">
-              Done: {job.produced.map((p) => STAGE_LABEL[p.kind]).join(", ")}.
+              {/* A job row from before this app's documents changed can name
+                  a stage that no longer exists, and a blank in the list reads
+                  as a bug rather than as history. */}
+              Done: {job.produced.map((p) => STAGE_LABEL[p.kind] ?? p.kind).join(", ")}.
             </p>
           )}
         </div>
@@ -131,7 +134,7 @@ export function BuildButton({
           key={made.id}
           className={`pill ${made.errors ? "bg-danger-soft text-danger" : "text-muted"}`}
         >
-          {verdict(chain ? STAGE_LABEL[made.kind] : verb.checked, made)}
+          {verdict(chain ? (STAGE_LABEL[made.kind] ?? made.kind) : verb.checked, made)}
         </p>
       ))}
 
