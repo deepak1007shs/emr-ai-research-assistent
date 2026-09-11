@@ -11,6 +11,7 @@ import {
 import type { ExtractedProtocol } from "./extract.ts";
 import type { TokenUsage } from "./pricing.ts";
 import { apiMessage, explainApiError } from "./api-error.ts";
+import { type Mode, runMessage, usageOf } from "../model/call.ts";
 
 /**
  * The review model and effort.
@@ -128,6 +129,12 @@ export async function analyzeProtocol(
     onProgress?: (note: string) => void;
     /** Fires as tokens accumulate, so the UI can show the job growing. */
     onUsage?: (usage: TokenUsage) => void;
+    /** Live or batched. Defaults to whatever BUILD_MODE says. */
+    mode?: Mode;
+    /** Stores the batch id the moment it exists. See `model/call.ts`. */
+    onBatch?: (id: string) => void | Promise<void>;
+    /** A batch an earlier, dead build sent, to collect instead of re-buying. */
+    resumeBatchId?: string | null;
   } = {},
 ): Promise<AnalysisResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -142,7 +149,9 @@ export async function analyzeProtocol(
   options.onProgress?.("Reading the protocol");
 
   try {
-    const stream = client.messages.stream({
+    const message = await runMessage(
+      client,
+      {
       model: MODEL,
       max_tokens: DOCUMENT_MAX_TOKENS,
       thinking: { type: "adaptive" },
@@ -162,37 +171,17 @@ export async function analyzeProtocol(
         },
       ],
       messages: [{ role: "user", content: userContent(protocol) }],
-    }, { signal: options.signal });
-
-    let announced = false;
-    const running: TokenUsage = {
-      input_tokens: 0,
-      output_tokens: 0,
-      cache_creation_input_tokens: 0,
-      cache_read_input_tokens: 0,
-    };
-
-    stream.on("streamEvent", (event) => {
-      if (!announced) {
-        announced = true;
-        options.onProgress?.("Analysing design, objectives and sample size");
-      }
-
-      // message_start carries the input side; message_delta carries a running
-      // output count. Together they let the UI show the bill as it accrues.
-      if (event.type === "message_start") {
-        const u = event.message.usage;
-        running.input_tokens = u.input_tokens ?? 0;
-        running.cache_creation_input_tokens = u.cache_creation_input_tokens ?? 0;
-        running.cache_read_input_tokens = u.cache_read_input_tokens ?? 0;
-        options.onUsage?.({ ...running });
-      } else if (event.type === "message_delta") {
-        running.output_tokens = event.usage.output_tokens ?? running.output_tokens;
-        options.onUsage?.({ ...running });
-      }
-    });
-
-    const message = await stream.finalMessage();
+      },
+      {
+        signal: options.signal,
+        onProgress: options.onProgress,
+        onUsage: options.onUsage,
+        mode: options.mode,
+        onBatch: options.onBatch,
+        resumeBatchId: options.resumeBatchId,
+        label: "Analysing design, objectives and sample size",
+      },
+    );
 
     if (message.stop_reason === "refusal") {
       throw new AnalysisError(
@@ -240,12 +229,7 @@ export async function analyzeProtocol(
       actionSpec: toActionSpec(result.data),
       model: message.model,
       effort: EFFORT,
-      usage: {
-        input_tokens: message.usage.input_tokens,
-        output_tokens: message.usage.output_tokens,
-        cache_creation_input_tokens: message.usage.cache_creation_input_tokens ?? 0,
-        cache_read_input_tokens: message.usage.cache_read_input_tokens ?? 0,
-      },
+      usage: usageOf(message),
     };
   } catch (error) {
     if (error instanceof AnalysisError) throw error;

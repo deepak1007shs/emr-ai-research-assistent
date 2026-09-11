@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { ExtractedProtocol } from "../protocol/extract.ts";
 import { apiMessage, explainApiError } from "../protocol/api-error.ts";
+import { type Mode, runMessage, usageOf } from "../model/call.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { FactsSheet } from "../study/types.ts";
 import { FACTS_JSON_SCHEMA, factsSchema } from "./schema.ts";
@@ -143,6 +144,12 @@ export async function extractFacts(
     signal?: AbortSignal;
     onProgress?: (note: string) => void;
     onUsage?: (usage: TokenUsage) => void;
+    /** Live or batched. Defaults to whatever BUILD_MODE says. */
+    mode?: Mode;
+    /** Stores the batch id the moment it exists. See `model/call.ts`. */
+    onBatch?: (id: string) => void | Promise<void>;
+    /** A batch an earlier, dead build sent, to collect instead of re-buying. */
+    resumeBatchId?: string | null;
   } = {},
 ): Promise<ExtractionResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -155,7 +162,8 @@ export async function extractFacts(
   options.onProgress?.("Reading the protocol");
 
   try {
-    const stream = client.messages.stream(
+    const message = await runMessage(
+      client,
       {
         model: MODEL,
         max_tokens: FACTS_MAX_TOKENS,
@@ -167,35 +175,16 @@ export async function extractFacts(
         system: [{ type: "text", text: ROLE }],
         messages: [{ role: "user", content: userContent(protocol) }],
       },
-      { signal: options.signal },
+      {
+        signal: options.signal,
+        onProgress: options.onProgress,
+        onUsage: options.onUsage,
+        mode: options.mode,
+        onBatch: options.onBatch,
+        resumeBatchId: options.resumeBatchId,
+        label: "Recording the design, the outcomes and the variables",
+      },
     );
-
-    const running: TokenUsage = {
-      input_tokens: 0,
-      output_tokens: 0,
-      cache_creation_input_tokens: 0,
-      cache_read_input_tokens: 0,
-    };
-    let announced = false;
-
-    stream.on("streamEvent", (event) => {
-      if (!announced) {
-        announced = true;
-        options.onProgress?.("Recording the design, the outcomes and the variables");
-      }
-      if (event.type === "message_start") {
-        const u = event.message.usage;
-        running.input_tokens = u.input_tokens ?? 0;
-        running.cache_creation_input_tokens = u.cache_creation_input_tokens ?? 0;
-        running.cache_read_input_tokens = u.cache_read_input_tokens ?? 0;
-        options.onUsage?.({ ...running });
-      } else if (event.type === "message_delta") {
-        running.output_tokens = event.usage.output_tokens ?? running.output_tokens;
-        options.onUsage?.({ ...running });
-      }
-    });
-
-    const message = await stream.finalMessage();
 
     if (message.stop_reason === "refusal") {
       throw new ExtractionError(
@@ -255,12 +244,7 @@ export async function extractFacts(
       facts,
       model: MODEL,
       effort: EFFORT,
-      usage: {
-        input_tokens: message.usage.input_tokens ?? 0,
-        output_tokens: message.usage.output_tokens ?? 0,
-        cache_creation_input_tokens: message.usage.cache_creation_input_tokens ?? 0,
-        cache_read_input_tokens: message.usage.cache_read_input_tokens ?? 0,
-      },
+      usage: usageOf(message),
     };
   } catch (error) {
     if (error instanceof ExtractionError) throw error;

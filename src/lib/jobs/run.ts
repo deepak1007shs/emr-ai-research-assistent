@@ -142,23 +142,93 @@ async function readProtocol(db: Db, protocolId: string): Promise<ExtractedProtoc
   return extractProtocol(buffer, row.filename, row.mime ?? undefined);
 }
 
+/**
+ * How long an orphaned batch is worth going back for.
+ *
+ * A batch that has not ended in a day is expired by Anthropic, and its results
+ * are kept for some time after it ends. A week is well inside that, so a
+ * resumed batch is found rather than guessed at; one older than this is
+ * forgotten and a fresh batch is sent.
+ */
+export const RESUME_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * The row a dead build left behind, with its batch still to collect.
+ *
+ * The runner lives inside the process that served the request. Restart the
+ * server mid-build and the job is lost - that much was always true, and
+ * `isStalled` exists for it. What batching changed is the cost: a live call
+ * died with the process and was billed for what it had produced, but a batch
+ * keeps running at Anthropic and is billed in full when it ends, with nobody
+ * left to collect it. The next build would then pay for the same document a
+ * second time. So the batch id is stored on the row the moment it exists, and
+ * the next build of the same protocol finds it here and collects it.
+ */
+async function orphanOf(
+  db: Db,
+  table: "reviews" | "sap_plans",
+  protocolId: string,
+  now: number = Date.now(),
+): Promise<{ id: string; batch_id: string } | null> {
+  let query = db
+    .from(table)
+    .select("id, batch_id")
+    .eq("protocol_id", protocolId)
+    .not("batch_id", "is", null)
+    .gte("created_at", new Date(now - RESUME_WINDOW_MS).toISOString());
+
+  // Unfinished, in each table's own words: a review says so in its status; a
+  // plan row is written before the call and filled in after it.
+  query =
+    table === "reviews"
+      ? query.eq("status", "pending")
+      : query.is("plan", null).is("error", null);
+
+  const { data } = await query
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return (data as { id: string; batch_id: string } | null) ?? null;
+}
+
+/** Writes the batch id onto the row, so a dead build's batch can be found. */
+const remember = (db: Db, table: "reviews" | "sap_plans", id: string) =>
+  async (batchId: string) => {
+    await db
+      .from(table)
+      .update({ batch_id: batchId })
+      .eq("id", id)
+      .then(undefined, () => undefined);
+  };
+
 /** The most recent ready plan for a protocol, with the id the artifacts link to. */
 async function runReview(db: Db, userId: string, protocolId: string, report: Reporter, signal: AbortSignal): Promise<Produced> {
   await report.step("Reading the protocol");
   const protocol = await readProtocol(db, protocolId);
 
-  const { data: reviewRow, error: reviewError } = await db
-    .from("reviews")
-    .insert({ protocol_id: protocolId, owner: userId, status: "pending" })
-    .select("id")
-    .single();
-  if (reviewError) throw new Error(reviewError.message);
+  // A dead build's row and batch, if there is one, before a new row of our own.
+  const orphan = await orphanOf(db, "reviews", protocolId);
+  let reviewRow: { id: string };
+  if (orphan) {
+    reviewRow = { id: orphan.id };
+  } else {
+    const { data, error: reviewError } = await db
+      .from("reviews")
+      .insert({ protocol_id: protocolId, owner: userId, status: "pending" })
+      .select("id")
+      .single();
+    if (reviewError) throw new Error(reviewError.message);
+    reviewRow = data;
+  }
 
   try {
     const result = await analyzeProtocol(protocol, {
       signal,
       onProgress: (message) => void report.step(message),
       onUsage: (usage) => report.meter(usage),
+      onBatch: remember(db, "reviews", reviewRow.id),
+      resumeBatchId: orphan?.batch_id ?? null,
     });
 
     const { error: updateError } = await db
@@ -212,18 +282,27 @@ async function runSap(
   await report.step("Reading the protocol");
   const protocol = await readProtocol(db, protocolId);
 
-  const { data: row, error: insertError } = await db
-    .from("sap_plans")
-    .insert({ protocol_id: protocolId, owner: userId, status: "ready" })
-    .select("id")
-    .single();
-  if (insertError) throw new Error(insertError.message);
+  const orphan = await orphanOf(db, "sap_plans", protocolId);
+  let row: { id: string };
+  if (orphan) {
+    row = { id: orphan.id };
+  } else {
+    const { data, error: insertError } = await db
+      .from("sap_plans")
+      .insert({ protocol_id: protocolId, owner: userId, status: "ready" })
+      .select("id")
+      .single();
+    if (insertError) throw new Error(insertError.message);
+    row = data;
+  }
 
   try {
     const extracted = await extractFacts(protocol, {
       signal,
       onProgress: (message) => void report.step(message),
       onUsage: (usage) => report.meter(usage),
+      onBatch: remember(db, "sap_plans", row.id),
+      resumeBatchId: orphan?.batch_id ?? null,
     });
 
     await report.step("Building the objectives, the variables and the analysis map");
