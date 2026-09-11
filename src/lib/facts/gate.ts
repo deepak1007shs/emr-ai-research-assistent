@@ -177,22 +177,23 @@ export function gateA(facts: FactsSheet): CheckResult[] {
     }
   }
 
-  const untyped = facts.measures.filter(
-    (m) =>
-      (["continuous", "count", "time_to_event"].includes(m.type) && !m.unit) ||
-      (["binary", "nominal", "ordinal"].includes(m.type) &&
-        (!m.options || m.options.length < 2)),
-  );
-
+  // A measure the protocol leaves without a unit or without its categories is
+  // not checked here. This gate checked it, and on the first real protocol it
+  // stopped the whole plan over four measures - a duration with no unit, a
+  // "corrected" PSA nobody defined, two Gleason scores with no categories - that
+  // the protocol genuinely does not specify. The reading had done the right
+  // thing: left each blank rather than invent it, and raised each as an open
+  // item. The process's rule for that is "every open rule is a bold TODO, never
+  // a guess", and S2-4 applies it a step later, to a plan that is still built.
+  // A name that leads nowhere is different: it is not a gap anyone was told
+  // about, it is a field and a row that silently do not exist. That stays here.
   results.push({
     id: "G-A4",
-    pass: dangling.length === 0 && untyped.length === 0,
-    failing: [...dangling, ...untyped.map((m) => m.name)],
+    pass: dangling.length === 0,
+    failing: dangling,
     message: dangling.length
       ? `${dangling.join("; ")} ${dangling.length === 1 ? "is" : "are"} named but not in the measure dictionary. A name nothing defines gets no field on the form and no row in any table, and neither absence is visible in the finished document.`
-      : untyped.length
-        ? `${untyped.map((m) => m.name).join(", ")} ${untyped.length === 1 ? "has" : "have"} no unit or no list of categories. A measure with neither cannot be drawn.`
-        : "Every measure named in the schedule, the outcomes, the covariates and the proforma is defined, with its unit or its categories.",
+      : "Every measure named in the schedule, the outcomes, the covariates and the proforma is defined in the measure dictionary.",
   });
 
   return results;

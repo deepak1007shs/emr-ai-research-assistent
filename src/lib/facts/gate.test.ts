@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { gateA, gateAPasses } from "./gate.ts";
 import { idaPreg } from "./fixture.ts";
 import type { FactsSheet } from "../study/types.ts";
+import { buildSap } from "../sap/build.ts";
 
 const said = (facts: FactsSheet, id: string) =>
   gateA(facts).find((r) => r.id === id)!;
@@ -119,25 +120,35 @@ describe("G-A4, the measure dictionary", () => {
     expect(ga4(facts).pass).toBe(false);
   });
 
-  it("catches a numeric measure with no unit", () => {
-    const facts = {
-      ...idaPreg,
-      measures: idaPreg.measures.map((m) =>
-        m.name === "haemoglobin" ? { ...m, unit: null } : m,
-      ),
-    };
-    expect(ga4(facts).pass).toBe(false);
-    expect(ga4(facts).failing).toContain("haemoglobin");
+  // The first real protocol - Dr Arunesh's, a diagnostic accuracy study of
+  // prostate MRI - was stopped here over four measures the protocol genuinely
+  // does not specify: a symptom duration with no unit, a "corrected" PSA nobody
+  // defined, and two Gleason scores with no categories. The reading left each
+  // blank rather than invent it and raised each as an open item, which is what
+  // it is told to do. A gap somebody has been told about is a TODO in the plan,
+  // not a reason to have no plan.
+  const unspecified = {
+    ...idaPreg,
+    measures: idaPreg.measures.map((m) =>
+      m.name === "haemoglobin"
+        ? { ...m, unit: null }
+        : m.name === "residence"
+          ? { ...m, options: null }
+          : m,
+    ),
+  };
+
+  it("does not stop the plan for a unit or categories the protocol leaves out", () => {
+    expect(ga4(unspecified).pass).toBe(true);
+    expect(gateAPasses(unspecified)).toBe(true);
   });
 
-  it("catches a categorical measure with no categories", () => {
-    const facts = {
-      ...idaPreg,
-      measures: idaPreg.measures.map((m) =>
-        m.name === "residence" ? { ...m, options: null } : m,
-      ),
-    };
-    expect(ga4(facts).pass).toBe(false);
+  it("leaves that gap to S2-4, which reports it in a plan that is built", () => {
+    const build = buildSap(unspecified);
+    const s24 = build.checks.find((c) => c.id === "S2-4")!;
+    expect(s24.pass).toBe(false);
+    expect(s24.failing).toEqual(expect.arrayContaining(["haemoglobin", "residence"]));
+    expect(build.tables.length).toBeGreaterThan(0);
   });
 
   it("blocks the gate, it does not warn", () => {

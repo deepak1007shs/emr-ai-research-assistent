@@ -53,7 +53,7 @@ export const CHECKS: Check[] = [
   // name that leads nowhere fails silently, which is the failure this whole
   // rebuild exists to stop.
   { id: "G-A4", step: "stage1", type: "block", gate: "A",
-    rule: "Every measure named in the schedule, the outcomes, the covariates and the proforma is defined, with its unit or its categories." },
+    rule: "Every measure named in the schedule, the outcomes, the covariates and the proforma is defined in the measure dictionary." },
 
   /* ---- Step 1: objectives ------------------------------------------- */
   { id: "S1-1", step: "step1", type: "block",
