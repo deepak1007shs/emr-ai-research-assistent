@@ -10,7 +10,7 @@ import { CHECKS, checkById, checksAt, checksAtGate } from "./registry.ts";
  * actually decays.
  */
 const FROM_THE_DOCUMENT = [
-  "G-A1", "G-A2", "G-A3",
+  "G-A1", "G-A2", "G-A3", "G-A4",
   "S1-1", "S1-2", "S1-3", "S1-4",
   "S2-1", "S2-2", "S2-3", "S2-4", "S2-5",
   "S3-1",

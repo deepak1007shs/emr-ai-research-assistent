@@ -89,3 +89,62 @@ describe("Gate A", () => {
     expect(result.message).toContain("Anaemia corrected");
   });
 });
+
+describe("G-A4, the measure dictionary", () => {
+  const ga4 = (facts: FactsSheet) =>
+    gateA(facts).find((r) => r.id === "G-A4")!;
+
+  it("passes when every name resolves", () => {
+    expect(ga4(idaPreg).pass).toBe(true);
+  });
+
+  it("catches a visit that records something nothing defines", () => {
+    const facts = {
+      ...idaPreg,
+      visit_schedule: idaPreg.visit_schedule.map((v, i) =>
+        i === 1 ? { ...v, measures: [...v.measures, "serum_iron"] } : v,
+      ),
+    };
+    expect(ga4(facts).pass).toBe(false);
+    expect(ga4(facts).failing).toContain("W2: serum_iron");
+  });
+
+  it("catches a covariate that is not a measure", () => {
+    // The commonest shape of this: the covariate written as prose, the way the
+    // protocol says it, instead of as the name the schedule uses.
+    const facts = {
+      ...idaPreg,
+      covariates: [{ measure: "baseline haemoglobin", at: "D0", inferred: false }],
+    };
+    expect(ga4(facts).pass).toBe(false);
+  });
+
+  it("catches a numeric measure with no unit", () => {
+    const facts = {
+      ...idaPreg,
+      measures: idaPreg.measures.map((m) =>
+        m.name === "haemoglobin" ? { ...m, unit: null } : m,
+      ),
+    };
+    expect(ga4(facts).pass).toBe(false);
+    expect(ga4(facts).failing).toContain("haemoglobin");
+  });
+
+  it("catches a categorical measure with no categories", () => {
+    const facts = {
+      ...idaPreg,
+      measures: idaPreg.measures.map((m) =>
+        m.name === "residence" ? { ...m, options: null } : m,
+      ),
+    };
+    expect(ga4(facts).pass).toBe(false);
+  });
+
+  it("blocks the gate, it does not warn", () => {
+    const facts = {
+      ...idaPreg,
+      covariates: [{ measure: "nothing_at_all", at: null, inferred: false }],
+    };
+    expect(gateAPasses(facts)).toBe(false);
+  });
+});

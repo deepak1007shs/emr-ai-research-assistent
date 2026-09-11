@@ -16,6 +16,18 @@ import type { FactsSheet } from "../study/types.ts";
  * carry, and running the pipeline twice over this must give one document.
  */
 export const idaPreg: FactsSheet = {
+  title:
+    "Intravenous ferric carboxymaltose versus oral ferrous ascorbate for the rise in haemoglobin in pregnant women with iron-deficiency anaemia: a randomised controlled trial",
+  population: {
+    eligibility:
+      "Pregnant women at 20 to 28 weeks' gestation with iron-deficiency anaemia (haemoglobin 7.0 to 9.9 g/dL and serum ferritin below 30 ng/mL). Excluded: anaemia not due to iron deficiency, known haemoglobinopathy, transfusion in the last three months, known iron allergy, chronic kidney or liver disease.",
+    setting: "Department of Obstetrics and Gynaecology, a tertiary teaching hospital",
+    sampling: "Consecutive eligible women",
+  },
+  intervention:
+    "Intravenous ferric carboxymaltose 1000 mg, a single infusion on day 0",
+  comparator:
+    "Oral ferrous ascorbate, 100 mg elemental iron twice daily for six weeks",
   design: "randomised_trial",
   design_label:
     "two-arm parallel-group open-label active-controlled superiority randomised controlled trial",
@@ -27,28 +39,47 @@ export const idaPreg: FactsSheet = {
   ],
   allocation: { ratio: "1:1", block: 4, strata: [] },
   timepoints: ["D0", "W2", "W4", "W6"],
+  measures: [
+    { name: "participant_name", label: "Name", type: "text", unit: null, options: null },
+    { name: "hospital_number", label: "Hospital number", type: "text", unit: null, options: null },
+    { name: "age", label: "Age", type: "continuous", unit: "years", options: null },
+    { name: "residence", label: "Residence", type: "nominal", unit: null, options: ["Urban", "Rural"] },
+    { name: "gravidity", label: "Gravidity", type: "count", unit: "pregnancies", options: null },
+    { name: "parity", label: "Parity", type: "count", unit: "births", options: null },
+    { name: "gestational_age", label: "Gestational age", type: "continuous", unit: "weeks", options: null },
+    { name: "height", label: "Height", type: "continuous", unit: "cm", options: null },
+    { name: "weight", label: "Weight", type: "continuous", unit: "kg", options: null },
+    { name: "diet", label: "Dietary pattern", type: "nominal", unit: null, options: ["Vegetarian", "Mixed", "Non-vegetarian"] },
+    { name: "haemoglobin", label: "Haemoglobin", type: "continuous", unit: "g/dL", options: null },
+    { name: "serum_ferritin", label: "Serum ferritin", type: "continuous", unit: "ng/mL", options: null },
+    { name: "mean_corpuscular_volume", label: "Mean corpuscular volume", type: "continuous", unit: "fL", options: null },
+    { name: "adverse_effects", label: "Any adverse effect since the last visit", type: "binary", unit: null, options: ["Yes", "No"] },
+    { name: "adherence", label: "Doses taken since the last visit", type: "continuous", unit: "% of doses", options: null },
+  ],
   visit_schedule: [
     {
       timepoint: "D0",
       measures: [
-        "haemoglobin", "serum ferritin", "mean corpuscular volume",
-        "gestational age", "height", "weight", "diet",
+        "participant_name", "hospital_number", "age", "residence", "gravidity",
+        "parity", "gestational_age", "height", "weight",
+        "haemoglobin", "serum_ferritin", "mean_corpuscular_volume",
       ],
     },
-    { timepoint: "W2", measures: ["haemoglobin", "adverse effects", "adherence"] },
-    { timepoint: "W4", measures: ["haemoglobin", "adverse effects", "adherence"] },
+    { timepoint: "W2", measures: ["haemoglobin", "adverse_effects", "adherence"] },
+    { timepoint: "W4", measures: ["haemoglobin", "adverse_effects", "adherence"] },
     {
       timepoint: "W6",
-      measures: ["haemoglobin", "serum ferritin", "adverse effects", "adherence"],
+      measures: ["haemoglobin", "serum_ferritin", "adverse_effects", "adherence"],
     },
   ],
   primary: {
     what: "Change in haemoglobin",
     how: "Haemoglobin at week 6 minus haemoglobin at day 0",
     instrument: "automated laboratory analyser",
-    time: ["D0", "W6"],
+    time: ["D0", "W2", "W4", "W6"],
     unit: "g/dL",
     type: "continuous",
+    measures: ["haemoglobin"],
   },
   secondary: [
     {
@@ -58,6 +89,7 @@ export const idaPreg: FactsSheet = {
       time: ["W6"],
       unit: "Yes / No",
       type: "binary",
+      measures: ["haemoglobin"],
     },
     {
       what: "Change in serum ferritin",
@@ -66,6 +98,7 @@ export const idaPreg: FactsSheet = {
       time: ["D0", "W6"],
       unit: "ng/mL",
       type: "continuous",
+      measures: ["serum_ferritin"],
     },
     {
       what: "Adverse effects",
@@ -74,32 +107,54 @@ export const idaPreg: FactsSheet = {
       time: ["W2", "W4", "W6"],
       unit: "Yes / No",
       type: "binary",
+      measures: ["adverse_effects"],
     },
   ],
   exploratory_ideas: [
-    "Whether the effect on haemoglobin differs by gestational age at enrolment",
-    "Whether baseline serum ferritin is correlated with the change in haemoglobin",
-    "Whether the effect differs by dietary pattern, which the protocol's hypothesis names",
+    {
+      question:
+        "Whether the effect on haemoglobin differs by gestational age at enrolment",
+      kind: "subgroup",
+      outcome_of: "change_in_haemoglobin",
+      with: ["gestational_age"],
+    },
+    {
+      question:
+        "Whether baseline serum ferritin is correlated with the change in haemoglobin",
+      kind: "correlation",
+      outcome_of: "change_in_haemoglobin",
+      with: ["serum_ferritin"],
+    },
+    {
+      // Dietary pattern is named in the hypothesis and appears in no visit of
+      // the schedule. The protocol asks a question about something it never
+      // collects, which is the commonest way a thesis loses an analysis.
+      question:
+        "Whether the effect differs by dietary pattern, which the protocol's hypothesis names",
+      kind: "subgroup",
+      outcome_of: "change_in_haemoglobin",
+      with: ["diet"],
+    },
   ],
   covariates: [
-    { name: "baseline haemoglobin", inferred: false },
-    { name: "gestational age at enrolment", inferred: true },
+    { measure: "haemoglobin", at: "D0", inferred: false },
+    { measure: "gestational_age", at: "D0", inferred: true },
   ],
   proforma: [
-    { item: "Name", keep: true, reason: "Capture infrastructure" },
-    { item: "Hospital number", keep: true, reason: "Capture infrastructure" },
-    { item: "Age", keep: true, reason: "Descriptor: who the results apply to" },
-    { item: "Residence", keep: true, reason: "Descriptor" },
-    { item: "Education", keep: false, reason: "Serves no objective" },
-    { item: "Husband's occupation", keep: false, reason: "Serves no objective" },
-    { item: "Blood group", keep: false, reason: "Serves no objective" },
-    { item: "Gravidity", keep: true, reason: "Descriptor" },
-    { item: "Parity", keep: true, reason: "Descriptor" },
-    { item: "Gestational age", keep: true, reason: "Covariate of the adjusted primary model" },
-    { item: "Height", keep: true, reason: "Raw input of body mass index" },
-    { item: "Weight", keep: true, reason: "Raw input of body mass index" },
-    { item: "Blood pressure", keep: false, reason: "Serves no objective" },
-    { item: "Stool for ova and cysts", keep: false, reason: "Serves no objective" },
+    { item: "Name", measure: "participant_name", keep: true, purpose: "administrative", reason: "Capture infrastructure" },
+    { item: "Hospital number", measure: "hospital_number", keep: true, purpose: "administrative", reason: "Capture infrastructure" },
+    { item: "Age", measure: "age", keep: true, purpose: "descriptor", reason: "Descriptor: who the results apply to" },
+    { item: "Residence", measure: "residence", keep: true, purpose: "descriptor", reason: "Descriptor" },
+    { item: "Education", measure: null, keep: false, purpose: null, reason: "Serves no objective" },
+    { item: "Husband's occupation", measure: null, keep: false, purpose: null, reason: "Serves no objective" },
+    { item: "Blood group", measure: null, keep: false, purpose: null, reason: "Serves no objective" },
+    { item: "Gravidity", measure: "gravidity", keep: true, purpose: "descriptor", reason: "Descriptor" },
+    { item: "Parity", measure: "parity", keep: true, purpose: "descriptor", reason: "Descriptor" },
+    { item: "Gestational age", measure: "gestational_age", keep: true, purpose: "descriptor", reason: "Covariate of the adjusted primary model" },
+    { item: "Height", measure: "height", keep: true, purpose: "input", reason: "Raw input of body mass index" },
+    { item: "Weight", measure: "weight", keep: true, purpose: "input", reason: "Raw input of body mass index" },
+    { item: "Blood pressure", measure: null, keep: false, purpose: null, reason: "Serves no objective" },
+    { item: "Stool for ova and cysts", measure: null, keep: false, purpose: null, reason: "Serves no objective" },
   ],
   sample_size: {
     per_group: 60,

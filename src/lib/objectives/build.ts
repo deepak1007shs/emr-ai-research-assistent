@@ -1,0 +1,233 @@
+import type {
+  FactsSheet,
+  VariableName,
+  Objective,
+  OutcomeChain,
+  Picot,
+  PicotRow,
+} from "../study/types.ts";
+import type { DataType } from "../study/vocabulary.ts";
+import { variableName } from "../variables/name.ts";
+
+/**
+ * Step 1: the question decomposed, and every objective written as a question.
+ *
+ * Derived from the Facts Sheet rather than asked for again. A question forces
+ * whoever reads it to name an outcome and a comparison, and the outcome chain
+ * already holds both, so the wording comes from a template with slots. That is
+ * what stops the same protocol producing "to compare the efficacy" one run and
+ * a real question the next.
+ *
+ * The ids are fixed here and never change. Steps 2 to 8 refer to them, and an
+ * id that moved would break every link in the plan at once.
+ */
+
+/** A name mid-sentence: "Change in haemoglobin" becomes "change in haemoglobin". */
+const lower = (text: string) =>
+  text && text[0] === text[0].toUpperCase() && !/^[A-Z]{2,}/.test(text)
+    ? text[0].toLowerCase() + text.slice(1)
+    : text;
+
+/** "day 0, weeks 2, 4 and 6" from the visit codes, in the order they happen. */
+function visitList(times: string[]): string {
+  if (times.length <= 1) return times[0] ?? "";
+  return `${times.slice(0, -1).join(", ")} and ${times[times.length - 1]}`;
+}
+
+/**
+ * An outcome that owes a shape question as well as a level one.
+ *
+ * Three or more readings of a value that moves. Not a binary event recorded at
+ * three visits: "any adverse effect" is counted once per person however many
+ * visits asked about it, and a trajectory of a yes/no is not a thing the study
+ * measures. Decision table B has repeated branches for continuous and ordinal
+ * outcomes and for no others, which is the same line drawn from the other side.
+ */
+export function isRepeated(outcome: OutcomeChain): boolean {
+  const movesOverTime: DataType[] = ["continuous", "ordinal", "count"];
+  return outcome.time.length >= 3 && movesOverTime.includes(outcome.type);
+}
+
+/* ---- the question templates ----------------------------------------- */
+
+function comparison(facts: FactsSheet): string {
+  const [a, b] = facts.groups;
+  if (!a || !b) return "";
+  return `${a.label} and ${b.label}`;
+}
+
+/** The level question: is the value different between the groups? */
+function levelQuestion(outcome: OutcomeChain, facts: FactsSheet): string {
+  const between = comparison(facts);
+  const subject =
+    outcome.type === "binary"
+      ? `the proportion with ${lower(outcome.what)}`
+      : outcome.type === "count"
+        ? `the number of ${lower(outcome.what)}`
+        : outcome.type === "time_to_event"
+          ? `the time to ${lower(outcome.what)}`
+          : lower(outcome.what);
+
+  return between
+    ? `Is ${subject} different between ${between}?`
+    : `What is ${subject}?`;
+}
+
+/**
+ * What the shape question is about.
+ *
+ * The thing whose trajectory is being asked about is the measure, not the
+ * derived value. The primary outcome is written "Change in haemoglobin", and
+ * "the rate of change in change in haemoglobin" is not a sentence. A change is
+ * one number per person; a trajectory is the readings it was computed from.
+ */
+function shapeSubject(outcome: OutcomeChain, facts: FactsSheet): string {
+  if (outcome.measures.length !== 1) return lower(outcome.what);
+  const measure = facts.measures.find((m) => m.name === outcome.measures[0]);
+  return measure ? lower(measure.label) : lower(outcome.what);
+}
+
+/** The shape question: is the rate of change different between the groups? */
+function shapeQuestion(outcome: OutcomeChain, facts: FactsSheet): string {
+  const between = comparison(facts);
+  const across = visitList(outcome.time);
+  const subject = shapeSubject(outcome, facts);
+  return between
+    ? `Is the rate of change in ${subject} across ${across} different between ${between}?`
+    : `How does ${subject} change across ${across}?`;
+}
+
+/* ---- PICOT ----------------------------------------------------------- */
+
+/**
+ * The frame, with the letter the design owes.
+ *
+ * The letter stays I in both frames and the word follows the design: a trial
+ * assigns an intervention, an observational study finds an exposure.
+ */
+export function buildPicot(facts: FactsSheet): Picot {
+  const second = facts.frame === "PICO" ? "Intervention" : "Exposure";
+  const outcomes = [facts.primary, ...facts.secondary];
+  const secondary = outcomes
+    .slice(1)
+    .map((o) => lower(o.what))
+    .join(", ");
+
+  const rows: PicotRow[] = [
+    {
+      letter: "P",
+      element: "Population",
+      value: `${facts.population.eligibility} ${facts.population.setting}`.trim(),
+    },
+    { letter: "I", element: second, value: facts.intervention },
+    { letter: "C", element: "Comparator", value: facts.comparator },
+    {
+      letter: "O",
+      element: "Outcome",
+      value: `${facts.primary.what} (${facts.primary.unit}, ${facts.primary.instrument})${
+        secondary ? `; secondarily ${secondary}` : ""
+      }`,
+    },
+    {
+      letter: "T",
+      element: "Time / Type of study",
+      value: `${visitList(facts.timepoints)}. Type: ${facts.design_label}`,
+    },
+  ];
+
+  const between = comparison(facts);
+  const assembled = between
+    ? `Among ${lower(facts.population.eligibility.split(".")[0])}, does ${lower(facts.intervention)}, compared with ${lower(facts.comparator)}, change ${lower(facts.primary.what)} over ${facts.timepoints[facts.timepoints.length - 1] ?? "the study period"}?`
+    : `Among ${lower(facts.population.eligibility.split(".")[0])}, what is ${lower(facts.primary.what)}?`;
+
+  return {
+    frame: facts.frame,
+    rows,
+    assembled_question: assembled,
+    aim: "",
+    hypothesis: "",
+  };
+}
+
+/* ---- the objectives -------------------------------------------------- */
+
+/**
+ * Every objective, with its id.
+ *
+ * Primary first, then secondary in the order the Facts Sheet lists them, then
+ * exploratory. A repeated outcome takes two ids, `a` for the level and `b` for
+ * the shape, so a reader citing P1b is citing the rate of change and nothing
+ * else.
+ */
+export function buildObjectives(facts: FactsSheet): Objective[] {
+  const out: Objective[] = [];
+
+  const add = (
+    id: string,
+    family: Objective["family"],
+    kind: Objective["kind"],
+    outcome: OutcomeChain,
+    question: string,
+    variable: VariableName,
+    source: Objective["source"] = "objective",
+  ) => {
+    out.push({
+      id,
+      family,
+      kind,
+      question,
+      outcome: variable,
+      comparison: comparison(facts) || "single group",
+      source,
+      todo: [],
+    });
+  };
+
+  const forOutcome = (
+    outcome: OutcomeChain,
+    family: Objective["family"],
+    stem: string,
+  ) => {
+    const derived = variableName(outcome.what);
+    // The shape question is asked of the readings, so it is linked to them.
+    const raw = outcome.measures.length === 1 ? outcome.measures[0] : derived;
+
+    if (isRepeated(outcome)) {
+      add(`${stem}a`, family, "level", outcome, levelQuestion(outcome, facts), derived);
+      add(`${stem}b`, family, "shape", outcome, shapeQuestion(outcome, facts), raw);
+    } else {
+      add(stem, family, "single", outcome, levelQuestion(outcome, facts), derived);
+    }
+  };
+
+  forOutcome(facts.primary, "primary", "P1");
+  facts.secondary.forEach((outcome, i) => {
+    forOutcome(outcome, "secondary", `S${i + 1}`);
+  });
+
+  // The ideas the protocol raised without making them objectives. They keep
+  // their own wording because an idea stated in a hypothesis is a sentence, not
+  // a slot, and a template that reworded it would lose what was asked.
+  //
+  // Their outcome is left empty here on purpose. An exploratory question can be
+  // a subgroup of the primary, a correlation between two secondaries, or a
+  // variable the protocol has not collected at all, and only Step 3 knows
+  // which. Pointing all of them at the primary would give the primary outcome
+  // roles in questions that are not about it.
+  facts.exploratory_ideas.forEach((idea, i) => {
+    out.push({
+      id: `E${i + 1}`,
+      family: "exploratory",
+      kind: "single",
+      question: idea.question.trim().endsWith("?")
+        ? idea.question.trim()
+        : `${idea.question.trim()}?`,
+      outcome: "",
+      comparison: comparison(facts) || "single group",
+      source: "hypothesis",
+      todo: [],
+    });
+  });
+
+  return out;
+}

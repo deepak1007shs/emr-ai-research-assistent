@@ -48,6 +48,12 @@ export const CHECKS: Check[] = [
     rule: "There is exactly one primary outcome, and every link of its outcome chain is filled." },
   { id: "G-A3", step: "stage1", type: "block", gate: "A",
     rule: "The groups are named and defined, and every primary and secondary outcome has a time point." },
+  // Not in the written process. The process assumes the visit schedule and the
+  // proforma are prose a human reads; here they are names code follows, and a
+  // name that leads nowhere fails silently, which is the failure this whole
+  // rebuild exists to stop.
+  { id: "G-A4", step: "stage1", type: "block", gate: "A",
+    rule: "Every measure named in the schedule, the outcomes, the covariates and the proforma is defined, with its unit or its categories." },
 
   /* ---- Step 1: objectives ------------------------------------------- */
   { id: "S1-1", step: "step1", type: "block",

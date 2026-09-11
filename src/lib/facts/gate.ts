@@ -153,6 +153,48 @@ export function gateA(facts: FactsSheet): CheckResult[] {
         : "The groups are named and defined, and every outcome has its time points.",
   });
 
+  /* G-A4: every name used anywhere is in the dictionary. */
+  const known = new Set(facts.measures.map((m) => m.name));
+  const dangling: string[] = [];
+  for (const visit of facts.visit_schedule) {
+    for (const name of visit.measures) {
+      if (!known.has(name)) dangling.push(`${visit.timepoint}: ${name}`);
+    }
+  }
+  for (const outcome of [facts.primary, ...facts.secondary]) {
+    for (const name of outcome.measures) {
+      if (!known.has(name)) dangling.push(`${outcome.what}: ${name}`);
+    }
+  }
+  for (const covariate of facts.covariates) {
+    if (!known.has(covariate.measure)) {
+      dangling.push(`covariate: ${covariate.measure}`);
+    }
+  }
+  for (const item of facts.proforma) {
+    if (item.measure !== null && !known.has(item.measure)) {
+      dangling.push(`proforma: ${item.measure}`);
+    }
+  }
+
+  const untyped = facts.measures.filter(
+    (m) =>
+      (["continuous", "count", "time_to_event"].includes(m.type) && !m.unit) ||
+      (["binary", "nominal", "ordinal"].includes(m.type) &&
+        (!m.options || m.options.length < 2)),
+  );
+
+  results.push({
+    id: "G-A4",
+    pass: dangling.length === 0 && untyped.length === 0,
+    failing: [...dangling, ...untyped.map((m) => m.name)],
+    message: dangling.length
+      ? `${dangling.join("; ")} ${dangling.length === 1 ? "is" : "are"} named but not in the measure dictionary. A name nothing defines gets no field on the form and no row in any table, and neither absence is visible in the finished document.`
+      : untyped.length
+        ? `${untyped.map((m) => m.name).join(", ")} ${untyped.length === 1 ? "has" : "have"} no unit or no list of categories. A measure with neither cannot be drawn.`
+        : "Every measure named in the schedule, the outcomes, the covariates and the proforma is defined, with its unit or its categories.",
+  });
+
   return results;
 }
 

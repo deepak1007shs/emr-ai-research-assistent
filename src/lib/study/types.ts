@@ -83,16 +83,93 @@ export type OutcomeChain = {
   what: string;
   how: string;
   instrument: string;
+  /**
+   * Every visit this outcome is measured at.
+   *
+   * Not the two endpoints of a change. The process's own worked example writes
+   * the primary as "haemoglobin change, day 0 to week 6" and records its time
+   * as those two visits, which loses the fact that haemoglobin is read four
+   * times - and that fact is the whole reason the study also owes a rate-of-
+   * rise analysis. The change is a view of the measurements; the measurements
+   * are what happened.
+   */
   time: Timepoint[];
   unit: string;
   type: DataType;
+  /**
+   * The dictionary entries this outcome is built from.
+   *
+   * One for a raw outcome, one for a change or a threshold, two or more for a
+   * ratio or an index. Step 2 reads this to decide whether the outcome is a
+   * variable in its own right or a recipe over others, and without it the
+   * decision would have to be made by reading "Haemoglobin at week 6 minus
+   * haemoglobin at day 0" as English.
+   */
+  measures: VariableName[];
 };
 
-/** A covariate the protocol named, or one added with `inferred` set. */
-export type NamedCovariate = { name: string; inferred: boolean };
+/**
+ * One thing the study records, and everything needed to draw a field for it.
+ *
+ * The dictionary the whole build reads. Before it existed the visit schedule
+ * held prose - "mean corpuscular volume" - and nothing said what kind of value
+ * that is, which unit it comes in or what its categories are, so no step after
+ * the model could draw a row for it or a field to collect it.
+ *
+ * This is the same move that made `options` a list rather than a sentence, and
+ * it is made for the same reason: the model states the facts once, and code
+ * uses them everywhere without asking again.
+ */
+export type Measure = {
+  name: VariableName;
+  label: string;
+  type: DataType;
+  /** For a numeric measure. Null for a categorical one. */
+  unit: string | null;
+  /** For a categorical measure, in print order. Null for a numeric one. */
+  options: string[] | null;
+};
+
+/**
+ * An idea the protocol raised without making it an objective.
+ *
+ * The question is kept in the protocol's own words. What it is *about* is
+ * named, because no rule turns "whether the effect differs by dietary pattern"
+ * into a variable, and a step that guessed would be the sixth model call this
+ * rebuild exists to remove.
+ */
+export type ExploratoryIdea = {
+  question: string;
+  kind: "subgroup" | "interaction" | "derivation" | "correlation";
+  /** The outcome the question is asked of, by its variable name. */
+  outcome_of: VariableName;
+  /** The other variables the question involves. */
+  with: VariableName[];
+};
+
+/** A covariate an adjusted model holds constant, named by its measure. */
+export type NamedCovariate = {
+  measure: VariableName;
+  /** The visit the value is taken at, where the measure is taken at several. */
+  at: Timepoint | null;
+  inferred: boolean;
+};
 
 /** One proforma item, kept or dropped, with the reason (Stage 1.14). */
-export type ProformaItem = { item: string; keep: boolean; reason: string };
+export type ProformaItem = {
+  item: string;
+  /** The dictionary entry this item records, or null where it is dropped. */
+  measure: VariableName | null;
+  keep: boolean;
+  reason: string;
+  /**
+   * What a kept item is for, from a closed list.
+   *
+   * The triage is a Stage 1 judgement the investigator signs off, so the word
+   * is a value here rather than a decision taken later from the reason prose.
+   */
+  purpose: "administrative" | "descriptor" | "population" | "input" | null;
+};
 
 /**
  * The Locked Protocol Facts Sheet.
@@ -104,7 +181,25 @@ export type ProformaItem = { item: string; keep: boolean; reason: string };
  * produce one document.
  */
 export type FactsSheet = {
+  /**
+   * The protocol's title, word for word.
+   *
+   * Kept because a title makes promises. "The rise in haemoglobin" promises a
+   * rate, and a plan that answers only "how much by week six" has not answered
+   * the study's own title. Check S1-3 reads it.
+   */
+  title: string;
   design: DesignFamily;
+  /**
+   * Who the study is about, what it does to them and against what.
+   *
+   * These are the P, the I or E, and the C of the frame. They are prose taken
+   * from the protocol rather than derived, because eligibility is written in
+   * sentences and no rule turns an inclusion list into one.
+   */
+  population: { eligibility: string; setting: string; sampling: string };
+  intervention: string;
+  comparator: string;
   /** The exact label, as prose: "two-arm parallel-group open-label superiority RCT". */
   design_label: string;
   guideline: string;
@@ -121,11 +216,19 @@ export type FactsSheet = {
    * at four visits when the primary outcome is "change from day 0 to week 6"
    * is to look at the schedule.
    */
-  visit_schedule: { timepoint: Timepoint; measures: string[] }[];
+  visit_schedule: { timepoint: Timepoint; measures: VariableName[] }[];
+  /**
+   * Every measure the study records, by name.
+   *
+   * The visit schedule and the proforma refer to these names and nothing else.
+   * Gate A refuses a schedule that names a measure the dictionary does not
+   * carry, because the field for it would silently not be drawn.
+   */
+  measures: Measure[];
   primary: OutcomeChain;
   secondary: OutcomeChain[];
   /** Anything in the aims or hypothesis that is not a formal objective. */
-  exploratory_ideas: string[];
+  exploratory_ideas: ExploratoryIdea[];
   covariates: NamedCovariate[];
   proforma: ProformaItem[];
   sample_size: {
