@@ -1,4 +1,4 @@
-import { chooseTest, degreesOfFreedomNote } from "../sap/choose-test.ts";
+import { chooseTest } from "../sap/choose-test.ts";
 import { PICOT_COLUMNS, PICOT_HEADING, picotRows } from "../sap/picot.ts";
 import { withoutNote } from "../sap/notes.ts";
 import {
@@ -9,7 +9,6 @@ import {
 import {
   analysisCell,
   dataTypeCell,
-  planKey,
   predictorCell,
   tableCell,
 } from "./analysis-cells.ts";
@@ -72,19 +71,9 @@ export function buildSapMarkdown(
   if (short) push("*Objectives, outcomes and the analysis map*", "");
   push(`**${plain(spec.title)}**`, "");
   // The working sheet names them; the house format has no line for them.
-  if (short && (spec.design || spec.setting)) {
-    // Joined on a full stop the design usually ends with already, which gave
-    // "...modified radical mastectomy.. Department of General Surgery".
-    const said = [spec.design, spec.setting]
-      .filter(Boolean)
-      .map((part) => String(part).trim().replace(/\.$/, ""))
-      .join(". ");
-    push(`*${plain(said)}.*`, "");
-  }
-
   /* ---- the clinical question --------------------------------------- */
 
-  if (spec.picot && !short) {
+  if (spec.picot) {
     push("---", "", `## ${PICOT_HEADING}`, "");
     push(
       "*The clinical question decomposed. This is what every objective, variable and test below must trace back to.*",
@@ -144,17 +133,11 @@ export function buildSapMarkdown(
 
   push("---", "", "## Analysis Map", "");
 
-  const reasons = new Map<string, string>();
-  const avoided = new Map<string, string>();
   push(
     table(
       HEADERS,
       analyses.map((row) => {
         const plan = chooseTest(row);
-        if (plan) {
-          reasons.set(planKey(plan), plan.why);
-          if (plan.avoid) avoided.set(planKey(plan), plan.avoid);
-        }
         const where = tableCell(row, tableNumbers);
         return [
           withoutNote(row.label),
@@ -174,46 +157,6 @@ export function buildSapMarkdown(
     ),
     "",
   );
-
-  /* ---- the notes under the map, in the short document only ----------- */
-
-  // The house format prints the analysis map and nothing under it. These notes
-  // are what the short plan is for: the working sheet a statistician sits down
-  // with, where why a test was chosen and what must not be done with it is the
-  // point rather than a departure from the blueprint.
-  if (short) {
-    if (reasons.size) {
-      push("**Why each analysis.**", "");
-      for (const [test, why] of reasons) push(`- **${line(test)}:** ${plain(why)}.`);
-      push("");
-    }
-
-    if (avoided.size) {
-      push("**What must not be done.**", "");
-      for (const [test, avoid] of avoided) push(`- **${line(test)}:** ${plain(avoid)}.`);
-      push("");
-    }
-
-    const adjusted = analyses.find((a) => (a.adjust_for_ids ?? []).length > 0);
-    if (spec.expected_events !== undefined && adjusted) {
-      const { note } = degreesOfFreedomNote(
-        spec.expected_events,
-        (adjusted.adjust_for_ids ?? []).length,
-      );
-      push("**Degrees of freedom.**", "", plain(note), "");
-    }
-
-    const excluded = (spec.variables ?? []).filter(
-      (v) => (v.role === "mediator" || v.role === "collider") && v.exclusion_reason,
-    );
-    if (excluded.length) {
-      push("**Not adjusted for.**", "");
-      for (const v of excluded) {
-        push(`- ${plain(`${v.label} is a ${v.role}. ${v.exclusion_reason}`)}`);
-      }
-      push("", "Neither enters any model.", "");
-    }
-  }
 
   /* ---- the master variable list -------------------------------------- */
 

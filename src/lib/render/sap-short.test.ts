@@ -102,16 +102,25 @@ describe("the short plan and the full plan cannot disagree", () => {
     }
   });
 
-  it("keep the reasons and the warnings in the working sheet", () => {
-    // These belong to the short plan now. The full plan renders in the house
-    // format, which prints the analysis map and nothing under it, and says what
-    // must not be done in the footnote of the table it would be done in.
-    for (const row of sapFixture.analyses) {
-      const plan = chooseTest(row)!;
-      expect(shortMd, `the reason for ${row.label}`).toContain(plan.why);
-      if (plan.avoid) {
-        expect(shortMd, "the short plan drops a warning").toContain(plan.avoid);
-      }
+  it("carry the question, the objectives, the outcomes and the map, and nothing else", () => {
+    // What the short plan is: the four parts a statistician works from. The
+    // reasons, the warnings and the degrees-of-freedom note used to sit under
+    // its map, and nothing prints them now - which is a loss, and the one that
+    // was asked for.
+    expect(shortMd).toContain("## PICOT/PECO");
+    expect(shortMd).toContain("## Objectives as Answerable Questions");
+    expect(shortMd).toContain("## Outcomes");
+    expect(shortMd).toContain("## Analysis Map");
+
+    for (const gone of [
+      "Why each analysis",
+      "What must not be done",
+      "Degrees of freedom",
+      "Not adjusted for",
+      "Master Variable List",
+      "Section 6",
+    ]) {
+      expect(shortMd, gone).not.toContain(gone);
     }
   });
 

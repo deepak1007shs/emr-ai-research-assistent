@@ -192,7 +192,7 @@ export async function buildSapDocx(
   );
 
   // ---- the clinical question decomposed
-  if (spec.picot && !short) {
+  if (spec.picot) {
     doc.push(heading(PICOT_HEADING, HeadingLevel.HEADING_1));
     doc.push(
       italic(
