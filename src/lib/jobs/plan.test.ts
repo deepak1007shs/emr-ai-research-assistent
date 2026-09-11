@@ -35,9 +35,11 @@ describe("the order the documents depend on", () => {
     expect(stagesOf("all")).toEqual(["review", "sap", "tables", "crf"]);
     expect(stagesOf("documents")).toEqual(["sap", "tables", "crf"]);
     expect(stagesOf("crf")).toEqual(["crf"]);
-    // The plan carries its tables and its form: one backbone, two documents,
-    // and a check between them that cannot run unless both were built.
-    expect(stagesOf("sap")).toEqual(["sap", "tables", "crf"]);
+    // The plan carries its tables, and only those: a rebuild of the plan must
+    // not spend a second document's worth of tokens on a form nobody asked to
+    // rebuild. The form comes with it the first time, through "documents".
+    expect(stagesOf("sap")).toEqual(["sap", "tables"]);
+    expect(stagesOf("documents")).toEqual(["sap", "tables", "crf"]);
   });
 
   it("starts a chain at a stage whose own prerequisite is checked", () => {

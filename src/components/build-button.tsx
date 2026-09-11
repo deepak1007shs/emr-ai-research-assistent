@@ -16,16 +16,18 @@ const fmtUsd = (n: number) => (n < 0.01 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}
 
 const VERB: Record<JobKind, { build: string; checked: string }> = {
   review: { build: "Review this protocol", checked: "The protocol was reviewed" },
-  // The plan builds its form as well, so the button says so. A button that
-  // spends money on a second document without naming it is a button nobody
-  // presses twice.
+  // A button that spends money on a second document without naming it is a
+  // button nobody presses twice, so each of these names what it pays for.
   sap: {
-    build: "Build the plan and the case record form",
-    checked: "The plan, its shell tables and the form were checked",
+    build: "Build the Statistical Analysis Plan",
+    checked: "The plan and its shell tables were checked",
   },
   crf: { build: "Build the Case Record Form", checked: "Checked against the analysis plan" },
   all: { build: "Build everything", checked: "All four documents were built" },
-  documents: { build: "Build all three documents", checked: "Built" },
+  documents: {
+    build: "Build the plan, its tables and the case record form",
+    checked: "The plan, its shell tables and the form were checked",
+  },
 };
 
 /** "The plan was checked and 2 problems need your attention." */

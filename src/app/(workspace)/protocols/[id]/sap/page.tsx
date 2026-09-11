@@ -64,7 +64,7 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
           <NotBuilt kind="Statistical Analysis Plan" description={DESCRIPTION}>
             <BuildButton
-              kind="sap"
+              kind="documents"
               protocolId={id}
               exists={false}
               blockedReason={blockedReason}
@@ -101,7 +101,7 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
           protocolId={id}
           exists
           blockedReason={blockedReason}
-          rebuildLabel="Rebuild the plan and the form"
+          rebuildLabel="Rebuild the plan"
         />
       </DocumentToolbar>
 
