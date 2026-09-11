@@ -1,0 +1,339 @@
+import type {
+  Block,
+  CrfPattern,
+  DataType,
+  DesignFamily,
+  FieldType,
+  Frame,
+  ObjectiveFamily,
+  ObjectiveKind,
+  ObjectiveSource,
+  Role,
+} from "./vocabulary.ts";
+
+/**
+ * The whole study, as one set of linked objects.
+ *
+ * The written process says it plainly: hold the process as a small set of
+ * linked objects, render both documents from them, and never let either
+ * document be edited directly. Everything below is that set.
+ *
+ * They live in one file because they reference each other and eight type files
+ * importing each other in a ring is harder to read than one model. Behaviour
+ * stays in its own module per object: `facts/`, `objectives/`, `variables/`,
+ * `analysis/`, `rules/`, `tables/`, `crf/`, `checks/`.
+ *
+ * Two links matter more than the rest and are stored rather than recomputed:
+ * a variable to the tables that report it, and a variable to the fields that
+ * capture it. The backward check reads the first and check 7 reads the second,
+ * and a link that is recomputed at check time can be recomputed differently.
+ */
+
+/** A visit code from the Facts Sheet: "D0", "W2", "W6". */
+export type Timepoint = string;
+
+/** An objective id: P1, P1a, S2, E1. Fixed at Step 1 and never changed. */
+export type ObjectiveId = string;
+
+/** A variable's short name, used as its id everywhere: "hb", "ga_enrol". */
+export type VariableName = string;
+
+/* ---- Stage 0 ------------------------------------------------------- */
+
+export type IntakeFile = { name: string; type: string; pages: number | null };
+
+/**
+ * What arrived, and where each part of the protocol sits.
+ *
+ * Every later step quotes the protocol, and a quote that cannot be traced to a
+ * page is a quote nobody can check.
+ */
+export type Study = {
+  study_code: string;
+  files: IntakeFile[];
+  /** Key section to where it starts. Missing sections are absent, not empty. */
+  sections: Record<string, { page: number | null; text: string }>;
+  missing_sections: string[];
+  /** The same thing written twice and differently, both versions kept. */
+  conflicts: { item: string; versions: string[] }[];
+  /** Follow the client's template where they sent one. */
+  crf_pattern: CrfPattern;
+  /** Variable names from a dataset the client already has, if any. */
+  dataset_variable_names: string[] | null;
+};
+
+/* ---- Stage 1: the locked facts ------------------------------------- */
+
+export type Group = { code: string; label: string };
+
+export type Allocation = {
+  ratio: string;
+  block: number | null;
+  strata: string[];
+};
+
+/**
+ * One outcome, walked down the outcome chain.
+ *
+ * What is measured, how, with which instrument, at what time, in what unit,
+ * and of what type. Gate A refuses a primary outcome with any link empty,
+ * because every table below it would rest on the gap.
+ */
+export type OutcomeChain = {
+  what: string;
+  how: string;
+  instrument: string;
+  time: Timepoint[];
+  unit: string;
+  type: DataType;
+};
+
+/** A covariate the protocol named, or one added with `inferred` set. */
+export type NamedCovariate = { name: string; inferred: boolean };
+
+/** One proforma item, kept or dropped, with the reason (Stage 1.14). */
+export type ProformaItem = { item: string; keep: boolean; reason: string };
+
+/**
+ * The Locked Protocol Facts Sheet.
+ *
+ * Written at the end of Stage 1 and frozen. The SAP skill's Step 2 reads "the
+ * Facts Sheet from Step 0" and the skill has no Step 0 (gap G1); this is where
+ * it is written, and this is the last thing a model decides. Every step after
+ * it is rules over these fields, which is what makes two runs of one protocol
+ * produce one document.
+ */
+export type FactsSheet = {
+  design: DesignFamily;
+  /** The exact label, as prose: "two-arm parallel-group open-label superiority RCT". */
+  design_label: string;
+  guideline: string;
+  frame: Frame;
+  groups: Group[];
+  allocation: Allocation;
+  timepoints: Timepoint[];
+  primary: OutcomeChain;
+  secondary: OutcomeChain[];
+  /** Anything in the aims or hypothesis that is not a formal objective. */
+  exploratory_ideas: string[];
+  covariates: NamedCovariate[];
+  proforma: ProformaItem[];
+  sample_size: {
+    per_group: number | null;
+    formula_family: string;
+    verdict: "correct" | "wrong_formula" | "absent" | "partial";
+    attrition: string | null;
+  };
+  /** Every question still waiting for the investigator. Each becomes a TODO. */
+  open_items: string[];
+};
+
+/* ---- Step 1 -------------------------------------------------------- */
+
+export type Objective = {
+  id: ObjectiveId;
+  family: ObjectiveFamily;
+  kind: ObjectiveKind;
+  /** The question, naming one outcome and one comparison. */
+  question: string;
+  outcome: VariableName;
+  comparison: string;
+  source: ObjectiveSource;
+  todo: string[];
+};
+
+/** P, I/E, C, O, T, each with the study's answer. */
+export type PicotRow = { letter: string; element: string; value: string };
+
+export type Picot = {
+  frame: Frame;
+  rows: PicotRow[];
+  assembled_question: string;
+  aim: string;
+  /** "Not stated in the protocol" where there is none. Never invented. */
+  hypothesis: string;
+};
+
+/* ---- Steps 2 and 3 ------------------------------------------------- */
+
+/**
+ * One variable of the master variable list.
+ *
+ * `roles` is keyed by objective id, and by `adjust:<id>` where the variable
+ * enters that objective's adjusted model, because one variable holds different
+ * roles for different questions.
+ *
+ * `options` is a list and not prose. The old model held it as a sentence, and
+ * code could not turn "Kuppuswamy education score, 1 (illiterate) to 7
+ * (profession/honours)" into rows: it gave two rows of nonsense for years. A
+ * list can be drawn as one row per category, which is what lets the table
+ * builder run without asking a model.
+ */
+export type Variable = {
+  name: VariableName;
+  label: string;
+  roles: Record<string, Role>;
+  type: DataType;
+  /** For a numeric variable. Every numeric variable has one (check S2-4). */
+  unit: string | null;
+  /** For a categorical variable, in print order. Yes before No, Male before Female. */
+  options: string[] | null;
+  timepoints: Timepoint[];
+  /** The raw variables this is calculated from. Empty for a raw variable. */
+  derived_from: VariableName[];
+  /** The recipe in plain words: "Hb at week 6 minus Hb at day 0". */
+  recipe: string | null;
+  /** False for every derived variable: a derived value is never a CRF field. */
+  crf: boolean;
+  source: "protocol" | "inferred" | "promoted";
+};
+
+/** An exploratory question and the rows it reuses (Step 3). */
+export type ExploratoryOutcome = {
+  id: ObjectiveId;
+  question: string;
+  kind: "subgroup" | "interaction" | "derivation" | "correlation";
+  reuses: VariableName[];
+  /** Where a variable had to be added, the reason the investigator can check. */
+  promoted: { variable: VariableName; reason: string } | null;
+};
+
+/* ---- Step 4 -------------------------------------------------------- */
+
+export type Covariate = {
+  var: VariableName;
+  /** The timepoint the covariate is taken at, where it matters. */
+  at: Timepoint | null;
+  /** One line saying why this covariate and not another. */
+  reason: string;
+};
+
+export type Unadjusted = {
+  test: string;
+  /** The named test used when the assumption fails. */
+  fallback: string | null;
+  table: string;
+};
+
+export type Adjusted = {
+  model: string;
+  /** The named model used when the first fails to converge. */
+  fallback: string | null;
+  covariates: Covariate[];
+  table: string;
+  /** Every model owes a fit table (rule R10). */
+  fit_table: string;
+};
+
+/**
+ * One row of the Analysis Map: the hinge between an objective and its tables.
+ *
+ * `exception` records the two places where "unadjusted then adjusted" does not
+ * apply: an estimation objective, which gets a summary with an interval and no
+ * p value, and a safety outcome, which is reported and not modelled. A third,
+ * `too_few_events`, records a model that must not be fitted at all.
+ */
+export type AnalysisRow = {
+  objective: ObjectiveId;
+  outcome: VariableName;
+  predictors: VariableName[];
+  data_type: DataType;
+  /** Per person, per eye, per lesion, per reading. */
+  unit_of_analysis: string;
+  /** "1 value per woman", "4 readings per woman". */
+  count: string;
+  /** For a binary outcome: the expected rate. Null is a TODO, never a guess. */
+  expected_frequency: number | null;
+  effect_measure: string;
+  /** The absolute measure printed beside every ratio. */
+  absolute: string | null;
+  unadjusted: Unadjusted | null;
+  adjusted: Adjusted | null;
+  exception: "estimation" | "safety" | "too_few_events" | null;
+};
+
+/* ---- Step 5 -------------------------------------------------------- */
+
+export type Population = { name: string; definition: string };
+
+export type Rules = {
+  populations: Population[];
+  /** The line that opens the primary block, with the flow through the study. */
+  population_line: string;
+  software: string;
+  alpha: string;
+  sided: "one" | "two";
+  ci_level: string;
+  summaries: string;
+  normality: string;
+  missing_data: string;
+  /** One line per family present, printed under that family's heading. */
+  multiplicity: Partial<Record<ObjectiveFamily | "safety", string>>;
+  /** The rule, or "No interim analysis planned". Never absent. */
+  interim: string;
+  /** The alternative assumptions that become the sensitivity table's rows. */
+  sensitivity_rows: string[];
+};
+
+/* ---- Step 6 -------------------------------------------------------- */
+
+export type TableRow = {
+  label: string;
+  /** The variable this row reports, where it reports one. */
+  variable: VariableName | null;
+  /** A category of the row above it, drawn on its own line. */
+  indent: boolean;
+};
+
+/**
+ * One shell table: a title, a grid with nothing in it, and one footnote.
+ *
+ * `fit_table_of` marks a fit table, which takes its model's number and a
+ * letter. `variables` is the stored link the backward check reads.
+ */
+export type ShellTable = {
+  number: string;
+  block: Block;
+  title: string;
+  columns: string[];
+  rows: TableRow[];
+  footnote: string;
+  /** The number of the table this one reports the fit of, or null. */
+  fit_table_of: string | null;
+  /** Every objective this table reports. */
+  fills: ObjectiveId[];
+  variables: VariableName[];
+};
+
+/* ---- Step 8 -------------------------------------------------------- */
+
+export type CrfSection = {
+  /** "A", "G1": a letter, and a number where a section repeats per visit. */
+  code: string;
+  title: string;
+};
+
+export type CrfField = {
+  section: string;
+  /** Restarts at 1 in every section. */
+  sno: number;
+  label: string;
+  type: FieldType;
+  unit: string | null;
+  options: string[] | null;
+  /** The variable captured, or "infrastructure" for a field that analyses nothing. */
+  source_variable: VariableName | "infrastructure";
+  timepoint: Timepoint | null;
+  /** When the field applies: "arm == ORAL" for tablets returned. */
+  condition: string | null;
+};
+
+/* ---- Step 7 and check 7 -------------------------------------------- */
+
+export type CheckResult = {
+  id: string;
+  pass: boolean;
+  /** The objects that failed, by their own ids, so a fix knows where to go. */
+  failing: string[];
+  message: string;
+};
