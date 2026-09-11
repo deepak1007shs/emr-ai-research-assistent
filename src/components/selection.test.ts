@@ -7,7 +7,7 @@ import type { ProtocolRow } from "@/lib/workspace/rail.ts";
  * what the confirmation claims and what the request carries are both held here.
  */
 
-const doc = (id: string | null, kind: ProtocolRow["documents"]["sap"]["kind"]) => ({
+const doc = (id: string | null, kind: ProtocolRow["documents"]["review"]["kind"]) => ({
   kind,
   id,
   stale: false,
@@ -21,51 +21,43 @@ const protocols: ProtocolRow[] = [
     id: "p1",
     filename: "first-study.docx",
     created_at: "2026-08-01T00:00:00.000Z",
-    documents: {
-      review: doc("r1", "review"),
-      sap: doc("s1", "sap"),
-      crf: doc("c1", "crf"),
-    },
+    documents: { review: doc("r1", "review") },
   },
   {
     id: "p2",
     filename: "second-study.pdf",
     created_at: "2026-08-02T00:00:00.000Z",
-    documents: {
-      review: doc("r2", "review"),
-      sap: doc("s2", "sap"),
-      crf: doc(null, "crf"),
-    },
+    documents: { review: doc("r2", "review") },
   },
 ];
 
 describe("toRequest", () => {
   it("splits a mixed selection into what the endpoint expects", () => {
-    const request = toRequest([protocolKey("p1"), documentKey("sap", "s2")]);
+    const request = toRequest([protocolKey("p1"), documentKey("review", "r2")]);
     expect(request.protocols).toEqual(["p1"]);
-    expect(request.documents).toEqual([{ kind: "sap", id: "s2" }]);
+    expect(request.documents).toEqual([{ kind: "review", id: "r2" }]);
   });
 
   it("ignores anything it cannot read", () => {
-    expect(toRequest(["nonsense", "doc:sap"]).documents).toEqual([]);
+    expect(toRequest(["nonsense", "doc:review"]).documents).toEqual([]);
   });
 });
 
 describe("withoutRedundant", () => {
   it("drops a document that its own protocol is taking anyway", () => {
-    const keys = new Set([protocolKey("p1"), documentKey("sap", "s1"), documentKey("crf", "c1")]);
+    const keys = new Set([protocolKey("p1"), documentKey("review", "r1"), documentKey("review", "r1")]);
     const kept = withoutRedundant(keys, protocols);
     expect([...kept]).toEqual([protocolKey("p1")]);
   });
 
   it("keeps a document whose protocol is staying", () => {
-    const keys = new Set([protocolKey("p1"), documentKey("sap", "s2")]);
+    const keys = new Set([protocolKey("p1"), documentKey("review", "r2")]);
     const kept = withoutRedundant(keys, protocols);
-    expect(kept.has(documentKey("sap", "s2"))).toBe(true);
+    expect(kept.has(documentKey("review", "r2"))).toBe(true);
   });
 
   it("changes nothing when no protocol is selected", () => {
-    const keys = new Set([documentKey("sap", "s1")]);
+    const keys = new Set([documentKey("review", "r1")]);
     expect(withoutRedundant(keys, protocols)).toBe(keys);
   });
 });
@@ -76,16 +68,16 @@ describe("describe", () => {
   });
 
   it("names a document by what it is and which study it belongs to", () => {
-    expect(describeSelection([documentKey("crf", "c1")], protocols)).toEqual([
-      "the case record form of first-study.docx",
+    expect(describeSelection([documentKey("review", "r1")], protocols)).toEqual([
+      "the review of first-study.docx",
     ]);
   });
 
   it("names every item, so the list can be checked", () => {
     const names = describeSelection(
-      [protocolKey("p1"), documentKey("sap", "s2"), documentKey("review", "r2")],
+      [protocolKey("p1"), documentKey("review", "r2")],
       protocols,
     );
-    expect(names).toEqual(["first-study.docx", "the analysis plan of second-study.pdf", "the review of second-study.pdf"]);
+    expect(names).toEqual(["first-study.docx", "the review of second-study.pdf"]);
   });
 });

@@ -1,20 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { extractProtocol, type ExtractedProtocol } from "../protocol/extract.ts";
 import { MODEL, analyzeProtocol } from "../protocol/analyze.ts";
-import { buildSapSpec } from "../sap/build.ts";
-import { checkCoverage } from "../sap/coverage.ts";
-import { buildCrfSpec } from "../crf/build.ts";
-import { buildTablesSpec } from "../tables/build.ts";
 import { build as renderMarkdown } from "../render/markdown.ts";
 import { costOf, type TokenUsage } from "../protocol/pricing.ts";
-import { loadDecisions } from "../workspace/decisions.ts";
-import type { DatasetProfile } from "../data/types.ts";
-import { remapDataset } from "../data/remap.ts";
-import { markUnavailable } from "../tables/unavailable.ts";
-import { consequencesFor } from "../protocol/answers.ts";
-import { isLinkable, type SapSpec } from "../sap/types.ts";
-import type { Finding } from "../sap/validate.ts";
-import { NEEDS, STAGE_LABEL, needsFirst, stagesOf, type JobKind, type Produced, type Stage } from "./plan.ts";
+import { STAGE_LABEL, stagesOf, type JobKind, type Produced, type Stage } from "./plan.ts";
 
 /**
  * The one place a document is built.
@@ -26,9 +15,10 @@ import { NEEDS, STAGE_LABEL, needsFirst, stagesOf, type JobKind, type Produced, 
  * after the model had been paid. A closed tab lost the document and kept the
  * bill.
  *
- * The bodies below are the route bodies, moved rather than rewritten. What is
- * new is around them: the order the stages must run in, and a row in `jobs`
- * they write their progress to instead of a connection.
+ * The body below is the route body, moved rather than rewritten. What is new
+ * around it is a row in `jobs` it writes its progress to instead of to a
+ * connection. It ran four stages in order once; the plan, the shell tables and
+ * the case record form were removed, and one stage needs no order.
  */
 
 type Db = SupabaseClient;
@@ -45,11 +35,6 @@ const add = (a: TokenUsage, b: TokenUsage): TokenUsage => ({
   output_tokens: a.output_tokens + b.output_tokens,
   cache_creation_input_tokens: a.cache_creation_input_tokens + b.cache_creation_input_tokens,
   cache_read_input_tokens: a.cache_read_input_tokens + b.cache_read_input_tokens,
-});
-
-const counts = (findings: Finding[]) => ({
-  errors: findings.filter((f) => f.severity === "ERROR").length,
-  warnings: findings.filter((f) => f.severity === "WARN").length,
 });
 
 /**
@@ -155,22 +140,6 @@ async function readProtocol(db: Db, protocolId: string): Promise<ExtractedProtoc
 }
 
 /** The most recent ready plan for a protocol, with the id the artifacts link to. */
-async function readySap(db: Db, protocolId: string) {
-  const { data } = await db
-    .from("sap_plans")
-    .select("id, spec")
-    .eq("protocol_id", protocolId)
-    .eq("status", "ready")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return data;
-}
-
-/* -------------------------------------------------------------------------- */
-/* The stages                                                                 */
-/* -------------------------------------------------------------------------- */
-
 async function runReview(db: Db, userId: string, protocolId: string, report: Reporter, signal: AbortSignal): Promise<Produced> {
   await report.step("Reading the protocol");
   const protocol = await readProtocol(db, protocolId);
@@ -218,312 +187,12 @@ async function runReview(db: Db, userId: string, protocolId: string, report: Rep
   }
 }
 
-async function runSap(db: Db, userId: string, protocolId: string, report: Reporter, signal: AbortSignal): Promise<Produced> {
-  await report.step("Reading the protocol");
-  const protocol = await readProtocol(db, protocolId);
-
-  // The investigator's answers to the review's issues override the protocol.
-  // The review is not passed in: the latest complete one for this protocol is
-  // the one that was read, and after this change there is always one.
-  // The blockers nobody answered, as well as the answers somebody did write.
-  // The plan gets all of them, unrouted: it is the root the form and the tables
-  // are built from, so a blocker the review labelled wrongly would otherwise be
-  // lost from the whole chain rather than from one document.
-  const { answers, reviewId, unanswered } = await loadDecisions(db, protocolId);
-
-  // The columns of a dataset already collected, where one is attached. The plan
-  // is still written from the protocol; this is what lets it say which of the
-  // variables the protocol calls for nobody actually collected.
-  const { data: attached } = await db
-    .from("datasets")
-    .select("id, filename, storage_path, profile")
-    .eq("protocol_id", protocolId)
-    .eq("status", "ready")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  try {
-    const result = await buildSapSpec(protocol, {
-      answers,
-      unresolved: unanswered,
-      data: (attached?.profile as DatasetProfile | undefined) ?? null,
-      signal,
-      onProgress: (message) => void report.step(message),
-      onUsage: (usage) => report.meter(usage),
-    });
-
-    // The plan is finished; now read the protocol back against it. This is the
-    // only check in the application that looks at the protocol at all, so a
-    // variable the protocol describes and the plan missed is invisible without
-    // it. A failure here must not lose the plan, which is why it is caught: a
-    // plan with no coverage check is worth more than no plan.
-    let coverage: Awaited<ReturnType<typeof checkCoverage>> | null = null;
-    try {
-      coverage = await checkCoverage(protocol, result.spec, {
-        signal,
-        onProgress: (message) => void report.step(message),
-        onUsage: (usage) => report.meter(usage),
-      });
-    } catch {
-      await report.step("The plan is built. The protocol could not be read back against it.");
-    }
-
-    // The sheet is read again, now that there are variables to match it to. A
-    // sheet attached before the plan was mapped to nothing, and until it is
-    // mapped nothing can say which of the plan's variables the data lacks.
-    // Caught for the same reason the coverage check is: a plan with an unmapped
-    // dataset is worth more than no plan.
-    let mapped: Awaited<ReturnType<typeof remapDataset>> = null;
-    if (attached?.storage_path) {
-      try {
-        mapped = await remapDataset(
-          db,
-          attached as { id: string; filename: string; storage_path: string | null },
-          result.spec,
-          { signal, onProgress: (message) => void report.step(message) },
-        );
-      } catch {
-        await report.step("The plan is built. The collected data could not be matched to it.");
-      }
-    }
-
-    const usage = coverage ? add(result.usage, coverage.usage) : result.usage;
-    const findings = [
-      ...result.findings,
-      ...(coverage?.findings ?? []),
-      ...(mapped?.findings ?? []),
-    ];
-
-    const { data: row, error } = await db
-      .from("sap_plans")
-      .insert({
-        protocol_id: protocolId,
-        review_id: reviewId,
-        owner: userId,
-        status: "ready",
-        spec: result.spec,
-        validation: { findings },
-        model: result.model,
-        usage,
-      })
-      .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-
-    const entry: Produced = { kind: "sap", id: row.id, ...counts(findings) };
-    await report.finished(entry, usage);
-    return entry;
-  } catch (error) {
-    // A build you stopped leaves no wreckage. Without this, cancelling wrote a
-    // failed row claiming the document had been attempted and had broken, which
-    // is not what happened and is not what the workspace should show.
-    if (signal.aborted) throw error;
-    const message = error instanceof Error ? error.message : "Building the plan failed.";
-    // Recorded, not only reported. A failure that leaves nothing behind can only
-    // be diagnosed from the runs that happened to succeed beside it.
-    await db.from("sap_plans").insert({
-      protocol_id: protocolId,
-      review_id: reviewId,
-      owner: userId,
-      status: "failed",
-      error: message,
-    });
-    throw new Error(message);
-  }
-}
-
-/** The plan a downstream stage builds against, or the reason there is none. */
-async function planFor(db: Db, protocolId: string, stage: "crf" | "tables") {
-  const sap = await readySap(db, protocolId);
-  if (!sap?.spec) throw new Error(needsFirst(stage)!);
-  if (!isLinkable(sap.spec as SapSpec)) {
-    throw new Error(
-      "The Statistical Analysis Plan for this protocol was built before the three documents were linked to each other, so its variables carry no ids to link to. Build the plan again, then build this.",
-    );
-  }
-  return sap;
-}
-
-async function runCrf(db: Db, userId: string, protocolId: string, report: Reporter, signal: AbortSignal): Promise<Produced> {
-  const sap = await planFor(db, protocolId, "crf");
-
-  await report.step("Reading the protocol");
-  const protocol = await readProtocol(db, protocolId);
-  const { answers, unanswered } = await loadDecisions(db, protocolId);
-
-  try {
-    const result = await buildCrfSpec(protocol, sap.spec as SapSpec, {
-      answers,
-      signal,
-      unresolved: consequencesFor(unanswered, "crf"),
-      onProgress: (message) => void report.step(message),
-      onUsage: (usage) => report.meter(usage),
-    });
-
-    const { data: row, error } = await db
-      .from("crf_forms")
-      .insert({
-        protocol_id: protocolId,
-        sap_id: sap.id,
-        owner: userId,
-        status: "ready",
-        spec: result.spec,
-        validation: { findings: result.findings },
-        model: result.model,
-        usage: result.usage,
-      })
-      .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-
-    const entry: Produced = { kind: "crf", id: row.id, ...counts(result.findings) };
-    await report.finished(entry, result.usage);
-    return entry;
-  } catch (error) {
-    // Recorded the way a failed plan is. Written after the plan was found, so a
-    // form refused for having no plan to build against still writes nothing:
-    // that is a run which never started, not a form that failed.
-    // A build you stopped leaves no wreckage. Without this, cancelling wrote a
-    // failed row claiming the document had been attempted and had broken, which
-    // is not what happened and is not what the workspace should show.
-    if (signal.aborted) throw error;
-    const message = error instanceof Error ? error.message : "Building the form failed.";
-    await db.from("crf_forms").insert({
-      protocol_id: protocolId,
-      sap_id: sap.id,
-      owner: userId,
-      status: "failed",
-      error: message,
-    });
-    throw new Error(message);
-  }
-}
-
-async function runTables(db: Db, userId: string, protocolId: string, report: Reporter, signal: AbortSignal): Promise<Produced> {
-  const sap = await planFor(db, protocolId, "tables");
-
-  // The form is not read. Its fields are computed from this same plan, so the
-  // variables the tables report and the variables the form collects are one
-  // list, and the tables no longer wait for a document that tells them nothing
-  // the plan has not already said.
-
-  // The tables report the study as decided, not as written.
-  const { answers, unanswered } = await loadDecisions(db, protocolId);
-
-  // Read at the end against the finished table list, to catch a result the
-  // protocol promised that never became an objective and so never became a
-  // table. A stored file that cannot be read costs that one check, not the
-  // tables, so this is the one stage that does not insist on it.
-  await report.step("Reading the protocol");
-  const protocol = await readProtocol(db, protocolId).catch(() => null);
-
-  // Which variables the collected data actually holds, where a sheet has been
-  // matched to this plan. Used after the tables are built rather than before:
-  // what the data can fill is a set difference, not a judgement, so the model
-  // is not asked about it.
-  const { data: mappedData } = await db
-    .from("datasets")
-    .select("mapping")
-    .eq("protocol_id", protocolId)
-    .eq("status", "ready")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const held: Record<string, string> = {};
-  for (const column of ((mappedData?.mapping as { columns?: { variable_id?: string; clean_name?: string }[] } | null)?.columns ?? [])) {
-    if (column.variable_id) held[column.variable_id] = column.clean_name || column.variable_id;
-  }
-
-  try {
-    const result = await buildTablesSpec(sap.spec as SapSpec, protocol, {
-      answers,
-      signal,
-      unresolved: consequencesFor(unanswered, "tables"),
-      onProgress: (message) => void report.step(message),
-      onUsage: (usage) => report.meter(usage),
-    });
-
-    const { data: row, error } = await db
-      .from("shell_tables")
-      .insert({
-        protocol_id: protocolId,
-        sap_id: sap.id,
-        crf_id: null,
-        owner: userId,
-        status: "ready",
-        spec: markUnavailable(result.spec, held),
-        validation: { findings: result.findings },
-        model: result.model,
-        usage: result.usage,
-      })
-      .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-
-    const entry: Produced = { kind: "tables", id: row.id, ...counts(result.findings) };
-    await report.finished(entry, result.usage);
-    return entry;
-  } catch (error) {
-    // A build you stopped leaves no wreckage. Without this, cancelling wrote a
-    // failed row claiming the document had been attempted and had broken, which
-    // is not what happened and is not what the workspace should show.
-    if (signal.aborted) throw error;
-    const message = error instanceof Error ? error.message : "Building the tables failed.";
-    await db.from("shell_tables").insert({
-      protocol_id: protocolId,
-      sap_id: sap.id,
-      crf_id: null,
-      owner: userId,
-      status: "failed",
-      error: message,
-    });
-    throw new Error(message);
-  }
-}
-
-const STAGE_FN: Record<
-  Stage,
-  (db: Db, userId: string, protocolId: string, report: Reporter, signal: AbortSignal) => Promise<Produced>
-> = {
-  review: runReview,
-  sap: runSap,
-  crf: runCrf,
-  tables: runTables,
-};
-
-/* -------------------------------------------------------------------------- */
-
-/** True when the document a stage depends on is already built and ready. */
-export async function hasPrerequisite(db: Db, protocolId: string, stage: Stage): Promise<boolean> {
-  const required = NEEDS[stage];
-  if (!required) return true;
-  if (required === "review") {
-    const { count } = await db
-      .from("reviews")
-      .select("id", { count: "exact", head: true })
-      .eq("protocol_id", protocolId)
-      .eq("status", "complete");
-    return (count ?? 0) > 0;
-  }
-  return Boolean((await readySap(db, protocolId))?.spec);
-}
-
-/**
- * Runs a job to the end, or to the first stage that fails.
- *
- * A stage that produces a document carrying findings does not stop the chain.
- * Every plan this app has built carries findings, and a chain that stopped on
- * them would never once reach the form. A stage that produces nothing at all
- * does stop it, because everything after it would be built against nothing.
- */
 export async function runJob(
   db: Db,
   job: { id: string; kind: JobKind; protocolId: string; userId: string },
 ): Promise<void> {
   const report = progress(db, job.id);
-  const stages = stagesOf(job.kind);
+  const stages = stagesOf();
 
   // Stop arrives as a different request, and possibly in a different process,
   // so the row is the only thing this runner and that request can both see. It
@@ -554,15 +223,8 @@ export async function runJob(
         break;
       }
 
-      // A chain builds its own prerequisites as it goes; a single stage must
-      // find them already there.
-      const built = report.produced().some((p) => p.kind === NEEDS[stage]);
-      if (!built && !(await hasPrerequisite(db, job.protocolId, stage))) {
-        throw new Error(needsFirst(stage)!);
-      }
-
       await report.enter(stage);
-      await STAGE_FN[stage](db, job.userId, job.protocolId, report, stopping.signal);
+      await runReview(db, job.userId, job.protocolId, report, stopping.signal);
     }
     if (asked) await report.cancelled(stoppedNote(report.produced()));
     else await report.done();

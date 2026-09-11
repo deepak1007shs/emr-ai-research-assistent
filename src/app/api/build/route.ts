@@ -1,7 +1,7 @@
 import { after, NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { hasPrerequisite, runJob } from "@/lib/jobs/run";
-import { isStalled, needsFirst, stagesOf, type JobKind } from "@/lib/jobs/plan";
+import { runJob } from "@/lib/jobs/run";
+import { isStalled, type JobKind } from "@/lib/jobs/plan";
 
 export const runtime = "nodejs";
 /**
@@ -13,7 +13,7 @@ export const runtime = "nodejs";
  */
 export const maxDuration = 3600;
 
-const KINDS: JobKind[] = ["review", "sap", "crf", "all", "documents"];
+const KINDS: JobKind[] = ["review"];
 
 /**
  * Starts a build and returns its job id.
@@ -71,14 +71,6 @@ export async function POST(request: NextRequest) {
 
   if (open && !isStalled(open)) {
     return NextResponse.json({ jobId: open.id, alreadyRunning: true });
-  }
-
-  // Refused before anything is spent, not after. A chain builds what it needs
-  // as it goes, so only its first stage has to find its prerequisite already
-  // there.
-  const first = stagesOf(body.kind)[0];
-  if (!(await hasPrerequisite(supabase, body.protocolId, first))) {
-    return NextResponse.json({ error: needsFirst(first) }, { status: 409 });
   }
 
   const { data: job, error } = await supabase

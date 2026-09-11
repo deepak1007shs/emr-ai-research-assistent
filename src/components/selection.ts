@@ -59,14 +59,7 @@ export function describe(keys: Iterable<string>, protocols: ProtocolRow[]): stri
     const owner = protocols.find((p) =>
       (Object.keys(p.documents) as DocKind[]).some((k) => p.documents[k].id === item.id),
     );
-    const label =
-      item.kind === "review"
-        ? "the review"
-        : item.kind === "sap"
-          ? "the analysis plan"
-          : item.kind === "crf"
-            ? "the case record form"
-            : "the shell tables";
+    const label = "the review";
     names.push(owner ? `${label} of ${owner.filename}` : label);
   }
 

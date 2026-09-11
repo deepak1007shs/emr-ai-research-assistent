@@ -1,35 +1,9 @@
 import { readFileSync } from "node:fs";
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
-import { buildSapDocx } from "./sap-docx.ts";
-import { buildCrfDocx } from "./crf-docx.ts";
+import { buildDocx } from "./docx.ts";
 import { HOUSE_FONT, bannedWordsIn } from "./house-style.ts";
-import { sapFixture } from "../sap/fixture.ts";
-import { crfFixture } from "../crf/fixture.ts";
-import { tablesFixture } from "../tables/fixture.ts";
-import { tableNumbers } from "../tables/types.ts";
-import type { ShellTablesSpec } from "../tables/types.ts";
-
-/**
- * The tables live in the plan now, as Section 6.
- *
- * These checks were written against a standalone tables document. What they
- * assert is still exactly right; only where it prints has changed, so they
- * render the plan carrying the tables rather than the document that is gone.
- */
-async function buildTablesDocx(spec: ShellTablesSpec): Promise<Buffer> {
-  return buildSapDocx(sapFixture, tableNumbers(spec), { shells: spec });
-}
-
-
-/**
- * The house style, on every document rather than one of them.
- *
- * The banned vocabulary was written down, fed to the model, and never checked
- * against the application's own prose. So "robust" sat in two footnotes this
- * code writes itself, in a document handed to an examiner, while the model was
- * being told not to use it.
- */
+import { fixtureSpec, fixtureActionSpec } from "./fixture.ts";
 
 async function read(buffer: Buffer) {
   const zip = await JSZip.loadAsync(buffer);
@@ -43,11 +17,8 @@ async function read(buffer: Buffer) {
 }
 
 const documents = async (): Promise<[string, Awaited<ReturnType<typeof read>>][]> => [
-  ["the full plan", await read(await buildSapDocx(sapFixture, {}))],
-  ["the short plan", await read(await buildSapDocx(sapFixture, {}, { variant: "short" }))],
-  ["the case record form", await read(await buildCrfDocx(crfFixture, "form"))],
-  ["the collection plan", await read(await buildCrfDocx(crfFixture, "plan"))],
-  ["the shell tables", await read(await buildTablesDocx(tablesFixture))],
+  ["the protocol review", await read(await buildDocx(fixtureSpec))],
+  ["the action list", await read(await buildDocx(fixtureActionSpec))],
 ];
 
 describe("every document the app hands over", () => {
@@ -104,14 +75,6 @@ describe("every document the app hands over", () => {
     }
   });
 
-  it("and the two plans are actually different documents", async () => {
-    // The short plan is the full one cut to what a statistician works from. A
-    // test that renders both and compares nothing would pass on one document
-    // returned twice, which is what an earlier check of mine did.
-    const [, full] = (await documents())[0];
-    const [, short] = (await documents())[1];
-    expect(short.visible.length).toBeLessThan(full.visible.length);
-  });
 });
 
 describe("the banned vocabulary knows medicine from filler", () => {
@@ -144,10 +107,7 @@ describe("the banned vocabulary knows medicine from filler", () => {
   it("is the same rule the model is given", () => {
     // The two had already drifted: the check excused "robust variance" and the
     // instruction to the model did not.
-    for (const path of [
-      "src/lib/tables/knowledge/shell-tables.md",
-      "src/lib/protocol/knowledge/workflow.md",
-    ]) {
+    for (const path of ["src/lib/protocol/knowledge/workflow.md"]) {
       const text = readFileSync(path, "utf8");
       expect(text, path).toContain("vital signs");
       expect(text, path).toContain("robust variance");

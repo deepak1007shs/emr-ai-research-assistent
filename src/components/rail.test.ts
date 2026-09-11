@@ -24,8 +24,8 @@ const render = (element: React.ReactElement) =>
     .replace(/\s+/g, " ")
     .trim();
 
-const doc = (over: Partial<ProtocolRow["documents"]["sap"]> = {}) => ({
-  kind: "sap" as const,
+const doc = (over: Partial<ProtocolRow["documents"]["review"]> = {}) => ({
+  kind: "review" as const,
   id: "x",
   stale: false,
   behindAnswers: false,
@@ -38,11 +38,7 @@ const protocol = (over: Partial<ProtocolRow> = {}): ProtocolRow => ({
   id: "p1",
   filename: "thesis.docx",
   created_at: "2026-08-01T00:00:00.000Z",
-  documents: {
-    review: { ...doc(), kind: "review" },
-    sap: doc(),
-    crf: { ...doc(), kind: "crf" },
-  },
+  documents: { review: doc() },
   ...over,
 });
 
@@ -53,18 +49,18 @@ const open = (p: ProtocolRow[], active: string | null = "p1") =>
     createElement(ProtocolRail, {
       protocols: p,
       activeProtocolId: active,
-      activeDoc: "sap" as const,
+      activeDoc: "review" as const,
     }),
   );
 
 describe("the protocol rail", () => {
-  it("lists the documents of the open protocol", () => {
-    // Three, not four. The shell tables are Section 6 of the plan and are read
-    // by opening it, so the rail has no separate place for them.
+  it("lists the document of the open protocol", () => {
+    // One. The plan, its shell tables and the case record form were removed,
+    // and the rail has no place for what is not built.
     const text = open([protocol()]);
-    expect(text).not.toContain("Shell Tables");
-    for (const label of ["Review", "SAP", "CRF"]) {
-      expect(text, label).toContain(label);
+    expect(text).toContain("Review");
+    for (const gone of ["SAP", "CRF", "Shell Tables"]) {
+      expect(text, gone).not.toContain(gone);
     }
     expect(text).toContain("thesis.docx");
   });
@@ -78,32 +74,11 @@ describe("the protocol rail", () => {
     expect(text).toContain("Nothing uploaded yet");
   });
 
-  it("says which documents are not built", () => {
+  it("says when the review has not been built", () => {
     const p = protocol();
-    p.documents.crf = { ...doc({ id: null }), kind: "crf" };
+    p.documents.review = doc({ id: null });
     // An em dash against a step is the design's way of saying it has not run.
     expect(open([p])).toContain("—");
-  });
-
-  it("marks a document built from a superseded plan", () => {
-    const p = protocol();
-    p.documents.crf = { ...doc({ stale: true }), kind: "crf" };
-    expect(open([p])).toContain("outdated");
-  });
-
-  it("marks a document built before the decisions changed", () => {
-    const p = protocol();
-    p.documents.crf = { ...doc({ behindAnswers: true }), kind: "crf" };
-    expect(open([p])).toContain("older");
-  });
-
-  it("counts the problems on a document that has them", () => {
-    const p = protocol();
-    p.documents.sap = doc({ errors: 2 });
-    // The count alone, in the step's meta column, as the design has it.
-    const text = open([p]);
-    expect(text).toContain("2");
-    expect(text).not.toContain("2 to fix");
   });
 
   it("says a document with nothing wrong is ok", () => {
@@ -114,8 +89,8 @@ describe("the protocol rail", () => {
     // Twenty protocols expanded at once is a wall, not a list.
     const text = open([protocol(), protocol({ id: "p2", filename: "other.docx" })]);
     expect(text).toContain("other.docx");
-    // Only the open one shows its documents, so "CRF" appears once.
-    expect(text.split("CRF").length - 1).toBe(1);
+    // Only the open one shows its document, so "Review" appears once.
+    expect(text.split("Review").length - 1).toBe(1);
   });
 });
 
@@ -139,7 +114,7 @@ describe("selecting several things to delete", () => {
       createElement(ProtocolRail, {
         protocols: p,
         activeProtocolId: "p1",
-        activeDoc: "sap" as const,
+        activeDoc: "review" as const,
       }),
     );
 

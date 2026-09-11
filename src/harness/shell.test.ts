@@ -14,13 +14,8 @@ vi.mock("next/navigation", () => ({
   useSelectedLayoutSegment: () => null,
 }));
 import { ProtocolRail } from "../components/protocol-rail.tsx";
-import { ShellTableSection } from "../components/tables-preview.tsx";
-import { ReviewRail } from "../components/review-rail.tsx";
 import { DocumentToolbar } from "../components/document-toolbar.tsx";
-import { tablesFixture } from "../lib/tables/fixture.ts";
-import { tableNumberIn } from "../lib/workspace/findings.ts";
 import type { ProtocolRow, DocKind } from "../lib/workspace/rail.ts";
-import type { Finding } from "../lib/sap/validate.ts";
 
 const d = (id: string | null, kind: DocKind, over: object = {}) => ({
   kind, id, stale: false, behindAnswers: false, errors: 0, warnings: 0, ...over,
@@ -28,23 +23,12 @@ const d = (id: string | null, kind: DocKind, over: object = {}) => ({
 
 const protocols: ProtocolRow[] = [
   { id: "p1", filename: "Satyanarayana \u2014 DM Thesis (Final)", created_at: "2026-08-26",
-    documents: { review: d("r", "review"), sap: d("s", "sap"), crf: d("c", "crf", { errors: 2 }) } },
+    documents: { review: d("r", "review") } },
   { id: "p2", filename: "Laparoscopic conversion \u2014 cohort", created_at: "2026-08-20",
-    documents: { review: d("r2", "review"), sap: d(null, "sap"), crf: d(null, "crf") } },
+    documents: { review: d(null, "review") } },
   { id: "p3", filename: "Thyroid FNAC diagnostic accuracy", created_at: "2026-08-11",
-    documents: { review: d("r3", "review"), sap: d("s3", "sap", { stale: true }), crf: d(null, "crf") } },
+    documents: { review: d("r3", "review") } },
 ];
-
-const findings: Finding[] = [
-  { code: "TBL19", severity: "ERROR", message: "S1 is reported by both Table 4 and Table 5. One analysis, one table." },
-  { code: "TBL19", severity: "ERROR", message: "S2 is reported by both Table 4 and Table 3. One analysis, one table." },
-  { code: "TBL16", severity: "ERROR", message: "Table 4 reports operative duration, but S1, which it says it fills, measures intraoperative conversion." },
-  { code: "TBL08", severity: "WARN", message: "Table 1 does not carry its denominator. A table without (n = ...) cannot be read alone." },
-  { code: "TBL08", severity: "WARN", message: "Table 2 does not carry its denominator. A table without (n = ...) cannot be read alone." },
-  { code: "TBL18", severity: "WARN", message: "Table 4 adjusts for Age, which S1 does not list as a predictor." },
-];
-
-const flagged = new Set(findings.map((f) => tableNumberIn(f.message)).filter((n): n is number => n !== null));
 
 /**
  * A viewing harness, not a test.
@@ -75,15 +59,13 @@ it.skipIf(!process.env.OUT)("writes the shell harness", async () => {
           h("span", { className: "text-xs font-medium text-ink-2" }, "deepak1007shs")))),
     h("div", { className: "flex min-h-0 flex-1" },
       h("aside", { className: "panel-type flex w-[var(--rail-w)] shrink-0 flex-col border-r border-line bg-surface" },
-        h(ProtocolRail, { protocols, activeProtocolId: "p1", activeDoc: "sap" as DocKind })),
+        h(ProtocolRail, { protocols, activeProtocolId: "p1", activeDoc: "review" as DocKind })),
       h("div", { className: "flex min-h-0 min-w-0 flex-1 flex-col" },
-        h(DocumentToolbar, { title: "Analysis plan", status: "built" as const,
-          meta: ["5 tables", "3 versions \u00b7 built 27 Aug 2026"], downloadHref: "#",
-          children: h("button", { className: "btn btn-quiet" }, "Rebuild") }),
+        h(DocumentToolbar, { title: "Protocol review", status: "built" as const,
+          meta: ["10 blockers", "built 27 Aug 2026"], downloadHref: "#",
+          children: h("button", { className: "btn btn-quiet" }, "Review it again") }),
         h("div", { className: "flex min-h-0 flex-1" },
-          h("section", { className: "min-w-0 flex-1 overflow-y-auto py-6 pb-10" },
-            h(ShellTableSection, { spec: tablesFixture, flagged })),
-          h(ReviewRail, { findings }))))
+          h("section", { className: "min-w-0 flex-1 overflow-y-auto py-6 pb-10" }))))
   );
 
   // The stylesheet is copied in beside this file, and a copy goes stale. The

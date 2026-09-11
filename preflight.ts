@@ -10,18 +10,6 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { MODEL_REVIEW_JSON_SCHEMA } from "./src/lib/protocol/schema.ts";
-import { SAP_JSON_SCHEMA } from "./src/lib/sap/build.ts";
-import { SAP_MAP_JSON_SCHEMA } from "./src/lib/sap/map-stage.ts";
-import { SAP_RULES_JSON_SCHEMA } from "./src/lib/sap/rules-stage.ts";
-import { COVERAGE_JSON_SCHEMA } from "./src/lib/sap/coverage.ts";
-import { CRF_COMPLETION_SCHEMA, CRF_JSON_SCHEMA } from "./src/lib/crf/build.ts";
-import { TABLES_JSON_SCHEMA } from "./src/lib/tables/build.ts";
-import { TABLE_COVERAGE_JSON_SCHEMA } from "./src/lib/tables/coverage.ts";
-import {
-  SAP_REVISION_SCHEMA,
-  CRF_REVISION_SCHEMA,
-  TABLES_REVISION_SCHEMA,
-} from "./src/lib/revise/schema.ts";
 
 const client = new Anthropic();
 let failed = false;
@@ -51,17 +39,6 @@ async function check(name: string, schema: unknown) {
 
 for (const [name, schema] of [
   ["Protocol review", MODEL_REVIEW_JSON_SCHEMA],
-  ["SAP 1 - frame and registries", SAP_JSON_SCHEMA],
-  ["SAP 2 - analysis map", SAP_MAP_JSON_SCHEMA],
-  ["SAP 3 - rules and assumptions", SAP_RULES_JSON_SCHEMA],
-  ["SAP 4 - protocol read back", COVERAGE_JSON_SCHEMA],
-  ["CRF", CRF_JSON_SCHEMA],
-  ["CRF completion", CRF_COMPLETION_SCHEMA],
-  ["Analysis blueprint", TABLES_JSON_SCHEMA],
-  ["Blueprint protocol read back", TABLE_COVERAGE_JSON_SCHEMA],
-  ["Revise SAP", SAP_REVISION_SCHEMA],
-  ["Revise CRF", CRF_REVISION_SCHEMA],
-  ["Revise tables", TABLES_REVISION_SCHEMA],
 ] as [string, unknown][]) {
   await check(name, schema);
 }

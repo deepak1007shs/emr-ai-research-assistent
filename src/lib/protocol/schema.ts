@@ -66,21 +66,6 @@ export const modelReviewSchema = z.object({
       area: z.string().min(1),
       issue: z.string().min(1),
       change: z.string().min(1),
-      // What the blocker means for the documents below the review. Lenient,
-      // because a review is worth having even when the model omits them.
-      affects: z.enum(["sap", "crf", "tables", "none"]).default("none"),
-      kind: z
-        .enum([
-          "variable_missing",
-          "outcome_ambiguous",
-          "model_too_large",
-          "definition_missing",
-          "timing_undefined",
-          "objective_unanswerable",
-          "none",
-        ])
-        .default("none"),
-      target: z.string().default(""),
     }),
   ),
 });
@@ -176,64 +161,16 @@ export type ActionSpec = {
   subtitle: string;
   protocol_line: string;
   issues_table: { rows: [string, string, string, string][] };
-  /**
-   * What each blocker means for the documents below the review, in a form code
-   * can act on.
-   *
-   * Parallel to `issues_table.rows` and indexed the same way, which is also how
-   * the investigator's answers are keyed. A separate array rather than more
-   * columns in the row, because the row is what prints and a stored review must
-   * still parse.
-   *
-   * Optional: every review written before this existed has none, and a document
-   * built from one of those is checked against nothing rather than refused.
-   */
-  consequences?: Consequence[];
   footer: string;
 };
 
-/** What a blocker requires of the plan, the form or the tables. */
-export type Consequence = {
-  affects: "sap" | "crf" | "tables" | "none";
-  kind:
-    | "variable_missing"
-    | "outcome_ambiguous"
-    | "model_too_large"
-    | "definition_missing"
-    | "timing_undefined"
-    | "objective_unanswerable"
-    | "none";
-  /** The thing itself, named as the plan would name it. Empty where kind is none. */
-  target: string;
-  /** The blocker's own words, so a finding can quote the review. */
-  issue: string;
-};
-
 const actionRow = z.tuple([z.string(), z.string(), z.string(), z.string()]);
-
-const consequenceSchema = z
-  .object({
-    affects: z.enum(["sap", "crf", "tables", "none"]),
-    kind: z.enum([
-      "variable_missing",
-      "outcome_ambiguous",
-      "model_too_large",
-      "definition_missing",
-      "timing_undefined",
-      "objective_unanswerable",
-      "none",
-    ]),
-    target: z.string(),
-    issue: z.string(),
-  })
-  .strict();
 
 export const actionSpecSchema = z
   .object({
     subtitle: z.string().min(1),
     protocol_line: z.string(),
     issues_table: z.object({ rows: z.array(actionRow) }).strict(),
-    consequences: z.array(consequenceSchema).optional(),
     footer: z.string(),
   })
   .strict();
@@ -267,14 +204,6 @@ export function toActionSpec(model: ModelReview): ActionSpec {
         (a, i) => [a.area, a.issue, a.change, String(i + 1)] as [string, string, string, string],
       ),
     },
-    // Indexed the same as the rows, so a consequence and the answer written
-    // against it are found by the same key.
-    consequences: model.action_items.map((a) => ({
-      affects: a.affects,
-      kind: a.kind,
-      target: a.target?.trim() ?? "",
-      issue: a.issue,
-    })),
     footer:
       "The blockers only, in the order they should be addressed. The full Protocol Understanding & Review document carries the reasoning behind each one, along with the smaller corrections not listed here.",
   };
@@ -380,31 +309,6 @@ export const MODEL_REVIEW_JSON_SCHEMA = obj({
         ...str,
         description:
           "An imperative instruction the researcher can act on, not a description of the problem. Write 'Choose one primary outcome and define it as the 30-day Clavien-Dindo >= II rate', not 'The primary outcome is unclear'.",
-      },
-      affects: {
-        type: "string",
-        enum: ["sap", "crf", "tables", "none"],
-        description:
-          "Which document downstream has to change because of this. 'sap' for anything about outcomes, comparisons, confounders or the analysis. 'crf' for anything that has to be collected and is not. 'tables' for anything about what is reported. 'none' for consent forms, timelines, ethics and administration, which change the protocol and not the analysis.",
-      },
-      kind: {
-        type: "string",
-        enum: [
-          "variable_missing",
-          "outcome_ambiguous",
-          "model_too_large",
-          "definition_missing",
-          "timing_undefined",
-          "objective_unanswerable",
-          "none",
-        ],
-        description:
-          "What kind of consequence this has, so it can be checked afterwards. variable_missing: something the analysis needs is not collected. outcome_ambiguous: the protocol names more than one primary outcome. model_too_large: more predictors than the events support. definition_missing: an exposure or outcome with no stated rule for deciding it. timing_undefined: a clock with no anchor date. objective_unanswerable: the data cannot answer it. none: everything else, including anything where affects is none.",
-      },
-      target: {
-        ...str,
-        description:
-          "The thing itself, named as the analysis plan would name it: 'illness-severity score (SOFA or qSOFA)', '30-day mortality and pathogen distribution', 'date of the index blood culture'. Empty where kind is none. This is matched against the plan and the form, so name the thing, not the problem.",
       },
     }),
   },
