@@ -112,6 +112,16 @@ export type FactsSheet = {
   groups: Group[];
   allocation: Allocation;
   timepoints: Timepoint[];
+  /**
+   * What is measured at each visit.
+   *
+   * The Facts Sheet field list names it and nothing else carries it. Step 1
+   * needs it: an outcome measured at more than its two endpoints gets a shape
+   * question as well as a level one, and the only way to know that Hb is read
+   * at four visits when the primary outcome is "change from day 0 to week 6"
+   * is to look at the schedule.
+   */
+  visit_schedule: { timepoint: Timepoint; measures: string[] }[];
   primary: OutcomeChain;
   secondary: OutcomeChain[];
   /** Anything in the aims or hypothesis that is not a formal objective. */
