@@ -35,26 +35,29 @@ export const idaPreg: FactsSheet = {
   frame: "PICO",
   groups: [
     { code: "FCM", label: "IV ferric carboxymaltose" },
-    { code: "ORAL", label: "Oral ferrous ascorbate" },
+    { code: "Oral", label: "Oral ferrous ascorbate" },
   ],
   allocation: { ratio: "1:1", block: 4, strata: [] },
   timepoints: ["D0", "W2", "W4", "W6"],
   measures: [
-    { name: "participant_name", label: "Name", type: "text", unit: null, options: null },
-    { name: "hospital_number", label: "Hospital number", type: "text", unit: null, options: null },
-    { name: "age", label: "Age", type: "continuous", unit: "years", options: null },
-    { name: "residence", label: "Residence", type: "nominal", unit: null, options: ["Urban", "Rural"] },
-    { name: "gravidity", label: "Gravidity", type: "count", unit: "pregnancies", options: null },
-    { name: "parity", label: "Parity", type: "count", unit: "births", options: null },
-    { name: "gestational_age", label: "Gestational age", type: "continuous", unit: "weeks", options: null },
-    { name: "height", label: "Height", type: "continuous", unit: "cm", options: null },
-    { name: "weight", label: "Weight", type: "continuous", unit: "kg", options: null },
-    { name: "diet", label: "Dietary pattern", type: "nominal", unit: null, options: ["Vegetarian", "Mixed", "Non-vegetarian"] },
-    { name: "haemoglobin", label: "Haemoglobin", type: "continuous", unit: "g/dL", options: null },
-    { name: "serum_ferritin", label: "Serum ferritin", type: "continuous", unit: "ng/mL", options: null },
-    { name: "mean_corpuscular_volume", label: "Mean corpuscular volume", type: "continuous", unit: "fL", options: null },
-    { name: "adverse_effects", label: "Any adverse effect since the last visit", type: "binary", unit: null, options: ["Yes", "No"] },
-    { name: "adherence", label: "Doses taken since the last visit", type: "continuous", unit: "% of doses", options: null },
+    { name: "participant_name", label: "Name", type: "text", unit: null, options: null, derived_from: [], recipe: null },
+    { name: "hospital_number", label: "Hospital number", type: "text", unit: null, options: null, derived_from: [], recipe: null },
+    { name: "age", label: "Age", type: "continuous", unit: "years", options: null, derived_from: [], recipe: null },
+    { name: "residence", label: "Residence", type: "nominal", unit: null, options: ["Urban", "Rural"], derived_from: [], recipe: null },
+    { name: "gravidity", label: "Gravidity", type: "count", unit: "pregnancies", options: null, derived_from: [], recipe: null },
+    { name: "parity", label: "Parity", type: "count", unit: "births", options: null, derived_from: [], recipe: null },
+    { name: "gestational_age", label: "Gestational age", type: "continuous", unit: "weeks", options: null, derived_from: [], recipe: null },
+    { name: "height", label: "Height", type: "continuous", unit: "cm", options: null, derived_from: [], recipe: null },
+    { name: "weight", label: "Weight", type: "continuous", unit: "kg", options: null, derived_from: [], recipe: null },
+    { name: "diet", label: "Dietary pattern", type: "nominal", unit: null, options: ["Vegetarian", "Mixed", "Non-vegetarian"], derived_from: [], recipe: null },
+    { name: "haemoglobin", label: "Haemoglobin", type: "continuous", unit: "g/dL", options: null, derived_from: [], recipe: null },
+    { name: "serum_ferritin", label: "Serum ferritin", type: "continuous", unit: "ng/mL", options: null, derived_from: [], recipe: null },
+    { name: "mean_corpuscular_volume", label: "Mean corpuscular volume", type: "continuous", unit: "fL", options: null, derived_from: [], recipe: null },
+    { name: "adverse_effects", label: "Any adverse effect since the last visit", type: "binary", unit: null, options: ["Yes", "No"], derived_from: [], recipe: null },
+    { name: "adherence", label: "Doses taken since the last visit", type: "continuous", unit: "% of doses", options: null, derived_from: [], recipe: null },
+    // Written on no form and carried by Table 1, which is the whole reason a
+    // measure may be derived.
+    { name: "bmi", label: "Body mass index", type: "continuous", unit: "kg/m2", options: null, derived_from: ["height", "weight"], recipe: "Weight in kilograms divided by height in metres squared" },
   ],
   visit_schedule: [
     {
@@ -79,6 +82,8 @@ export const idaPreg: FactsSheet = {
     time: ["D0", "W2", "W4", "W6"],
     unit: "g/dL",
     type: "continuous",
+    distribution: "normal",
+    expected_frequency: null,
     measures: ["haemoglobin"],
   },
   secondary: [
@@ -89,6 +94,8 @@ export const idaPreg: FactsSheet = {
       time: ["W6"],
       unit: "Yes / No",
       type: "binary",
+      distribution: "unknown",
+      expected_frequency: null,
       measures: ["haemoglobin"],
     },
     {
@@ -98,6 +105,10 @@ export const idaPreg: FactsSheet = {
       time: ["D0", "W6"],
       unit: "ng/mL",
       type: "continuous",
+      // Ferritin is right-skewed in every population it is measured in, and
+      // that is known before the first sample is drawn.
+      distribution: "skewed",
+      expected_frequency: null,
       measures: ["serum_ferritin"],
     },
     {
@@ -107,6 +118,8 @@ export const idaPreg: FactsSheet = {
       time: ["W2", "W4", "W6"],
       unit: "Yes / No",
       type: "binary",
+      distribution: "unknown",
+      expected_frequency: null,
       measures: ["adverse_effects"],
     },
   ],

@@ -48,6 +48,15 @@ function visitsOf(facts: FactsSheet, name: VariableName): Timepoint[] {
     .map((visit) => visit.timepoint);
 }
 
+/** The visits every input of a computed measure is available at. */
+function inputVisits(facts: FactsSheet, measure: { derived_from: string[] }) {
+  const perInput = measure.derived_from.map((input) => visitsOf(facts, input));
+  if (!perInput.length) return [];
+  return perInput[0].filter((visit) =>
+    perInput.every((visits) => visits.includes(visit)),
+  );
+}
+
 /**
  * The categories of a derived categorical outcome.
  *
@@ -102,10 +111,14 @@ export function buildVariables(
       type: measure.type,
       unit: measure.unit,
       options: measure.options,
-      timepoints: visitsOf(facts, measure.name),
-      derived_from: [],
-      recipe: null,
-      crf: true,
+      // A computed measure exists wherever its inputs do, and is written on
+      // no form.
+      timepoints: measure.derived_from.length
+        ? inputVisits(facts, measure)
+        : visitsOf(facts, measure.name),
+      derived_from: [...measure.derived_from],
+      recipe: measure.recipe,
+      crf: measure.derived_from.length === 0,
       source: "protocol",
     });
   }
@@ -177,7 +190,12 @@ export function buildVariables(
     const variable = byName.get(item.measure);
     if (!variable) continue;
     variable.roles[STUDY] = purposeRole[item.purpose];
-    if (item.purpose === "input") {
+    // An input whose output nothing defines is a field somebody fills in for
+    // every participant that feeds a number nobody will ever compute.
+    const feeds = facts.measures.some((m) =>
+      m.derived_from.includes(variable.name),
+    );
+    if (item.purpose === "input" && !feeds) {
       todos.push(
         `${variable.label} is kept as a raw input of a derived variable the protocol does not define. Name that variable, with its formula, or drop ${variable.label.toLowerCase()}.`,
       );

@@ -106,6 +106,25 @@ export type OutcomeChain = {
    * haemoglobin at day 0" as English.
    */
   measures: VariableName[];
+  /**
+   * What the values are expected to look like.
+   *
+   * Not a result. A statistician knows before the study starts that serum
+   * ferritin is right-skewed and that haemoglobin is not, and the two get
+   * different tables: a median with the interquartile range and a
+   * Hodges-Lehmann difference against a mean with a t-test. "unknown" is
+   * honest and produces a TODO rather than a choice.
+   */
+  distribution: "normal" | "skewed" | "unknown";
+  /**
+   * For a binary outcome, the proportion expected to have it.
+   *
+   * Decision table C is keyed on this. Null is a question for the
+   * investigator, never a guess: at 10% and above the plan is a risk ratio
+   * from a log-binomial model, below it an odds ratio from a logistic one, and
+   * the two answer differently.
+   */
+  expected_frequency: number | null;
 };
 
 /**
@@ -128,6 +147,17 @@ export type Measure = {
   unit: string | null;
   /** For a categorical measure, in print order. Null for a numeric one. */
   options: string[] | null;
+  /**
+   * The measures this one is computed from, where it is computed at all.
+   *
+   * Body mass index is the case: height and weight are written on the form,
+   * the index is not, and Table 1 carries a row for it. Without this the
+   * choice is to invent the variable or to lose the row, and this build does
+   * neither.
+   */
+  derived_from: VariableName[];
+  /** The calculation in plain words. Null for a measure that is recorded. */
+  recipe: string | null;
 };
 
 /**

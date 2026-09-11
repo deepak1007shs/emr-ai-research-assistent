@@ -34,7 +34,7 @@ const DATA_TYPES = [
 const outcomeChain = {
   type: "object",
   additionalProperties: false,
-  required: ["what", "how", "instrument", "time", "unit", "type", "measures"],
+  required: ["what", "how", "instrument", "time", "unit", "type", "measures", "distribution", "expected_frequency"],
   properties: {
     what: { ...str, description: "Exactly what is measured. 'Change in haemoglobin', not 'efficacy'." },
     how: { ...str, description: "The method or definition: how the value is arrived at." },
@@ -42,6 +42,8 @@ const outcomeChain = {
     time: { ...strArray, description: "Every visit code this is measured at, from `timepoints`. For a change from day 0 to week 6 where the value is also read at weeks 2 and 4, that is all four visits and not the two endpoints." },
     unit: { ...str, description: "The unit, or the two categories for a binary outcome." },
     type: { type: "string", enum: DATA_TYPES, description: "What kind of value it is." },
+    distribution: { type: "string", enum: ["normal", "skewed", "unknown"], description: "What the values are expected to look like, from what is known of the measure before the study starts. Serum ferritin, CRP and length of stay are skewed; haemoglobin and blood pressure are not. Use unknown rather than guessing." },
+    expected_frequency: { type: ["number", "null"], description: "For a binary outcome, the proportion expected to have it, as a number between 0 and 1. Null where the protocol does not say, which becomes a question for the investigator." },
     measures: { ...strArray, description: "The names, from `measures`, this outcome is built from. One for a raw outcome; for a change or a threshold, the one measure it is computed from." },
   },
 } as const;
@@ -104,13 +106,15 @@ export const FACTS_JSON_SCHEMA = {
       description: "Every distinct thing the study records, once each: outcomes, covariates, descriptors and administrative items. Name each in lower case with underscores, and use that name everywhere else.",
       items: {
         type: "object", additionalProperties: false,
-        required: ["name", "label", "type", "unit", "options"],
+        required: ["name", "label", "type", "unit", "options", "derived_from", "recipe"],
         properties: {
           name: { ...str, description: "Lower case, words joined by underscores: 'serum_ferritin'." },
           label: { ...str, description: "How it is written on a form: 'Serum ferritin'." },
           type: { type: "string", enum: DATA_TYPES },
           unit: { type: ["string", "null"], description: "For a numeric measure. Null for a categorical one." },
           options: { type: ["array", "null"], items: { type: "string" }, description: "For a categorical measure, every category in print order, Yes before No and Male before Female. Null for a numeric one. A list, never a sentence: a range written as prose cannot be drawn as rows." },
+          derived_from: { ...strArray, description: "The measures this one is computed from, by name. Empty for anything written on the form. Body mass index is computed from height and weight and belongs here." },
+          recipe: { type: ["string", "null"], description: "The calculation in plain words, where there is one. Null otherwise." },
         },
       },
     },
@@ -188,6 +192,8 @@ const chain = z.object({
   unit: z.string(),
   type: z.enum(DATA_TYPES),
   measures: z.array(z.string()),
+  distribution: z.enum(["normal", "skewed", "unknown"]),
+  expected_frequency: z.number().nullable(),
 });
 
 export const factsSchema = z
@@ -218,6 +224,8 @@ export const factsSchema = z
         type: z.enum(DATA_TYPES),
         unit: z.string().nullable(),
         options: z.array(z.string()).nullable(),
+        derived_from: z.array(z.string()),
+        recipe: z.string().nullable(),
       }),
     ),
     visit_schedule: z.array(

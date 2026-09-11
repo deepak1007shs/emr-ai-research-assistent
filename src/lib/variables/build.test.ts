@@ -94,13 +94,24 @@ describe("Step 2, the master variable list", () => {
     expect(find("age").roles[STUDY]).toBe("descriptor");
   });
 
+  it("computes a measure the form does not carry, where the facts define one", () => {
+    // Body mass index is on no form and has a row in Table 1.
+    const bmi = find("bmi");
+    expect(bmi.crf).toBe(false);
+    expect(bmi.derived_from).toEqual(["height", "weight"]);
+    expect(bmi.timepoints).toEqual(["D0"]);
+    expect(built().todos.join(" ")).not.toContain("Height is kept as a raw input");
+  });
+
   it("asks rather than invents when an input feeds nothing named", () => {
-    // Height and weight are kept "as raw inputs of body mass index" and no
-    // variable called body mass index exists. Inventing one would put a row in
-    // a table for a number nobody defined.
-    const names = built().variables.map((v) => v.name);
-    expect(names).not.toContain("body_mass_index");
-    expect(built().todos.join(" ")).toContain("Height is kept as a raw input");
+    // Take the definition away and the two fields are work for no number.
+    const facts = {
+      ...idaPreg,
+      measures: idaPreg.measures.filter((m) => m.name !== "bmi"),
+    };
+    const { variables, todos } = buildVariables(facts, buildObjectives(facts));
+    expect(variables.map((v) => v.name)).not.toContain("bmi");
+    expect(todos.join(" ")).toContain("Height is kept as a raw input");
   });
 
   it("flags a measure taken through the study that answers nothing", () => {
