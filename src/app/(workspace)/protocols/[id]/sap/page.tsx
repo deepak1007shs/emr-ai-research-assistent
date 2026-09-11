@@ -13,7 +13,31 @@ export const metadata = {
 };
 
 const DESCRIPTION =
-  "The question decomposed, every objective written as a question, one analysis row per objective, and every empty results table the thesis will carry. The protocol is read once; everything after that is fixed rules, so building it twice gives the same document.";
+  "The protocol is read once, into a sheet of facts. Everything after that is fixed rules over those facts, so building the plan twice gives the same document, down to the number of tables.";
+
+/** The sections of the finished plan, in the order it prints them. */
+const PARTS = [
+  {
+    name: "PICOT or PECO",
+    detail: "the clinical question decomposed, and the one sentence it assembles to.",
+  },
+  {
+    name: "Section 1, objectives",
+    detail: "the aim, the hypothesis, and every objective as a question with a fixed id.",
+  },
+  {
+    name: "Analysis Map",
+    detail: "one row per objective: its outcome, its predictors, its test and the table it fills.",
+  },
+  {
+    name: "Section 6, shell tables",
+    detail: "every empty results table the thesis will carry, numbered and pinned to that count.",
+  },
+  {
+    name: "Open items",
+    detail: "every decision the plan will not take on your behalf, each one marked in the document.",
+  },
+];
 
 export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap">) {
   const { id } = await params;
@@ -36,7 +60,12 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
     return (
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
         <div className="mx-auto max-w-[var(--sheet-w)]">
-          <NotBuilt kind="Statistical Analysis Plan" description={DESCRIPTION}>
+          <NotBuilt
+            kind="Statistical Analysis Plan"
+            description={DESCRIPTION}
+            parts={PARTS}
+            note="One call to the model, then eight steps of rules. It runs on the server, so you can close this tab and come back to it."
+          >
             <BuildButton kind="sap" protocolId={id} exists={false} />
           </NotBuilt>
         </div>

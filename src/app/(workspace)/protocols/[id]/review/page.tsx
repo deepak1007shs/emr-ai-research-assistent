@@ -15,7 +15,27 @@ import type { TokenUsage } from "@/lib/protocol/pricing";
 export const metadata = { title: "Protocol Review — EMR AI Research Assistant" };
 
 const REVIEW_DESCRIPTION =
-  "What the protocol settles, what it leaves open, and the issues an examiner would raise. It is the first of the four documents and the only one that reads the protocol critically; the analysis plan is written against your answers to it.";
+  "The only document that reads the protocol critically. It comes first because the analysis plan is written against your answers to it.";
+
+/** The sections of the finished review, in the order it prints them. */
+const REVIEW_PARTS = [
+  {
+    name: "What the protocol settles",
+    detail: "the design, the objectives, the outcomes and the sample size, as written.",
+  },
+  {
+    name: "What it leaves open",
+    detail: "every definition, cut-off and rule the protocol does not give.",
+  },
+  {
+    name: "Key issues",
+    detail: "the things an examiner would raise, each with what would answer it.",
+  },
+  {
+    name: "Action list",
+    detail: "the blockers on their own, numbered, as a second short document.",
+  },
+];
 
 export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/review"> ) {
   const { id } = await params;
@@ -37,7 +57,12 @@ export default async function ReviewPage({ params }: PageProps<"/protocols/[id]/
     return (
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
         <div className="mx-auto max-w-[var(--sheet-w)]">
-          <NotBuilt kind="Protocol Review" description={REVIEW_DESCRIPTION}>
+          <NotBuilt
+            kind="Protocol Review"
+            description={REVIEW_DESCRIPTION}
+            parts={REVIEW_PARTS}
+            note="It runs on the server, so you can close this tab and come back to it."
+          >
             <BuildButton kind="review" protocolId={id} exists={false} />
           </NotBuilt>
         </div>
