@@ -4,6 +4,7 @@ import { MODEL, analyzeProtocol } from "../protocol/analyze.ts";
 import { build as renderMarkdown } from "../render/markdown.ts";
 import { extractFacts } from "../facts/extract.ts";
 import { blockers, buildSap, warnings } from "../sap/build.ts";
+import { gateA } from "../facts/gate.ts";
 import { renderSapMarkdown } from "../sap/markdown.ts";
 import { addUsage as add, costOf, type TokenUsage } from "../protocol/pricing.ts";
 import { STAGE_LABEL, stagesOf, type JobKind, type Produced, type Stage } from "./plan.ts";
@@ -299,6 +300,30 @@ async function runSap(
       onBatch: remember(db, "sap_plans", row.id),
       resumeBatchId: orphan?.batch_id ?? null,
     });
+
+    // Gate A: the plan does not start until the design and the primary outcome
+    // are settled. Where they are not, the Facts Sheet is kept with what it cost
+    // and why it stopped, and no table is built on the gap. Keeping it is the
+    // point: it was paid for, and it shows the investigator what the protocol
+    // was read as saying, which is usually where the fix is.
+    const stopped = gateA(extracted.facts).filter((check) => !check.pass);
+    if (stopped.length) {
+      const message = `Gate A stopped the plan before it was built. ${stopped
+        .map((check) => check.message)
+        .join(" ")}`;
+      await db
+        .from("sap_plans")
+        .update({
+          status: "failed",
+          facts: extracted.facts,
+          plan: null,
+          model: extracted.model,
+          usage: extracted.usage,
+          error: message,
+        })
+        .eq("id", row.id);
+      throw new Error(message);
+    }
 
     await report.step("Building the objectives, the variables and the analysis map");
     const built = buildSap(extracted.facts);

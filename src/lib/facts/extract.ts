@@ -5,7 +5,6 @@ import { DOCUMENT_MAX_TOKENS, type Mode, runMessage } from "../model/call.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { FactsSheet } from "../study/types.ts";
 import { FACTS_JSON_SCHEMA, factsSchema } from "./schema.ts";
-import { gateA } from "./gate.ts";
 
 /**
  * The one model call the plan makes, and the last judgement in the pipeline.
@@ -232,17 +231,14 @@ export async function extractFacts(
 
     const facts = result.data as FactsSheet;
 
-    // Gate A is a hard stop rather than a warning, and it is checked here so
-    // that a protocol whose design or primary outcome is not settled never
-    // reaches the steps that would build sixteen tables on top of the gap.
-    const failures = gateA(facts).filter((check) => !check.pass);
-    if (failures.length) {
-      throw new ExtractionError(
-        `Gate A: ${failures.map((f) => f.message).join(" ")}`,
-      );
-    }
-
-    options.onProgress?.("The facts are settled");
+    // Gate A is not checked here. It used to be, and it threw: the Facts Sheet
+    // had been read and paid for, and the error carried only the gate's
+    // messages, so the facts were lost and a rebuild paid again to read the
+    // same protocol - most likely into the same failure. This function reads
+    // the protocol; the runner decides what the reading permits, and keeps it
+    // either way. Gate A stays a hard stop there: no table is built on a
+    // design or a primary outcome that is not settled.
+    options.onProgress?.("The facts are read");
 
     return {
       facts,

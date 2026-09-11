@@ -4,6 +4,8 @@ import { Breadcrumb } from "@/components/breadcrumb";
 import { DocumentToolbar } from "@/components/document-toolbar";
 import { NotBuilt } from "@/components/not-built";
 import { SapDocument } from "@/components/sap-document";
+import { GateAStopped } from "@/components/gate-a-stopped";
+import type { FactsSheet } from "@/lib/study/types";
 import { UsagePanel } from "@/components/usage-panel";
 import { blockers, warnings, type SapBuild } from "@/lib/sap/build";
 import type { TokenUsage } from "@/lib/protocol/pricing";
@@ -68,6 +70,22 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
           >
             <BuildButton kind="sap" protocolId={id} exists={false} />
           </NotBuilt>
+        </div>
+      </div>
+    );
+  }
+
+  // Stopped at Gate A: the protocol was read and paid for, the facts are kept,
+  // and the page shows what they say beside the checks that stopped it.
+  if (plan.status === "failed" && plan.facts && !plan.plan) {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
+        <div className="mx-auto max-w-[var(--sheet-w)] space-y-4">
+          <GateAStopped facts={plan.facts as FactsSheet} />
+          {plan.usage && (
+            <UsagePanel usage={plan.usage as TokenUsage} model={plan.model} what="plan" />
+          )}
+          <BuildButton kind="sap" protocolId={id} exists rebuildLabel="Read the protocol again" />
         </div>
       </div>
     );
