@@ -344,60 +344,43 @@ describe("degreesOfFreedomNote", () => {
 });
 
 /**
- * The baseline value, in the studies that measure one.
+ * The baseline value, in the one design defined by having one.
  *
- * The deck's first fork on a measured outcome: was it also measured at
- * baseline? Almost every trial measures it, so ANCOVA is almost always the
- * right answer, and comparing change scores is the commoner and weaker choice.
+ * The deck's first fork on a measured outcome is "was it also measured at
+ * baseline?", and it answers "almost every trial measures it". Almost is the
+ * problem: in a surgical trial the outcome is often drain output, blood loss or
+ * operative duration, none of which exists before the incision. So the rule is
+ * keyed on the design that is defined by a before and an after, and nothing
+ * else is offered ANCOVA on a guess.
  */
-describe("a measured outcome in a trial", () => {
-  const trial = (design: DesignFamily) =>
+describe("a measured outcome in a before-and-after design", () => {
+  const forDesign = (design: DesignFamily) =>
     chooseTest(
       row({ data_type: "continuous", comparison: "two_groups", design_family: design }),
     )!;
 
   it("adjusts by ANCOVA, with the baseline value as a covariate", () => {
-    const designs: DesignFamily[] = [
-      "randomised_trial",
-      "non_inferiority_trial",
-      "cluster_trial",
-      "factorial_trial",
-      "pre_post",
-    ];
-    for (const design of designs) {
-      expect(trial(design).adjusted, design).toContain("ANCOVA");
-      expect(trial(design).adjusted, design).toContain("baseline value as a covariate");
-    }
+    expect(forDesign("pre_post").adjusted).toContain("ANCOVA");
+    expect(forDesign("pre_post").adjusted).toContain("baseline value as a covariate");
   });
 
   it("rules out the change score and the final value alone", () => {
-    expect(trial("randomised_trial").avoid).toContain("change scores");
-    expect(trial("randomised_trial").avoid).toContain("final values alone");
+    expect(forDesign("pre_post").avoid).toContain("change scores");
+    expect(forDesign("pre_post").avoid).toContain("final values alone");
   });
 
-  it("says which of those apply, since half the outcomes have no baseline", () => {
-    // Drain output cannot be measured before the drain exists. Told flatly not
-    // to "throw the baseline away", a plan for it is being lectured about a
-    // value nobody could have recorded.
-    const said = trial("randomised_trial").avoid!;
-    expect(said).toContain("Where the outcome was measured at baseline");
-    expect(said).toContain("Where it was not");
-    // And the trap that replaces it: POD 1 output is after the dressing went on.
-    expect(said).toContain("recorded after the intervention began");
+  it("rules out adjusting for a value recorded after the intervention began", () => {
+    // On a drain-output trial that would be day-one output, which is after the
+    // dressing went on: a mediator, and it removes part of the effect.
+    expect(forDesign("pre_post").avoid).toContain("recorded after the intervention began");
   });
 
-  it("rules out testing the baseline balance, which tests the randomisation", () => {
-    expect(trial("randomised_trial").avoid).toContain("tests the randomisation");
-  });
-
-  it("leaves an observational study on plain linear regression", () => {
-    // ANCOVA is for a study that measured the outcome before and after. A
-    // cohort is not one by default, and a rule that claimed otherwise would be
-    // naming a model the study cannot fit.
-    const cohort = chooseTest(
-      row({ data_type: "continuous", comparison: "two_groups", design_family: "cohort" }),
-    )!;
-    expect(cohort.adjusted).toContain("Multivariable linear regression");
-    expect(cohort.adjusted).not.toContain("ANCOVA");
+  it("offers no ANCOVA to a design that may have no baseline at all", () => {
+    // A trial whose outcome is drain output has nothing to adjust for. Naming
+    // ANCOVA here named a model the study cannot fit.
+    for (const design of ["randomised_trial", "cluster_trial", "cohort"] as DesignFamily[]) {
+      expect(forDesign(design).adjusted, design).toContain("Multivariable linear regression");
+      expect(forDesign(design).adjusted, design).not.toContain("ANCOVA");
+    }
   });
 });

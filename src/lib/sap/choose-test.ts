@@ -199,15 +199,8 @@ export function loadRules(source?: string): Rule[] {
   return rules;
 }
 
-/**
- * One fact of a heading against one fact of an analysis row.
- *
- * A rule value may name several, separated by commas, because some rules hold
- * for a family of designs and writing the block once per design is how a table
- * of rules drifts: five copies of ANCOVA, four of them edited.
- */
 const matches = (ruleValue: string, actual: string) =>
-  ruleValue === "any" || ruleValue.split(",").some((value) => value.trim() === actual);
+  ruleValue === "any" || ruleValue === actual;
 
 /**
  * The plan as one line, for the analysis map's cell.

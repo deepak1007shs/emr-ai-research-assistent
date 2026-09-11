@@ -31,11 +31,7 @@ The heading carries the five facts that decide the analysis, in order:
   risk. Those blocks are written above the frequency ones, because the design is
   the stronger fact.
 
-`any` matches anything. A fact may name several values separated by commas,
-where one rule holds for a family of designs: writing the block once per design
-is how a table of rules drifts, five copies of ANCOVA with four of them edited.
-
-Correlation and agreement blocks are written above the
+`any` matches anything. Correlation and agreement blocks are written above the
 repeated block on purpose: two raters measuring one patient is repetition of a
 different kind, and a mixed model is not what it needs.
 
@@ -539,23 +535,23 @@ adjusted_assumptions:
   - The residuals are approximately normal at each level :: Q-Q plot of the residuals and of the random effects :: Transform the outcome, or fit a generalised mixed model
   - Data are missing at random :: Compare those with and without complete series on baseline characteristics :: Report a sensitivity analysis under a departure from that assumption
 
-## continuous | two_groups | any | any | randomised_trial, non_inferiority_trial, cluster_trial, factorial_trial, pre_post
+## continuous | two_groups | any | any | pre_post
 
-why: Two arms and a measured outcome. Where the outcome was measured at baseline as well, the baseline value goes in as a covariate, which is what makes this ANCOVA rather than a comparison of final values. Where the outcome exists only after the intervention - blood loss, operative duration, time to a target - there is no baseline to adjust for and this is plain linear regression
+why: A before-and-after design, so the outcome has a value from before the intervention. That value goes in as a covariate, which is what makes this ANCOVA rather than a comparison of final values
 summary: Mean +/- SD where the distribution allows it, median (IQR) where it does not
 normality: Shapiro-Wilk in each group, read with a histogram and a Q-Q plot. p >= 0.05 uses the parametric row; p < 0.05 uses the non-parametric one
 parametric: Independent t-test, Welch where variances differ; mean difference with 95% CI
   statistic: t(df)
   effect: Cohen's d
-  adjusted: ANCOVA: linear regression on the final value with the baseline value as a covariate, adjusted mean difference with 95% CI; plain linear regression where the outcome was not measured at baseline
+  adjusted: ANCOVA: linear regression on the final value with the baseline value as a covariate, adjusted mean difference with 95% CI
   measures: Adjusted mean difference
 nonparametric: Mann-Whitney U; median (IQR) per group and Hodges-Lehmann median difference with 95% CI
   statistic: U
   effect: r = Z / sqrt(N)
-  adjusted: ANCOVA on the ranked outcome, or quantile (median) regression with the baseline value as a covariate, where the outcome was measured at baseline; quantile (median) regression without it where the outcome exists only after the intervention, as blood loss and time to a target do
+  adjusted: ANCOVA on the ranked outcome, or quantile (median) regression with the baseline value as a covariate
   measures: Hodges-Lehmann median difference
 post_hoc: -
-avoid: Where the outcome was measured at baseline: comparing change scores, which is noisier than ANCOVA and answers the same question less precisely; comparing final values alone, which throws the baseline away; and testing whether the baseline values differ between arms, which tests the randomisation and not the treatment. Where it was not: adjusting for a value recorded after the intervention began, which lies on the causal path and removes part of the effect being measured
+avoid: Comparing change scores, which is noisier than ANCOVA and answers the same question less precisely; comparing final values alone, which throws the baseline away; and adjusting for a value of the outcome recorded after the intervention began, which lies on the causal path
 assumptions:
   - Independence of observations :: Design check: one measurement per patient, and no patient in two groups :: Use a mixed-effects model
   - Each group is approximately normal :: Shapiro-Wilk in each group, read with a histogram and a Q-Q plot :: Report the non-parametric row instead
@@ -645,17 +641,17 @@ adjusted_assumptions:
   - The residual variance is constant :: Residuals against fitted values :: Use robust standard errors
   - No severe collinearity :: Variance inflation factor above 5 is a warning, above 10 a problem :: Drop one of a collinear pair, decided on clinical grounds
 
-## continuous | adjusted | any | any | randomised_trial, non_inferiority_trial, cluster_trial, factorial_trial, pre_post
+## continuous | adjusted | any | any | pre_post
 
-why: A measured outcome with confounders held constant, in a design that usually measures it at baseline as well
+why: A measured outcome with confounders held constant, in a before-and-after design
 summary: Mean +/- SD where the distribution allows it, median (IQR) where it does not
 test: Group means (SD) and the crude mean difference
   statistic: t(df)
   effect: Cohen's d
 post_hoc: -
-adjusted: ANCOVA: linear regression on the final value with the baseline value as a covariate and the confounders beside it, adjusted mean difference with 95% CI; without the baseline term where the outcome exists only after the intervention
+adjusted: ANCOVA: linear regression on the final value with the baseline value as a covariate and the confounders beside it, adjusted mean difference with 95% CI
 measures: Adjusted mean difference
-avoid: Where the outcome was measured at baseline, comparing change scores; and in either case adjusting for a variable on the causal path, including a value of the outcome recorded after the intervention began
+avoid: Comparing change scores; and adjusting for a variable on the causal path, including a value of the outcome recorded after the intervention began
 assumptions:
   - Independence of observations :: Design check: one measurement per patient, and no patient in two groups :: Use a mixed-effects model
 adjusted_assumptions:
