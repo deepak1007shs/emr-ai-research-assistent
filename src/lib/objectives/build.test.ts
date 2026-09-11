@@ -14,7 +14,7 @@ describe("Step 1, the objectives", () => {
     expect(level.kind).toBe("level");
     expect(shape.kind).toBe("shape");
     expect(shape.question).toBe(
-      "Is the rate of change in haemoglobin across D0, W2, W4 and W6 different"
+      "Is the rate of change in haemoglobin across Day 0, Week 2, Week 4 and Week 6 different"
       + " between IV ferric carboxymaltose and Oral ferrous ascorbate?",
     );
   });
@@ -66,8 +66,10 @@ describe("Step 1, the objectives", () => {
     const e3 = buildObjectives(idaPreg).find((o) => o.id === "E3");
     expect(e3?.source).toBe("hypothesis");
     expect(e3?.question).toBe(
-      "Whether the effect differs by dietary pattern, which the protocol's hypothesis names?",
+      "Does the effect on haemoglobin differ by dietary pattern?",
     );
+    // It is not linked to an outcome here. Step 3 decides what it is about.
+    expect(e3?.outcome).toBe("");
   });
 });
 

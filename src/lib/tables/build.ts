@@ -16,6 +16,7 @@ import type {
   VariableName,
 } from "../study/types.ts";
 import { ARM } from "../variables/build.ts";
+import { visitLabel } from "../objectives/build.ts";
 import { variableName } from "../variables/name.ts";
 
 /**
@@ -114,11 +115,26 @@ export function buildTables(
   const groupColumns = groups.map((g) => `${g.code} (n = )`);
   const comparative = groups.length >= 2;
   const [a, b] = groups;
-  const versus = comparative ? `${a.code} − ${b.code}` : "";
+  // "FCM minus Oral", not "FCM - Oral" and not the minus sign. The house style
+  // rewrites a minus sign to a hyphen, and a hyphen between two arm codes reads
+  // as a range.
+  const versus = comparative ? `${a.code} minus ${b.code}` : "";
+
+  const codes = groups.map((g) => g.code);
 
   let n = 0;
   const next = () => `${++n}`;
   const add = (table: ShellTable) => {
+    // A table whose columns are the arms reports the arm, whatever its rows
+    // say. Without this the backward check calls the grouping variable an
+    // uncollected capture, which is the one variable every comparative table
+    // in the plan is built around.
+    const headsColumns = codes.some((code) =>
+      table.columns.some((column) => column.startsWith(code)),
+    );
+    if (headsColumns && !table.variables.includes(ARM)) {
+      table.variables = [...table.variables, ARM];
+    }
     tables.push(table);
     return table;
   };
@@ -218,7 +234,7 @@ export function buildTables(
         figures.push({
           number: `${figures.length + 1}`,
           block,
-          caption: `${label(chain)} over time by ${comparative ? "arm" : "group"}, on one continuous time axis from ${chain.time[0]} to ${chain.time[chain.time.length - 1]}`,
+          caption: `${label(chain)} over time by ${comparative ? "arm" : "group"}, on one continuous time axis from ${lower(visitLabel(facts, chain.time[0]))} to ${lower(visitLabel(facts, chain.time[chain.time.length - 1]))}`,
           footnote: "means with 95% confidence intervals at each visit",
         });
         continue;
@@ -349,25 +365,42 @@ function situationOf(
   return "continuous_single";
 }
 
-/** The rows of a fit table: what was reported, then what was checked. */
+/**
+ * The rows of a fit table: what is reported, then what is checked.
+ *
+ * Deduplicated, because convergence is both a thing to report and a thing to
+ * check and the two lists name it twice. A fit table with the same row in it
+ * three times reads as carelessness, and a reader who notices stops trusting
+ * the rest of the diagnostics.
+ */
 function fitRows(assumption: Row | null): TableRow[] {
   const split = (text: string) =>
     text
       .split(";")
       .map((part) => part.trim())
-      .filter(Boolean);
+      .filter(Boolean)
+      .map((part) => part[0].toUpperCase() + part.slice(1));
 
-  const rows: TableRow[] = [
-    blank("Model fitted, and any transformation"),
-    blank("Observations, and clusters where there are any"),
-    ...split(assumption?.Reported ?? "").map(blank),
-    ...split(assumption?.["Assumption and how it is checked"] ?? "").map((check) =>
-      blank(`${check} - met or not met`),
+  const labels = [
+    "Model fitted, and any transformation",
+    "Observations, and clusters where there are any",
+    ...split(assumption?.Reported ?? ""),
+    ...split(assumption?.["Assumption and how it is checked"] ?? "").map(
+      (check) => `${check} - met or not met`,
     ),
-    blank("Convergence"),
-    blank("Candidate models rejected, and on which assumption"),
+    "Convergence",
+    "Candidate models rejected, and on which assumption",
   ];
-  return rows;
+
+  const seen = new Set<string>();
+  return labels
+    .filter((labelText) => {
+      const key = labelText.toLowerCase().replace(/ - met or not met$/, "");
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map(blank);
 }
 
 type DrawArgs = {
@@ -391,11 +424,11 @@ function drawTable(args: DrawArgs): ShellTable {
     kind, number, block, chain, level, shape, facts, byName, skewed,
     versus, comparative, todos,
   } = args;
+  const codes = facts.groups.map((g) => g.code);
   const outcome = byName.get(level.outcome);
   const measures = chain.measures
     .map((m) => byName.get(m))
     .filter((v): v is Variable => Boolean(v));
-  const codes = facts.groups.map((g) => g.code);
   const unitOf = (variable: Variable | undefined) =>
     variable?.unit ? ` (${variable.unit})` : "";
 
@@ -412,8 +445,8 @@ function drawTable(args: DrawArgs): ShellTable {
       const how = skewed.has(level.outcome)
         ? "Median (IQR)"
         : "Mean ± SD (95% CI)";
-      const first = chain.time[0];
-      const last = chain.time[chain.time.length - 1];
+      const first = visitLabel(facts, chain.time[0]);
+      const last = visitLabel(facts, chain.time[chain.time.length - 1]);
       const rows =
         measures.length && chain.time.length > 1
           ? [
@@ -424,7 +457,7 @@ function drawTable(args: DrawArgs): ShellTable {
           : [blank(`${chain.what}${unitOf(outcome)}`)];
       const named =
         chain.time.length > 1 && measures.length
-          ? `${measures[0].label} at ${first} and ${last}, and the change,`
+          ? `${measures[0].label} at ${lower(first)} and ${lower(last)}, and the change,`
           : `${chain.what}`;
       return {
         ...base,
@@ -439,11 +472,11 @@ function drawTable(args: DrawArgs): ShellTable {
     }
 
     case "summary_test": {
-      const first = chain.time[0];
-      const last = chain.time[chain.time.length - 1];
+      const first = visitLabel(facts, chain.time[0]);
+      const last = visitLabel(facts, chain.time[chain.time.length - 1]);
       const named =
         chain.time.length > 1 && measures.length
-          ? `${measures[0].label} at ${first} and ${last}, and the change,`
+          ? `${measures[0].label} at ${lower(first)} and ${lower(last)}, and the change,`
           : `${chain.what}`;
       return {
         ...base,
@@ -489,7 +522,7 @@ function drawTable(args: DrawArgs): ShellTable {
         ...base,
         title: `${measures[0]?.label ?? chain.what} at each visit by ${comparative ? "arm" : "group"} (descriptive)`,
         columns: ["Visit", ...codes.map((c) => `${c} - Mean ± SD (n)`)],
-        rows: chain.time.map(blank),
+        rows: chain.time.map((code) => blank(visitLabel(facts, code))),
         // Rule 4.13: k tests at k visits for one question is wrong, and the
         // one test is in the rate-of-change table below.
         footnote: `descriptive only - no test at single time points; the change over time is tested once, in Table ${Number(number) + 1}`,
@@ -542,10 +575,12 @@ function drawTable(args: DrawArgs): ShellTable {
         title: `Adjusted comparison of ${lower(chain.what)}`,
         columns: ["Term", "Unadjusted effect (95% CI)", "Adjusted effect (95% CI)", "p"],
         rows: [
-          blank(`${ARM} - ${codes[0] ?? "the exposed group"} versus ${codes[1] ?? "the reference"}`),
+          blank(
+            `${byName.get(ARM)?.label ?? ARM} - ${codes[0] ?? "the exposed group"} versus ${codes[1] ?? "the reference"}`,
+          ),
           ...(level.adjusted?.covariates ?? []).map((c) =>
             blank(
-              `${byName.get(c.var)?.label ?? c.var}${c.at ? ` at ${c.at}` : ""}`,
+              `${byName.get(c.var)?.label ?? c.var}${c.at ? ` at ${lower(visitLabel(facts, c.at))}` : ""}`,
             ),
           ),
         ],
@@ -560,7 +595,7 @@ function drawTable(args: DrawArgs): ShellTable {
     case "ratio":
       return {
         ...base,
-        title: `${chain.what}${chain.time.length ? ` at ${chain.time[chain.time.length - 1]}` : ""}`,
+        title: `${chain.what}${chain.time.length ? ` at ${lower(visitLabel(facts, chain.time[chain.time.length - 1]))}` : ""}`,
         columns: [
           "Comparison",
           ...codes.map((c) => `${c} n/N (%)`),

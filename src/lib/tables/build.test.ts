@@ -94,7 +94,7 @@ describe("Step 6, the shell tables", () => {
   it("draws the repeated-outcome sequence in the order A4 writes it", () => {
     const { tables } = build();
     expect(tables.slice(2, 12).map((t) => `${t.number} ${t.title}`)).toEqual([
-      "3 Haemoglobin at D0 and W6, and the change, by arm - summary",
+      "3 Haemoglobin at day 0 and week 6, and the change, by arm - summary",
       "4 Unadjusted comparison of change in haemoglobin",
       "5 Haemoglobin at each visit by arm (descriptive)",
       "6 Rate of change in haemoglobin over the study period",
@@ -103,7 +103,7 @@ describe("Step 6, the shell tables", () => {
       "8 Adjusted comparison of change in haemoglobin",
       "8a Model fit and assumptions for Table 8",
       "9 Sensitivity analyses",
-      "10 Anaemia corrected at W6",
+      "10 Anaemia corrected at week 6",
     ]);
   });
 
@@ -118,8 +118,11 @@ describe("Step 6, the shell tables", () => {
 
   it("takes the model's own diagnostics into its fit table", () => {
     const fit = table("6a").rows.map((r) => r.label).join(" ");
-    expect(fit).toContain("intraclass correlation");
-    expect(fit).toContain("normal random effects - met or not met");
+    expect(fit).toContain("Intraclass correlation");
+    expect(fit).toContain("Normal random effects - met or not met");
+    // Convergence is both a thing to report and a thing to check, and the row
+    // appears once.
+    expect(fit.match(/Convergence/g)).toHaveLength(1);
     // Not the linear-regression diagnostics, which would be the wrong ones.
     expect(fit).not.toContain("Cook's distance");
   });

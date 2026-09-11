@@ -231,6 +231,10 @@ export type FactsSheet = {
    * the study's own title. Check S1-3 reads it.
    */
   title: string;
+  /** The aim, in the protocol's own words. */
+  aim: string;
+  /** The hypothesis, or null. Null prints as "Not stated in the protocol". */
+  hypothesis: string | null;
   design: DesignFamily;
   /**
    * Who the study is about, what it does to them and against what.
@@ -239,7 +243,22 @@ export type FactsSheet = {
    * from the protocol rather than derived, because eligibility is written in
    * sentences and no rule turns an inclusion list into one.
    */
-  population: { eligibility: string; setting: string; sampling: string };
+  population: {
+    eligibility: string;
+    setting: string;
+    sampling: string;
+    /**
+     * The population in one short phrase: "pregnant women with
+     * iron-deficiency anaemia".
+     *
+     * The eligibility criteria are a paragraph, and the assembled question
+     * needs a noun phrase. Taking the first sentence of the paragraph gives
+     * "Pregnant women at 20 to 28 weeks' gestation with iron-deficiency
+     * anaemia (haemoglobin 7" as often as not, because the criteria are full
+     * of decimal points.
+     */
+    short: string;
+  };
   intervention: string;
   comparator: string;
   /** The exact label, as prose: "two-arm parallel-group open-label superiority RCT". */
@@ -258,7 +277,12 @@ export type FactsSheet = {
    * at four visits when the primary outcome is "change from day 0 to week 6"
    * is to look at the schedule.
    */
-  visit_schedule: { timepoint: Timepoint; measures: VariableName[] }[];
+  visit_schedule: {
+    timepoint: Timepoint;
+    /** How the visit is written in a table: "Day 0", "Week 6". */
+    label: string;
+    measures: VariableName[];
+  }[];
   /**
    * Every measure the study records, by name.
    *

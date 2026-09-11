@@ -60,18 +60,21 @@ export const FACTS_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: [
-    "title", "population", "intervention", "comparator", "design", "design_label", "guideline", "frame", "groups", "allocation",
+    "title", "aim", "hypothesis", "population", "intervention", "comparator", "design", "design_label", "guideline", "frame", "groups", "allocation",
     "timepoints", "measures", "visit_schedule", "primary", "secondary", "exploratory_ideas", "covariates",
     "proforma", "sample_size", "stated_rules", "open_items",
   ],
   properties: {
     title: { ...str, description: "The protocol's title, word for word, including the design phrase after the colon where it has one." },
+    aim: { ...str, description: "The aim, in the protocol's own words." },
+    hypothesis: { type: ["string", "null"], description: "The hypothesis in the protocol's own words, or null where there is none. Never write one that is not there." },
     population: {
       type: "object", additionalProperties: false,
-      required: ["eligibility", "setting", "sampling"],
+      required: ["eligibility", "setting", "sampling", "short"],
       properties: {
         eligibility: { ...str, description: "Who is included and who is excluded, in the protocol's own words." },
         setting: { ...str, description: "Where: the department and the institution." },
+        short: { ...str, description: "The population in one short noun phrase, for the assembled question: 'pregnant women with iron-deficiency anaemia'." },
         sampling: { ...str, description: "How participants are selected. Consecutive is the strongest non-probability method; call convenience sampling what it is." },
       },
     },
@@ -139,7 +142,7 @@ export const FACTS_JSON_SCHEMA = {
         type: "object", additionalProperties: false,
         required: ["question", "kind", "outcome_of", "with"],
         properties: {
-          question: { ...str, description: "The idea in the protocol's own words." },
+          question: { ...str, description: "The idea as a question, in the protocol's own words as far as they allow: 'Does the effect on haemoglobin differ by dietary pattern?'" },
           kind: { type: "string", enum: ["subgroup", "interaction", "derivation", "correlation"], description: "Whether it splits the sample, tests an effect changing with something, defines a new value, or relates two values." },
           outcome_of: { ...str, description: "The name of the outcome the question is asked of. For a change, the name of the change." },
           with: { ...strArray, description: "The other measures the question involves, by name. Include one the protocol never collects: that is what promotion is for." },
@@ -213,10 +216,13 @@ const chain = z.object({
 export const factsSchema = z
   .object({
     title: z.string(),
+    aim: z.string(),
+    hypothesis: z.string().nullable(),
     population: z.object({
       eligibility: z.string(),
       setting: z.string(),
       sampling: z.string(),
+      short: z.string(),
     }),
     intervention: z.string(),
     comparator: z.string(),
@@ -244,7 +250,11 @@ export const factsSchema = z
       }),
     ),
     visit_schedule: z.array(
-      z.object({ timepoint: z.string(), measures: z.array(z.string()) }),
+      z.object({
+        timepoint: z.string(),
+        label: z.string(),
+        measures: z.array(z.string()),
+      }),
     ),
     primary: chain,
     secondary: z.array(chain),

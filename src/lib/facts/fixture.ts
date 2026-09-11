@@ -18,10 +18,14 @@ import type { FactsSheet } from "../study/types.ts";
 export const idaPreg: FactsSheet = {
   title:
     "Intravenous ferric carboxymaltose versus oral ferrous ascorbate for the rise in haemoglobin in pregnant women with iron-deficiency anaemia: a randomised controlled trial",
+  aim: "To compare intravenous ferric carboxymaltose with oral ferrous ascorbate for the correction of iron-deficiency anaemia in pregnancy.",
+  hypothesis:
+    "A single infusion of ferric carboxymaltose raises haemoglobin faster and further than six weeks of oral iron, and the difference is larger in women on a vegetarian diet.",
   population: {
     eligibility:
       "Pregnant women at 20 to 28 weeks' gestation with iron-deficiency anaemia (haemoglobin 7.0 to 9.9 g/dL and serum ferritin below 30 ng/mL). Excluded: anaemia not due to iron deficiency, known haemoglobinopathy, transfusion in the last three months, known iron allergy, chronic kidney or liver disease.",
     setting: "Department of Obstetrics and Gynaecology, a tertiary teaching hospital",
+    short: "pregnant women with iron-deficiency anaemia",
     sampling: "Consecutive eligible women",
   },
   intervention:
@@ -62,16 +66,18 @@ export const idaPreg: FactsSheet = {
   visit_schedule: [
     {
       timepoint: "D0",
+      label: "Day 0",
       measures: [
         "participant_name", "hospital_number", "age", "residence", "gravidity",
         "parity", "gestational_age", "height", "weight",
         "haemoglobin", "serum_ferritin", "mean_corpuscular_volume",
       ],
     },
-    { timepoint: "W2", measures: ["haemoglobin", "adverse_effects", "adherence"] },
-    { timepoint: "W4", measures: ["haemoglobin", "adverse_effects", "adherence"] },
+    { timepoint: "W2", label: "Week 2", measures: ["haemoglobin", "adverse_effects", "adherence"] },
+    { timepoint: "W4", label: "Week 4", measures: ["haemoglobin", "adverse_effects", "adherence"] },
     {
       timepoint: "W6",
+      label: "Week 6",
       measures: ["haemoglobin", "serum_ferritin", "adverse_effects", "adherence"],
     },
   ],
@@ -126,14 +132,14 @@ export const idaPreg: FactsSheet = {
   exploratory_ideas: [
     {
       question:
-        "Whether the effect on haemoglobin differs by gestational age at enrolment",
+        "Does the effect on haemoglobin differ by gestational age at enrolment?",
       kind: "subgroup",
       outcome_of: "change_in_haemoglobin",
       with: ["gestational_age"],
     },
     {
       question:
-        "Whether baseline serum ferritin is correlated with the change in haemoglobin",
+        "Is baseline serum ferritin correlated with the change in haemoglobin?",
       kind: "correlation",
       outcome_of: "change_in_haemoglobin",
       with: ["serum_ferritin"],
@@ -143,7 +149,7 @@ export const idaPreg: FactsSheet = {
       // the schedule. The protocol asks a question about something it never
       // collects, which is the commonest way a thesis loses an analysis.
       question:
-        "Whether the effect differs by dietary pattern, which the protocol's hypothesis names",
+        "Does the effect on haemoglobin differ by dietary pattern?",
       kind: "subgroup",
       outcome_of: "change_in_haemoglobin",
       with: ["diet"],

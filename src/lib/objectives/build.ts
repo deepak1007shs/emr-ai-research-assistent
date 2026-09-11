@@ -28,10 +28,18 @@ const lower = (text: string) =>
     ? text[0].toLowerCase() + text.slice(1)
     : text;
 
-/** "day 0, weeks 2, 4 and 6" from the visit codes, in the order they happen. */
-function visitList(times: string[]): string {
-  if (times.length <= 1) return times[0] ?? "";
-  return `${times.slice(0, -1).join(", ")} and ${times[times.length - 1]}`;
+/** How a visit is written in prose: "Week 6" for the code "W6". */
+export function visitLabel(facts: FactsSheet, code: string): string {
+  return (
+    facts.visit_schedule.find((visit) => visit.timepoint === code)?.label ?? code
+  );
+}
+
+/** "Day 0, Week 2, Week 4 and Week 6", in the order they happen. */
+function visitList(facts: FactsSheet, times: string[]): string {
+  const labels = times.map((code) => visitLabel(facts, code));
+  if (labels.length <= 1) return labels[0] ?? "";
+  return `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
 }
 
 /**
@@ -90,7 +98,7 @@ function shapeSubject(outcome: OutcomeChain, facts: FactsSheet): string {
 /** The shape question: is the rate of change different between the groups? */
 function shapeQuestion(outcome: OutcomeChain, facts: FactsSheet): string {
   const between = comparison(facts);
-  const across = visitList(outcome.time);
+  const across = visitList(facts, outcome.time);
   const subject = shapeSubject(outcome, facts);
   return between
     ? `Is the rate of change in ${subject} across ${across} different between ${between}?`
@@ -117,7 +125,7 @@ export function buildPicot(facts: FactsSheet): Picot {
     {
       letter: "P",
       element: "Population",
-      value: `${facts.population.eligibility} ${facts.population.setting}`.trim(),
+      value: `${facts.population.eligibility} Setting: ${facts.population.setting}. Sampling: ${facts.population.sampling}.`.trim(),
     },
     { letter: "I", element: second, value: facts.intervention },
     { letter: "C", element: "Comparator", value: facts.comparator },
@@ -131,21 +139,25 @@ export function buildPicot(facts: FactsSheet): Picot {
     {
       letter: "T",
       element: "Time / Type of study",
-      value: `${visitList(facts.timepoints)}. Type: ${facts.design_label}`,
+      value: `${visitList(facts, facts.timepoints)}. Type: ${facts.design_label}`,
     },
   ];
 
   const between = comparison(facts);
+  const last = facts.timepoints[facts.timepoints.length - 1];
+  const by = last ? ` by ${lower(visitLabel(facts, last))}` : "";
   const assembled = between
-    ? `Among ${lower(facts.population.eligibility.split(".")[0])}, does ${lower(facts.intervention)}, compared with ${lower(facts.comparator)}, change ${lower(facts.primary.what)} over ${facts.timepoints[facts.timepoints.length - 1] ?? "the study period"}?`
-    : `Among ${lower(facts.population.eligibility.split(".")[0])}, what is ${lower(facts.primary.what)}?`;
+    ? `Among ${lower(facts.population.short)}, does ${lower(facts.intervention)}, compared with ${lower(facts.comparator)}, produce a different ${lower(facts.primary.what)}${by}?`
+    : `Among ${lower(facts.population.short)}, what is ${lower(facts.primary.what)}${by}?`;
 
   return {
     frame: facts.frame,
     rows,
     assembled_question: assembled,
-    aim: "",
-    hypothesis: "",
+    aim: facts.aim,
+    // Never invented. A protocol with no hypothesis says so, and a plan that
+    // supplies one has written the investigator's expectation for them.
+    hypothesis: facts.hypothesis ?? "Not stated in the protocol.",
   };
 }
 
