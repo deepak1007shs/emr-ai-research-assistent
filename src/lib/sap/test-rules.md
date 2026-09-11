@@ -555,7 +555,7 @@ nonparametric: Mann-Whitney U; median (IQR) per group and Hodges-Lehmann median 
   adjusted: ANCOVA on the ranked outcome, or quantile (median) regression with the baseline value as a covariate, where the outcome was measured at baseline; quantile (median) regression without it where the outcome exists only after the intervention, as blood loss and time to a target do
   measures: Hodges-Lehmann median difference
 post_hoc: -
-avoid: Comparing change scores, which is noisier than ANCOVA and answers the same question less precisely; comparing final values alone, which throws the baseline away; and testing whether the baseline values differ between arms, which tests the randomisation and not the treatment
+avoid: Where the outcome was measured at baseline: comparing change scores, which is noisier than ANCOVA and answers the same question less precisely; comparing final values alone, which throws the baseline away; and testing whether the baseline values differ between arms, which tests the randomisation and not the treatment. Where it was not: adjusting for a value recorded after the intervention began, which lies on the causal path and removes part of the effect being measured
 assumptions:
   - Independence of observations :: Design check: one measurement per patient, and no patient in two groups :: Use a mixed-effects model
   - Each group is approximately normal :: Shapiro-Wilk in each group, read with a histogram and a Q-Q plot :: Report the non-parametric row instead
@@ -655,7 +655,7 @@ test: Group means (SD) and the crude mean difference
 post_hoc: -
 adjusted: ANCOVA: linear regression on the final value with the baseline value as a covariate and the confounders beside it, adjusted mean difference with 95% CI; without the baseline term where the outcome exists only after the intervention
 measures: Adjusted mean difference
-avoid: Comparing change scores; and adjusting for a variable on the causal path
+avoid: Where the outcome was measured at baseline, comparing change scores; and in either case adjusting for a variable on the causal path, including a value of the outcome recorded after the intervention began
 assumptions:
   - Independence of observations :: Design check: one measurement per patient, and no patient in two groups :: Use a mixed-effects model
 adjusted_assumptions:

@@ -375,6 +375,17 @@ describe("a measured outcome in a trial", () => {
     expect(trial("randomised_trial").avoid).toContain("final values alone");
   });
 
+  it("says which of those apply, since half the outcomes have no baseline", () => {
+    // Drain output cannot be measured before the drain exists. Told flatly not
+    // to "throw the baseline away", a plan for it is being lectured about a
+    // value nobody could have recorded.
+    const said = trial("randomised_trial").avoid!;
+    expect(said).toContain("Where the outcome was measured at baseline");
+    expect(said).toContain("Where it was not");
+    // And the trap that replaces it: POD 1 output is after the dressing went on.
+    expect(said).toContain("recorded after the intervention began");
+  });
+
   it("rules out testing the baseline balance, which tests the randomisation", () => {
     expect(trial("randomised_trial").avoid).toContain("tests the randomisation");
   });
