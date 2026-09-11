@@ -4,6 +4,8 @@ import { apiMessage, explainApiError } from "../protocol/api-error.ts";
 import { DOCUMENT_MAX_TOKENS, type Mode, runMessage } from "../model/call.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { FactsSheet } from "../study/types.ts";
+import { z } from "zod";
+import { addUsage } from "../protocol/pricing.ts";
 import { FACTS_JSON_SCHEMA, factsSchema } from "./schema.ts";
 
 /**
@@ -111,7 +113,71 @@ Work through it in this order before you write anything.
    item.
 9. The sample size as it stands, and every question still waiting for the investigator.
 
-Then return the structured Facts Sheet.`;
+Then return the Facts Sheet as one JSON object that matches the schema in your
+instructions exactly.`;
+
+/**
+ * The shape of the answer, given to the model as text rather than as a grammar.
+ *
+ * It was a grammar - `output_config.format` - and the first real run showed the
+ * API cannot compile it: "The compiled grammar is too large". Removing every
+ * description and every enum did not bring it under the limit, nor did removing
+ * five whole sections; the Facts Sheet is simply more structure than
+ * constrained decoding will hold. The review's much smaller schema compiles
+ * and keeps its grammar.
+ *
+ * So the schema is stated here and the parser holds the model to it, which is
+ * what it always did: the grammar guaranteed the shape, and `factsSchema`
+ * checked the shape again regardless. What the grammar did that this does not
+ * is make a malformed answer impossible, so a malformed answer gets one repair
+ * (below) instead.
+ */
+const CONTRACT = `Return exactly one JSON object, and nothing else: no prose before or after it, no
+code fence around it.
+
+It must match this JSON Schema. Every property listed is required, at every depth. Where
+the protocol does not say something that is a text field, write an empty string; where
+the schema allows null, write null. Never omit a key, and never add one.
+
+${JSON.stringify(FACTS_JSON_SCHEMA)}`;
+
+/**
+ * The JSON object in what came back.
+ *
+ * The model is told to return bare JSON, and nearly always does. A code fence
+ * or a sentence around it is not a reason to throw away a Facts Sheet that was
+ * read and paid for, so the object is taken from the first brace to the last.
+ */
+export function readJson(text: string): unknown {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end <= start) throw new SyntaxError("No JSON object in the answer.");
+  return JSON.parse(text.slice(start, end + 1));
+}
+
+/** A Facts Sheet from an answer, or the reasons there is none. */
+function check(text: string): { facts: FactsSheet | null; problems: string[] } {
+  let parsed: unknown;
+  try {
+    parsed = readJson(text);
+  } catch (error) {
+    return {
+      facts: null,
+      problems: [`The answer is not a JSON object: ${(error as Error).message}`],
+    };
+  }
+  const result = factsSchema.safeParse(parsed);
+  return result.success
+    ? { facts: result.data as FactsSheet, problems: [] }
+    : { facts: null, problems: issuesOf(result.error) };
+}
+
+/** The first few ways an answer misses the schema, in words a model can act on. */
+function issuesOf(error: z.ZodError): string[] {
+  return error.issues
+    .slice(0, 25)
+    .map((issue) => `${issue.path.join(".") || "(top level)"}: ${issue.message}`);
+}
 
 function userContent(
   protocol: ExtractedProtocol,
@@ -171,11 +237,11 @@ export async function extractFacts(
         model: MODEL,
         max_tokens: DOCUMENT_MAX_TOKENS,
         thinking: { type: "adaptive" },
-        output_config: {
-          effort: EFFORT,
-          format: { type: "json_schema", schema: FACTS_JSON_SCHEMA },
-        },
-        system: [{ type: "text", text: ROLE }],
+        output_config: { effort: EFFORT },
+        system: [
+          { type: "text", text: ROLE },
+          { type: "text", text: CONTRACT },
+        ],
         messages: [{ role: "user", content: userContent(protocol) }],
       },
       {
@@ -211,25 +277,68 @@ export async function extractFacts(
 
     if (!text.trim()) throw new ExtractionError("The model returned nothing.");
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch (error) {
-      throw new ExtractionError("What came back was not valid JSON.", error);
-    }
+    let { facts, problems } = check(text);
+    let spent = usage;
 
-    const result = factsSchema.safeParse(parsed);
-    if (!result.success) {
-      throw new ExtractionError(
-        `The facts did not match the contract: ${result.error.issues
-          .slice(0, 3)
-          .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
-          .join("; ")}`,
-        result.error,
+    // One repair, for an answer that missed the schema. Without a grammar a
+    // malformed answer is possible, and it arrives after the protocol has been
+    // read and the reasoning paid for. The repair sends back only the answer
+    // and what is wrong with it - not the protocol, which is most of the cost -
+    // and is told to change nothing else. It is a question about structure, so
+    // it is asked at a lower effort.
+    if (!facts) {
+      options.onProgress?.("Correcting the shape of the answer");
+      const repaired = await runMessage(
+        client,
+        {
+          model: MODEL,
+          max_tokens: DOCUMENT_MAX_TOKENS,
+          thinking: { type: "adaptive" },
+          output_config: { effort: "medium" },
+          system: [
+            { type: "text", text: ROLE },
+            { type: "text", text: CONTRACT },
+          ],
+          messages: [
+            {
+              role: "user",
+              content: `This Facts Sheet does not match the schema. Correct it and return the whole object.
+
+Change only what the problems below name. Do not re-read, re-judge or re-word anything
+else: every value that is not named here stays exactly as it is.
+
+Problems:
+${problems.map((p) => `- ${p}`).join("\n")}
+
+The Facts Sheet:
+${text}`,
+            },
+          ],
+        },
+        {
+          signal: options.signal,
+          onProgress: options.onProgress,
+          mode: options.mode,
+          label: "Correcting the shape of the answer",
+        },
       );
-    }
+      spent = addUsage(spent, repaired.usage);
+      options.onUsage?.(spent);
 
-    const facts = result.data as FactsSheet;
+      const repairedText = repaired.message.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map((b) => b.text)
+        .join("");
+      ({ facts, problems } = check(repairedText));
+
+      if (!facts) {
+        throw new ExtractionError(
+          `The facts did not match the contract, even after one repair: ${problems
+            .slice(0, 3)
+            .join("; ")}`,
+        );
+      }
+    }
 
     // Gate A is not checked here. It used to be, and it threw: the Facts Sheet
     // had been read and paid for, and the error carried only the gate's
@@ -244,7 +353,7 @@ export async function extractFacts(
       facts,
       model: MODEL,
       effort: EFFORT,
-      usage,
+      usage: spent,
     };
   } catch (error) {
     if (error instanceof ExtractionError) throw error;

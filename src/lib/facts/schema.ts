@@ -44,7 +44,7 @@ const outcomeChain = {
     type: { type: "string", enum: DATA_TYPES, description: "What kind of value it is." },
     distribution: { type: "string", enum: ["normal", "skewed", "unknown"], description: "What the values are expected to look like, from what is known of the measure before the study starts. Serum ferritin, CRP and length of stay are skewed; haemoglobin and blood pressure are not. Use unknown rather than guessing." },
     expected_frequency: { type: ["number", "null"], description: "For a binary or time-to-event outcome, the proportion expected to have the event, as a number between 0 and 1. It is what limits the model: a binary or survival analysis is limited by its events and not by its participants. Null where the protocol does not say, which becomes a question for the investigator." },
-    competing_event: { type: ["string", "null"], description: "For a time-to-event outcome only: the event that can happen first and prevent it, such as death before relapse. Null for any other outcome type, where nothing can intervene, or where the event is death itself." },
+    competing_event: { type: "string", description: "For a time-to-event outcome only: the event that can happen first and prevent it, such as death before relapse. Empty for any other outcome type, where nothing can intervene, or where the event is death itself." },
     measures: { ...strArray, description: "The names, from `measures`, this outcome is built from. One for a raw outcome; for a change or a threshold, the one measure it is computed from." },
   },
 } as const;
@@ -79,7 +79,7 @@ export const FACTS_JSON_SCHEMA = {
       },
     },
     exposure_fixed_at_baseline: { type: "boolean", description: "True where everyone's group or exposure is settled at the moment follow-up starts. False where it is defined by something that happens during follow-up, such as 'patients who received drug X during admission', because those patients had to survive long enough to receive it." },
-    hypothesis: { type: ["string", "null"], description: "The hypothesis in the protocol's own words, or null where there is none. Never write one that is not there." },
+    hypothesis: { type: "string", description: "The hypothesis in the protocol's own words, or empty where there is none. Never write one that is not there." },
     population: {
       type: "object", additionalProperties: false,
       required: ["eligibility", "setting", "sampling", "short"],
@@ -108,12 +108,12 @@ export const FACTS_JSON_SCHEMA = {
       },
     },
     allocation: {
-      type: "object", additionalProperties: false, required: ["ratio", "block", "strata"],
+      type: "object", additionalProperties: false, required: ["ratio", "block", "strata", "matched"],
       properties: {
         ratio: { ...str, description: "'1:1', or '' where there is no allocation." },
         block: { type: ["integer", "null"], description: "Block size, or null." },
         strata: { ...strArray, description: "Stratification factors. These enter the adjusted model." },
-        matched: { type: ["string", "null"], description: "How participants were matched, where they were: '1 case to 2 controls, matched on age and sex'. Null where they were not. Matching changes the analysis, so it is recorded even where the protocol mentions it only in passing." },
+        matched: { type: "string", description: "How participants were matched, where they were: '1 case to 2 controls, matched on age and sex'. Empty where they were not. Matching changes the analysis, so it is recorded even where the protocol mentions it only in passing." },
       },
     },
     timepoints: { ...strArray, description: "Every visit code in order: D0, W2, W4, W6. One entry for a single assessment." },
@@ -127,11 +127,11 @@ export const FACTS_JSON_SCHEMA = {
           name: { ...str, description: "Lower case, words joined by underscores: 'serum_ferritin'." },
           label: { ...str, description: "How it is written on a form: 'Serum ferritin'." },
           type: { type: "string", enum: DATA_TYPES },
-          unit: { type: ["string", "null"], description: "For a numeric measure. Null for a categorical one." },
+          unit: { type: "string", description: "For a numeric measure. Empty for a categorical one." },
           options: { type: ["array", "null"], items: { type: "string" }, description: "For a categorical measure, every category in print order, Yes before No and Male before Female. Null for a numeric one. A list, never a sentence: a range written as prose cannot be drawn as rows." },
-          block: { type: ["string", "null"], description: "For a baseline characteristic, the words that finish its table's title: 'demographic and obstetric characteristics', 'haematological and iron profile', 'comorbidities'. Measures sharing these words share a table, and two blocks are never merged. Null for an outcome, an administrative field, or a variable that only defines an analysis set." },
+          block: { type: "string", description: "For a baseline characteristic, the words that finish its table's title: 'demographic and obstetric characteristics', 'haematological and iron profile', 'comorbidities'. Measures sharing these words share a table, and two blocks are never merged. Empty for an outcome, an administrative field, or a variable that only defines an analysis set." },
           derived_from: { ...strArray, description: "The measures this one is computed from, by name. Empty for anything written on the form. Body mass index is computed from height and weight and belongs here." },
-          recipe: { type: ["string", "null"], description: "The calculation in plain words, where there is one. Null otherwise." },
+          recipe: { type: "string", description: "The calculation in plain words, where there is one. Empty otherwise." },
         },
       },
     },
@@ -139,9 +139,10 @@ export const FACTS_JSON_SCHEMA = {
       type: "array",
       description: "What is measured at each visit. An outcome read at more visits than its two endpoints gets a rate-of-change analysis as well, and this is the only place that is visible.",
       items: {
-        type: "object", additionalProperties: false, required: ["timepoint", "measures"],
+        type: "object", additionalProperties: false, required: ["timepoint", "label", "measures"],
         properties: {
           timepoint: { ...str, description: "The visit code, from timepoints." },
+          label: { ...str, description: "How the visit is written in a table: 'Day 0', 'Week 6'." },
           measures: { ...strArray, description: "The names, from `measures`, recorded at this visit. Enrolment records the descriptors and the administrative items as well as the outcomes." },
         },
       },
@@ -166,9 +167,10 @@ export const FACTS_JSON_SCHEMA = {
       type: "array",
       description: "The factors an adjusted model would hold constant: those the protocol names, and clear confounders added with inferred set.",
       items: {
-        type: "object", additionalProperties: false, required: ["name", "inferred"],
+        type: "object", additionalProperties: false, required: ["measure", "at", "inferred"],
         properties: {
-          name: { ...str, description: "The factor, named as a variable would be." },
+          measure: { ...str, description: "The name, from `measures`, of the factor held constant." },
+          at: { type: "string", description: "The visit code the value is taken at, where the measure is taken at several. Empty otherwise." },
           inferred: { type: "boolean", description: "True where the protocol does not name it and you added it." },
         },
       },
@@ -177,11 +179,19 @@ export const FACTS_JSON_SCHEMA = {
       type: "array",
       description: "Every item on the protocol's proforma or case sheet, each kept or dropped. Keep only what is an outcome, a named predictor, a covariate, a descriptor a reader needs, or capture infrastructure.",
       items: {
-        type: "object", additionalProperties: false, required: ["item", "keep", "reason"],
+        type: "object", additionalProperties: false, required: ["item", "measure", "keep", "reason", "purpose"],
         properties: {
           item: { ...str },
+          measure: { type: "string", description: "The name, from `measures`, this item records. Empty for a dropped item." },
           keep: { type: "boolean" },
           reason: { ...str, description: "Why. 'Serves no objective' is the commonest reason to drop." },
+          purpose: {
+            anyOf: [
+              { type: "string", enum: ["administrative", "descriptor", "population", "input"] },
+              { type: "null" },
+            ],
+            description: "What a kept item is for: capture infrastructure, a baseline characteristic a reader needs, a variable deciding who is in an analysis set, or a raw input of something derived. Null for a dropped item.",
+          },
         },
       },
     },
@@ -192,7 +202,7 @@ export const FACTS_JSON_SCHEMA = {
         per_group: { type: ["integer", "null"] },
         formula_family: { ...str, description: "'two-mean power formula', 'two-proportion power formula', or '' where absent." },
         verdict: { type: "string", enum: ["correct", "wrong_formula", "absent", "partial"] },
-        attrition: { type: ["string", "null"], description: "The allowance, or null where none is made." },
+        attrition: { type: "string", description: "The allowance, or empty where none is made." },
       },
     },
     stated_rules: {
@@ -200,12 +210,15 @@ export const FACTS_JSON_SCHEMA = {
       required: ["software", "alpha", "sided", "ci_level", "missing_data", "interim"],
       description: "The analysis rules the protocol actually states. Null for each one it does not: the plan supplies a house default and marks it, and a default the investigator can see is not the same as a guess.",
       properties: {
-        software: { type: ["string", "null"], description: "The package and its version, where both are given." },
-        alpha: { type: ["string", "null"], description: "'0.05', or null." },
-        sided: { type: ["string", "null"], enum: ["one", "two", null] },
-        ci_level: { type: ["string", "null"], description: "'95%', or null." },
-        missing_data: { type: ["string", "null"], description: "The protocol's own words about missing data, or null." },
-        interim: { type: ["string", "null"], description: "The protocol's interim-analysis rule, or null." },
+        software: { type: "string", description: "The package and its version, where both are given." },
+        alpha: { type: "string", description: "'0.05', or empty." },
+        // A nullable choice is written as anyOf. `type: [string, null]` with an
+        // enum is valid JSON Schema and the API rejects it: "Enum value 'one'
+        // does not match declared type". It was found by the first real run.
+        sided: { anyOf: [{ type: "string", enum: ["one", "two"] }, { type: "null" }] },
+        ci_level: { type: "string", description: "'95%', or empty." },
+        missing_data: { type: "string", description: "The protocol's own words about missing data, or empty." },
+        interim: { type: "string", description: "The protocol's interim-analysis rule, or empty." },
       },
     },
     open_items: { ...strArray, description: "Every question still waiting for the investigator. Each becomes a TODO in both documents. Anything the protocol leaves open belongs here rather than being guessed." },
@@ -213,6 +226,23 @@ export const FACTS_JSON_SCHEMA = {
 } as const;
 
 /* ---- parsing what comes back ---------------------------------------- */
+
+/**
+ * A text field the protocol may not fill.
+ *
+ * The model's schema asks for text, with an empty string meaning "the protocol
+ * does not say", and this turns it back into the null every later step
+ * expects. It is done this way because the structured-output compiler refuses a
+ * schema with more than 16 nullable or union-typed fields - "exponential
+ * compilation cost" - and the Facts Sheet had 22. Fifteen of them were text
+ * where null and empty mean the same thing; they are text now, and seven
+ * unions remain. A blank of spaces is absent too: no field here means anything
+ * by whitespace.
+ */
+const absent = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+  z.string().nullable(),
+);
 
 const chain = z.object({
   what: z.string(),
@@ -224,14 +254,14 @@ const chain = z.object({
   measures: z.array(z.string()),
   distribution: z.enum(["normal", "skewed", "unknown"]),
   expected_frequency: z.number().nullable(),
-  competing_event: z.string().nullable(),
+  competing_event: absent,
 });
 
 export const factsSchema = z
   .object({
     title: z.string(),
     aim: z.string(),
-    hypothesis: z.string().nullable(),
+    hypothesis: absent,
     question_type: z.enum(["effect", "association", "prediction"]),
     unit_of_analysis: z.object({
       unit: z.string(),
@@ -255,7 +285,7 @@ export const factsSchema = z
       ratio: z.string(),
       block: z.number().int().nullable(),
       strata: z.array(z.string()),
-      matched: z.string().nullable(),
+      matched: absent,
     }),
     timepoints: z.array(z.string()),
     measures: z.array(
@@ -263,11 +293,11 @@ export const factsSchema = z
         name: z.string().min(1),
         label: z.string().min(1),
         type: z.enum(DATA_TYPES),
-        unit: z.string().nullable(),
+        unit: absent,
         options: z.array(z.string()).nullable(),
-        block: z.string().nullable(),
+        block: absent,
         derived_from: z.array(z.string()),
-        recipe: z.string().nullable(),
+        recipe: absent,
       }),
     ),
     visit_schedule: z.array(
@@ -290,14 +320,14 @@ export const factsSchema = z
     covariates: z.array(
       z.object({
         measure: z.string(),
-        at: z.string().nullable(),
+        at: absent,
         inferred: z.boolean(),
       }),
     ),
     proforma: z.array(
       z.object({
         item: z.string(),
-        measure: z.string().nullable(),
+        measure: absent,
         keep: z.boolean(),
         reason: z.string(),
         purpose: z
@@ -309,15 +339,15 @@ export const factsSchema = z
       per_group: z.number().int().nullable(),
       formula_family: z.string(),
       verdict: z.enum(["correct", "wrong_formula", "absent", "partial"]),
-      attrition: z.string().nullable(),
+      attrition: absent,
     }),
     stated_rules: z.object({
-      software: z.string().nullable(),
-      alpha: z.string().nullable(),
+      software: absent,
+      alpha: absent,
       sided: z.enum(["one", "two"]).nullable(),
-      ci_level: z.string().nullable(),
-      missing_data: z.string().nullable(),
-      interim: z.string().nullable(),
+      ci_level: absent,
+      missing_data: absent,
+      interim: absent,
     }),
     open_items: z.array(z.string()),
   })

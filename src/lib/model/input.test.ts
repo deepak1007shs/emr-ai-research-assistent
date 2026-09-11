@@ -71,7 +71,13 @@ async function requestOf(run: () => Promise<unknown>) {
 // their old values and both requests hash to the previous pins exactly -
 // 36521b388f2788b1 for the review and 18534a4c09e4fd9b for the facts.
 const REVIEW = "7f83f9a7cbbdf781";
-const FACTS = "768a52f89e2893d7";
+// Re-pinned again the same day, for the facts only, when the first real run
+// showed the API cannot compile the Facts Sheet's schema as a grammar. Three
+// things changed and nothing else: `output_config.format` removed, the schema
+// added to the system prompt as text, and the instruction's last line. The
+// schema itself was also corrected: eight fields where the model's schema and
+// the parser disagreed, and fifteen nullable text fields made plain text.
+const FACTS = "3e7e238ee471e506";
 
 describe("what the model receives", () => {
   process.env.ANTHROPIC_API_KEY = "test";
