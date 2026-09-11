@@ -62,7 +62,7 @@ export const FACTS_JSON_SCHEMA = {
   required: [
     "title", "population", "intervention", "comparator", "design", "design_label", "guideline", "frame", "groups", "allocation",
     "timepoints", "measures", "visit_schedule", "primary", "secondary", "exploratory_ideas", "covariates",
-    "proforma", "sample_size", "open_items",
+    "proforma", "sample_size", "stated_rules", "open_items",
   ],
   properties: {
     title: { ...str, description: "The protocol's title, word for word, including the design phrase after the colon where it has one." },
@@ -106,13 +106,14 @@ export const FACTS_JSON_SCHEMA = {
       description: "Every distinct thing the study records, once each: outcomes, covariates, descriptors and administrative items. Name each in lower case with underscores, and use that name everywhere else.",
       items: {
         type: "object", additionalProperties: false,
-        required: ["name", "label", "type", "unit", "options", "derived_from", "recipe"],
+        required: ["name", "label", "type", "unit", "options", "block", "derived_from", "recipe"],
         properties: {
           name: { ...str, description: "Lower case, words joined by underscores: 'serum_ferritin'." },
           label: { ...str, description: "How it is written on a form: 'Serum ferritin'." },
           type: { type: "string", enum: DATA_TYPES },
           unit: { type: ["string", "null"], description: "For a numeric measure. Null for a categorical one." },
           options: { type: ["array", "null"], items: { type: "string" }, description: "For a categorical measure, every category in print order, Yes before No and Male before Female. Null for a numeric one. A list, never a sentence: a range written as prose cannot be drawn as rows." },
+          block: { type: ["string", "null"], description: "For a baseline characteristic, the words that finish its table's title: 'demographic and obstetric characteristics', 'haematological and iron profile', 'comorbidities'. Measures sharing these words share a table, and two blocks are never merged. Null for an outcome, an administrative field, or a variable that only defines an analysis set." },
           derived_from: { ...strArray, description: "The measures this one is computed from, by name. Empty for anything written on the form. Body mass index is computed from height and weight and belongs here." },
           recipe: { type: ["string", "null"], description: "The calculation in plain words, where there is one. Null otherwise." },
         },
@@ -178,6 +179,19 @@ export const FACTS_JSON_SCHEMA = {
         attrition: { type: ["string", "null"], description: "The allowance, or null where none is made." },
       },
     },
+    stated_rules: {
+      type: "object", additionalProperties: false,
+      required: ["software", "alpha", "sided", "ci_level", "missing_data", "interim"],
+      description: "The analysis rules the protocol actually states. Null for each one it does not: the plan supplies a house default and marks it, and a default the investigator can see is not the same as a guess.",
+      properties: {
+        software: { type: ["string", "null"], description: "The package and its version, where both are given." },
+        alpha: { type: ["string", "null"], description: "'0.05', or null." },
+        sided: { type: ["string", "null"], enum: ["one", "two", null] },
+        ci_level: { type: ["string", "null"], description: "'95%', or null." },
+        missing_data: { type: ["string", "null"], description: "The protocol's own words about missing data, or null." },
+        interim: { type: ["string", "null"], description: "The protocol's interim-analysis rule, or null." },
+      },
+    },
     open_items: { ...strArray, description: "Every question still waiting for the investigator. Each becomes a TODO in both documents. Anything the protocol leaves open belongs here rather than being guessed." },
   },
 } as const;
@@ -224,6 +238,7 @@ export const factsSchema = z
         type: z.enum(DATA_TYPES),
         unit: z.string().nullable(),
         options: z.array(z.string()).nullable(),
+        block: z.string().nullable(),
         derived_from: z.array(z.string()),
         recipe: z.string().nullable(),
       }),
@@ -264,6 +279,14 @@ export const factsSchema = z
       formula_family: z.string(),
       verdict: z.enum(["correct", "wrong_formula", "absent", "partial"]),
       attrition: z.string().nullable(),
+    }),
+    stated_rules: z.object({
+      software: z.string().nullable(),
+      alpha: z.string().nullable(),
+      sided: z.enum(["one", "two"]).nullable(),
+      ci_level: z.string().nullable(),
+      missing_data: z.string().nullable(),
+      interim: z.string().nullable(),
     }),
     open_items: z.array(z.string()),
   })

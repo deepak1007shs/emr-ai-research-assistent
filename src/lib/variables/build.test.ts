@@ -115,7 +115,15 @@ describe("Step 2, the master variable list", () => {
   });
 
   it("flags a measure taken through the study that answers nothing", () => {
-    expect(built().todos.join(" ")).toContain("answers no objective");
+    // Adherence is triaged: it defines the per-protocol set. Take that away and
+    // it is three visits of work for a column no table has.
+    const untriaged = {
+      ...idaPreg,
+      proforma: idaPreg.proforma.filter((p) => p.measure !== "adherence"),
+    };
+    const { todos } = buildVariables(untriaged, buildObjectives(untriaged));
+    expect(todos.join(" ")).toContain("answers no objective");
+    expect(built().todos.join(" ")).not.toContain("answers no objective");
     // A baseline-only measure is Table 1 material and needs no question asked.
     expect(built().todos.join(" ")).not.toContain("Mean corpuscular volume");
   });

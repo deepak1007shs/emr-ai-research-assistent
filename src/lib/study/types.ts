@@ -148,6 +148,18 @@ export type Measure = {
   /** For a categorical measure, in print order. Null for a numeric one. */
   options: string[] | null;
   /**
+   * Which descriptive table this measure is reported in, as the words that
+   * finish its title: "demographic and obstetric characteristics",
+   * "haematological and iron profile".
+   *
+   * Null for a measure that is not a baseline characteristic: an outcome, an
+   * administrative field, or a variable that exists to define an analysis set.
+   * One table per block and never two blocks merged (rule 6.3.2), which is why
+   * the block is a fact about the measure rather than a judgement at print
+   * time.
+   */
+  block: string | null;
+  /**
    * The measures this one is computed from, where it is computed at all.
    *
    * Body mass index is the case: height and weight are written on the form,
@@ -266,6 +278,22 @@ export type FactsSheet = {
     formula_family: string;
     verdict: "correct" | "wrong_formula" | "absent" | "partial";
     attrition: string | null;
+  };
+  /**
+   * The analysis rules the protocol actually states.
+   *
+   * Null means the protocol is silent, and Step 5 writes the house default and
+   * a TODO beside it. Kept apart from the defaults so that a reader can tell
+   * what the investigator decided from what the plan supplied, which is the
+   * difference between a rule and an assumption.
+   */
+  stated_rules: {
+    software: string | null;
+    alpha: string | null;
+    sided: "one" | "two" | null;
+    ci_level: string | null;
+    missing_data: string | null;
+    interim: string | null;
   };
   /** Every question still waiting for the investigator. Each becomes a TODO. */
   open_items: string[];
@@ -437,6 +465,17 @@ export type TableRow = {
 export type ShellTable = {
   number: string;
   block: Block;
+  /**
+   * Which template row drew this table: `summary`, `unadjusted`, `adjusted`,
+   * `rate_of_change`, `overlap`, `fit`, `ratio`, `safety`, `sensitivity`,
+   * `descriptive`, `subgroup`, `correlation`.
+   *
+   * Stored rather than read back out of the title. The table that reports the
+   * unadjusted comparison is titled "Unadjusted comparison of ...", which
+   * contains the word "adjusted", and a check that matched on the title pointed
+   * the adjusted model at the unadjusted table.
+   */
+  kind: string;
   title: string;
   columns: string[];
   rows: TableRow[];

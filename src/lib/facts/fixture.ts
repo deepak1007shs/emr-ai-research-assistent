@@ -40,24 +40,24 @@ export const idaPreg: FactsSheet = {
   allocation: { ratio: "1:1", block: 4, strata: [] },
   timepoints: ["D0", "W2", "W4", "W6"],
   measures: [
-    { name: "participant_name", label: "Name", type: "text", unit: null, options: null, derived_from: [], recipe: null },
-    { name: "hospital_number", label: "Hospital number", type: "text", unit: null, options: null, derived_from: [], recipe: null },
-    { name: "age", label: "Age", type: "continuous", unit: "years", options: null, derived_from: [], recipe: null },
-    { name: "residence", label: "Residence", type: "nominal", unit: null, options: ["Urban", "Rural"], derived_from: [], recipe: null },
-    { name: "gravidity", label: "Gravidity", type: "count", unit: "pregnancies", options: null, derived_from: [], recipe: null },
-    { name: "parity", label: "Parity", type: "count", unit: "births", options: null, derived_from: [], recipe: null },
-    { name: "gestational_age", label: "Gestational age", type: "continuous", unit: "weeks", options: null, derived_from: [], recipe: null },
-    { name: "height", label: "Height", type: "continuous", unit: "cm", options: null, derived_from: [], recipe: null },
-    { name: "weight", label: "Weight", type: "continuous", unit: "kg", options: null, derived_from: [], recipe: null },
-    { name: "diet", label: "Dietary pattern", type: "nominal", unit: null, options: ["Vegetarian", "Mixed", "Non-vegetarian"], derived_from: [], recipe: null },
-    { name: "haemoglobin", label: "Haemoglobin", type: "continuous", unit: "g/dL", options: null, derived_from: [], recipe: null },
-    { name: "serum_ferritin", label: "Serum ferritin", type: "continuous", unit: "ng/mL", options: null, derived_from: [], recipe: null },
-    { name: "mean_corpuscular_volume", label: "Mean corpuscular volume", type: "continuous", unit: "fL", options: null, derived_from: [], recipe: null },
-    { name: "adverse_effects", label: "Any adverse effect since the last visit", type: "binary", unit: null, options: ["Yes", "No"], derived_from: [], recipe: null },
-    { name: "adherence", label: "Doses taken since the last visit", type: "continuous", unit: "% of doses", options: null, derived_from: [], recipe: null },
+    { name: "participant_name", label: "Name", type: "text", unit: null, options: null, block: null, derived_from: [], recipe: null },
+    { name: "hospital_number", label: "Hospital number", type: "text", unit: null, options: null, block: null, derived_from: [], recipe: null },
+    { name: "age", label: "Age", type: "continuous", unit: "years", options: null, block: "demographic and obstetric characteristics", derived_from: [], recipe: null },
+    { name: "residence", label: "Residence", type: "nominal", unit: null, options: ["Urban", "Rural"], block: "demographic and obstetric characteristics", derived_from: [], recipe: null },
+    { name: "gravidity", label: "Gravidity", type: "count", unit: "pregnancies", options: null, block: "demographic and obstetric characteristics", derived_from: [], recipe: null },
+    { name: "parity", label: "Parity", type: "count", unit: "births", options: null, block: "demographic and obstetric characteristics", derived_from: [], recipe: null },
+    { name: "gestational_age", label: "Gestational age", type: "continuous", unit: "weeks", options: null, block: "demographic and obstetric characteristics", derived_from: [], recipe: null },
+    { name: "height", label: "Height", type: "continuous", unit: "cm", options: null, block: "demographic and obstetric characteristics", derived_from: [], recipe: null },
+    { name: "weight", label: "Weight", type: "continuous", unit: "kg", options: null, block: "demographic and obstetric characteristics", derived_from: [], recipe: null },
+    { name: "diet", label: "Dietary pattern", type: "nominal", unit: null, options: ["Vegetarian", "Mixed", "Non-vegetarian"], block: "demographic and obstetric characteristics", derived_from: [], recipe: null },
+    { name: "haemoglobin", label: "Haemoglobin", type: "continuous", unit: "g/dL", options: null, block: "haematological and iron profile", derived_from: [], recipe: null },
+    { name: "serum_ferritin", label: "Serum ferritin", type: "continuous", unit: "ng/mL", options: null, block: "haematological and iron profile", derived_from: [], recipe: null },
+    { name: "mean_corpuscular_volume", label: "Mean corpuscular volume", type: "continuous", unit: "fL", options: null, block: "haematological and iron profile", derived_from: [], recipe: null },
+    { name: "adverse_effects", label: "Any adverse effect since the last visit", type: "binary", unit: null, options: ["Yes", "No"], block: null, derived_from: [], recipe: null },
+    { name: "adherence", label: "Doses taken since the last visit", type: "continuous", unit: "% of doses", options: null, block: null, derived_from: [], recipe: null },
     // Written on no form and carried by Table 1, which is the whole reason a
     // measure may be derived.
-    { name: "bmi", label: "Body mass index", type: "continuous", unit: "kg/m2", options: null, derived_from: ["height", "weight"], recipe: "Weight in kilograms divided by height in metres squared" },
+    { name: "bmi", label: "Body mass index", type: "continuous", unit: "kg/m2", options: null, block: "demographic and obstetric characteristics", derived_from: ["height", "weight"], recipe: "Weight in kilograms divided by height in metres squared" },
   ],
   visit_schedule: [
     {
@@ -168,12 +168,24 @@ export const idaPreg: FactsSheet = {
     { item: "Weight", measure: "weight", keep: true, purpose: "input", reason: "Raw input of body mass index" },
     { item: "Blood pressure", measure: null, keep: false, purpose: null, reason: "Serves no objective" },
     { item: "Stool for ova and cysts", measure: null, keep: false, purpose: null, reason: "Serves no objective" },
+    { item: "Adherence by pill count", measure: "adherence", keep: true, purpose: "population", reason: "Defines the per-protocol set" },
   ],
   sample_size: {
     per_group: 60,
     formula_family: "two-mean power formula",
     verdict: "partial",
     attrition: null,
+  },
+  stated_rules: {
+    // The protocol names SPSS and not its version, sets no alpha, and says
+    // nothing at all about missing data. That is the usual state of a thesis
+    // protocol, and it is what Step 5's defaults and TODOs exist for.
+    software: null,
+    alpha: null,
+    sided: null,
+    ci_level: null,
+    missing_data: null,
+    interim: null,
   },
   open_items: [
     "SPSS version",
