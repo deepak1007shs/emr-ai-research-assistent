@@ -30,6 +30,24 @@ export function buildMode(): Mode {
   return process.env.BUILD_MODE === "live" ? "live" : "batch";
 }
 
+/**
+ * The output budget every call that writes a document is given.
+ *
+ * Thinking is drawn from this, not only the JSON, so the budget covers the
+ * reasoning as well as what it produces. One number, shared by both document
+ * calls, because the alternative has failed twice: the plan's first stage was
+ * left at half and crossed it once the variable registry grew, and the shell
+ * tables were left at half and crossed it on a plan with seventy-eight
+ * variables. Both were found by a study that was merely large.
+ *
+ * 128,000 is the most Opus 5 will write. At 64,000 the reviews already reached
+ * 40,135 at effort `high`; at `xhigh` the model thinks further, and the
+ * thinking comes out of the same budget, so a long protocol would have been
+ * cut off in the middle of its answer. A budget is a ceiling and not a bill:
+ * only the tokens written are paid for.
+ */
+export const DOCUMENT_MAX_TOKENS = 128_000;
+
 /** How often the batch is asked whether it has finished. */
 export const POLL_MS = 10_000;
 

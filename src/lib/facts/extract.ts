@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { ExtractedProtocol } from "../protocol/extract.ts";
 import { apiMessage, explainApiError } from "../protocol/api-error.ts";
-import { type Mode, runMessage } from "../model/call.ts";
+import { DOCUMENT_MAX_TOKENS, type Mode, runMessage } from "../model/call.ts";
 import type { TokenUsage } from "../protocol/pricing.ts";
 import type { FactsSheet } from "../study/types.ts";
 import { FACTS_JSON_SCHEMA, factsSchema } from "./schema.ts";
@@ -21,24 +21,28 @@ import { gateA } from "./gate.ts";
  * or anywhere else a model can hear it.
  */
 
-export const MODEL = process.env.FACTS_MODEL ?? "claude-sonnet-5";
-export const EFFORT = (process.env.FACTS_EFFORT ?? "high") as
+/**
+ * The strongest reasoning model this key can use, at the effort meant for work
+ * where being right matters more than the bill.
+ *
+ * Of the two model calls in the application this is the one where that matters
+ * most. A misreading here - the design, an outcome's type, a visit the outcome
+ * is measured at - reaches every table, and the tables stay consistent with each
+ * other while being wrong, so none of the 43 checks can see it. Gate A's
+ * dictionary check also asks the model to use one name for one thing across
+ * five sections of its answer, which is exactly the kind of care the stronger
+ * model is better at.
+ *
+ * FACTS_MODEL and FACTS_EFFORT still override both. See `protocol/analyze.ts`
+ * for why this is Opus 5 and not Fable 5.1.
+ */
+export const MODEL = process.env.FACTS_MODEL ?? "claude-opus-5";
+export const EFFORT = (process.env.FACTS_EFFORT ?? "xhigh") as
   | "low"
   | "medium"
   | "high"
   | "xhigh"
   | "max";
-
-/**
- * The output budget.
- *
- * The same number every document call in this repository is given, and for the
- * reason `budgets.test.ts` records: two calls were left at half this and both
- * were crossed by a study that was merely large. The Facts Sheet grows with the
- * variable count as surely as the shell tables did, because every measure the
- * study records is an entry in the dictionary.
- */
-export const FACTS_MAX_TOKENS = 64000;
 
 export class ExtractionError extends Error {
   readonly cause?: unknown;
@@ -166,7 +170,7 @@ export async function extractFacts(
       client,
       {
         model: MODEL,
-        max_tokens: FACTS_MAX_TOKENS,
+        max_tokens: DOCUMENT_MAX_TOKENS,
         thinking: { type: "adaptive" },
         output_config: {
           effort: EFFORT,

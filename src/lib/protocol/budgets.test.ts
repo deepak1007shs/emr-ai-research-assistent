@@ -9,7 +9,11 @@ import { readFile } from "node:fs/promises";
  * once the study is large enough. It happened twice to the documents that have
  * since been removed: a stage left at 32000 crossed it when the variable
  * registry grew, and the shell tables crossed it on a plan with 78 variables.
- * One builder is left and the rule is worth keeping over it.
+ *
+ * There are two builders, and this test covered one of them for a week. The
+ * facts extraction came back with its own constant, set to the same number by
+ * hand - which is the arrangement that failed twice, one edit away from failing
+ * a third time. Both now use the shared budget and both are checked.
  *
  * The rule is not "every call is large". A follow-up call that places finished
  * fields on a form, or reads one document back against another, sets its own
@@ -17,7 +21,7 @@ import { readFile } from "node:fs/promises";
  * call reasoning at EFFORT is writing a document and gets DOCUMENT_MAX_TOKENS.
  */
 
-const BUILDERS = ["protocol/analyze.ts"];
+const BUILDERS = ["protocol/analyze.ts", "facts/extract.ts"];
 
 /** Each max_tokens in a source, with the request options that follow it. */
 function requests(source: string): { budget: string; options: string }[] {

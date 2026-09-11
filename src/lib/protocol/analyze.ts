@@ -11,40 +11,39 @@ import {
 import type { ExtractedProtocol } from "./extract.ts";
 import type { TokenUsage } from "./pricing.ts";
 import { apiMessage, explainApiError } from "./api-error.ts";
-import { type Mode, runMessage } from "../model/call.ts";
+import { DOCUMENT_MAX_TOKENS, type Mode, runMessage } from "../model/call.ts";
 
 /**
  * The review model and effort.
  *
- * Sonnet 5 at `high` was chosen deliberately over Opus 5 at `xhigh`: output
- * tokens are ~70% of the bill, so thinking depth and output rate dominate the
- * cost, not the size of the protocol. Override per environment if a particular
- * protocol deserves more reasoning.
+ * Opus 5 at `xhigh`: the strongest reasoning model this key can use at the
+ * effort meant for work where getting it right matters more than the bill.
+ *
+ * It was Sonnet 5 at `high`, chosen when every build ran live and output was
+ * ~70% of the bill. Two things moved. Builds are batched now, at half price,
+ * and the aim was set plainly on 11 Sep 2026: the best results, with the
+ * strongest model wherever reasoning happens. A review is critical appraisal -
+ * the mismatch between what a protocol says it is and what it is - and that is
+ * the reasoning this aim is about. Per thesis it costs about Rs 82 batched,
+ * against Rs 33 on Sonnet 5.
+ *
+ * Fable 5.1 is more capable on paper and was not chosen: it costs twice as
+ * much, its guidance warns that prompts as prescriptive as the reference files
+ * here can lower its quality, and its refusal fallback cannot run in a batch.
+ * A side-by-side on real protocols should decide that, not a price list.
+ *
+ * REVIEW_MODEL and REVIEW_EFFORT still override both.
  */
-export const MODEL = process.env.REVIEW_MODEL ?? "claude-sonnet-5";
-export const EFFORT = (process.env.REVIEW_EFFORT ?? "high") as
+export const MODEL = process.env.REVIEW_MODEL ?? "claude-opus-5";
+export const EFFORT = (process.env.REVIEW_EFFORT ?? "xhigh") as
   | "low"
   | "medium"
   | "high"
   | "xhigh"
   | "max";
 
-/**
- * The output budget every call that writes a document is given.
- *
- * Thinking is drawn from this, not only the JSON, so the budget covers the
- * reasoning as well as what it produces. One number, because the alternative
- * has failed twice: the plan's first stage was left at half and crossed it once
- * the variable registry grew a design family, a timepoint list and a derivation
- * for each variable; the shell tables were left at half and crossed it on a
- * plan with seventy-eight variables, where every one of them is a row in the
- * descriptive tables. Both were found by a study that was merely large.
- *
- * A follow-up call is a different thing and sets its own. Placing finished
- * fields on a form, or reading one document back against another, is a smaller
- * question asked at a lower effort, and those calls say so where they are made.
- */
-export const DOCUMENT_MAX_TOKENS = 64000;
+/** Shared with the facts extraction, and explained where it is defined. */
+export { DOCUMENT_MAX_TOKENS };
 
 export type AnalysisResult = {
   /** The six-section narrative review. */

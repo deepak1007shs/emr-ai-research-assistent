@@ -65,8 +65,13 @@ async function requestOf(run: () => Promise<unknown>) {
   return captured[0];
 }
 
-const REVIEW = "36521b388f2788b1";
-const FACTS = "18534a4c09e4fd9b";
+// Re-pinned on 11 Sep 2026 for the move from Sonnet 5 at `high` to Opus 5 at
+// `xhigh`, with the output budget raised from 64,000 to 128,000. The output was
+// meant to change. Nothing else in the request was: set those three back to
+// their old values and both requests hash to the previous pins exactly -
+// 36521b388f2788b1 for the review and 18534a4c09e4fd9b for the facts.
+const REVIEW = "7f83f9a7cbbdf781";
+const FACTS = "768a52f89e2893d7";
 
 describe("what the model receives", () => {
   process.env.ANTHROPIC_API_KEY = "test";
