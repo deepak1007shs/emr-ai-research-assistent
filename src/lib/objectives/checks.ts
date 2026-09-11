@@ -4,7 +4,7 @@ import type {
   Objective,
   Picot,
 } from "../study/types.ts";
-import { variableName } from "../variables/name.ts";
+import { anchorOf } from "../study/diagnostic.ts";
 import { isRepeated } from "./build.ts";
 import { promisesIn } from "./promises.ts";
 
@@ -95,7 +95,7 @@ export function step1Checks(
     // The two objectives point at two different variables on purpose: the
     // level asks about the derived value, the shape asks about the readings.
     // Both are the same outcome chain, which is what this collects.
-    const linked = [variableName(chain.what), ...chain.measures];
+    const linked = [anchorOf(facts, chain), ...chain.measures];
     const forChain = objectives.filter((o) => linked.includes(o.outcome));
     return (
       !forChain.some((o) => o.kind === "level") ||

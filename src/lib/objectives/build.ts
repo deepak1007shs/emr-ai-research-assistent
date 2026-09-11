@@ -7,7 +7,25 @@ import type {
   PicotRow,
 } from "../study/types.ts";
 import type { DataType } from "../study/vocabulary.ts";
-import { variableName } from "../variables/name.ts";
+import { anchorOf } from "../study/diagnostic.ts";
+
+/**
+ * The outcome an objective was written from, by its id.
+ *
+ * The inverse of how the ids are given: P1, P1a and P1b are the primary; S2,
+ * S2a and S2b are the second secondary. It is read from the id and not from
+ * the variable because in a diagnostic study several objectives are about the
+ * same variable - the reference standard - and asking "which outcome is this
+ * variable's" returned the primary for all of them, so every secondary took the
+ * primary's index tests. Exploratory objectives have no outcome chain of their
+ * own and return null.
+ */
+export function chainOfObjective(facts: FactsSheet, id: string): OutcomeChain | null {
+  if (/^P1[ab]?$/.test(id)) return facts.primary;
+  const secondary = /^S(\d+)[ab]?$/.exec(id);
+  if (secondary) return facts.secondary[Number(secondary[1]) - 1] ?? null;
+  return null;
+}
 
 /**
  * Step 1: the question decomposed, and every objective written as a question.
@@ -200,7 +218,10 @@ export function buildObjectives(facts: FactsSheet): Objective[] {
     family: Objective["family"],
     stem: string,
   ) => {
-    const derived = variableName(outcome.what);
+    // The variable the question is about. For most designs, the outcome's own
+    // name, which Step 2 makes into a variable; for a diagnostic study, the
+    // measure the question is anchored on. See `study/diagnostic.ts`.
+    const derived = anchorOf(facts, outcome);
     // The shape question is asked of the readings, so it is linked to them.
     const raw = outcome.measures.length === 1 ? outcome.measures[0] : derived;
 

@@ -393,13 +393,13 @@ describe("the model-choice deck", () => {
     expect(primary.adjusted!.fallback).toContain("restricted mean survival time");
   });
 
-  it("the diagnostic branch reports accuracy and calibration, not a summary", () => {
+  it("the diagnostic branch reports accuracy, not a summary and not calibration", () => {
     const kinds = buildSap(diagnostic).tables.map((t) => t.kind);
     expect(kinds).toContain("two_by_two");
     expect(kinds).toContain("accuracy");
-    // The area under the curve alone says the test ranks people correctly and
-    // says nothing about whether the numbers it gives them are right.
-    expect(kinds).toContain("calibration");
+    // Calibration asks whether predicted probabilities are right, and a
+    // measurement read at a cut-off predicts none. It belongs to prediction.
+    expect(kinds).not.toContain("calibration");
     expect(kinds).not.toContain("summary");
   });
 

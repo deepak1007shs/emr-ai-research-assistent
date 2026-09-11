@@ -10,6 +10,14 @@ import type {
 import type { DesignFamily } from "../study/vocabulary.ts";
 import { ARM } from "../variables/build.ts";
 import { variableName } from "../variables/name.ts";
+import { chainOfObjective } from "../objectives/build.ts";
+import {
+  anchorOf,
+  indexTestsOf,
+  isDiagnostic,
+  questionOf,
+  referenceOf,
+} from "../study/diagnostic.ts";
 import { binaryModels, effectMeasures, matchKey, tests } from "./decision-tables.ts";
 
 /**
@@ -93,7 +101,7 @@ function skewedNames(facts: FactsSheet): Set<string> {
   const names = new Set<string>();
   for (const chain of [facts.primary, ...facts.secondary]) {
     if (chain.distribution !== "skewed") continue;
-    names.add(variableName(chain.what));
+    names.add(anchorOf(facts, chain));
     for (const measure of chain.measures) names.add(measure);
   }
   return names;
@@ -270,6 +278,13 @@ export function buildAnalysis(
 
   for (const objective of objectives) {
     const explore = exploratory.find((e) => e.id === objective.id);
+
+    if (isDiagnostic(facts)) {
+      const row = diagnosticRow(facts, objective, explore, byName, skewed);
+      if (row) rows.push(row);
+      continue;
+    }
+
     const outcomeName = explore ? explore.reuses[0] : objective.outcome;
     const variable = byName.get(outcomeName);
     const chain = chainFor(facts, objective, outcomeName);
@@ -540,4 +555,168 @@ export function buildAnalysis(
   }
 
   return { rows, todos };
+}
+
+/* ---- the diagnostic accuracy branch ------------------------------------ */
+
+const NUMBERS = ["continuous", "count", "ordinal"];
+
+/** "a, b and c". */
+const listed = (items: string[]) =>
+  items.length <= 1
+    ? (items[0] ?? "")
+    : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+
+/**
+ * One row of the map for a diagnostic accuracy study.
+ *
+ * Kept apart from the loop above because almost nothing in that loop applies.
+ * There is no exposure effect, so there is no adjusted model, no adjustment set,
+ * no frequency-chosen risk model and no group term. What there is instead is
+ * three kinds of question, told apart by facts the reading already records -
+ * see `study/diagnostic.ts` - and each takes its test from the decision table
+ * like every other row:
+ *
+ * - accuracy: each index test against the reference standard, from the
+ *   `<index type>/diagnostic` row, with the areas compared where there are
+ *   several index tests measured on the same people;
+ * - correlation: each index test against a grade, from `ordinal/pair`;
+ * - comparison: the index values between the reference standard's results,
+ *   from `<type>/two_groups`.
+ *
+ * Before this, every one of them was a binary "outcome" analysed with the
+ * accuracy row and calibration as its adjusted model, which gave the
+ * correlation of a measurement with the Gleason score a two-by-two table.
+ */
+function diagnosticRow(
+  facts: FactsSheet,
+  objective: Objective,
+  explore: ExploratoryOutcome | undefined,
+  byName: Map<string, Variable>,
+  skewed: Set<string>,
+): AnalysisRow | null {
+  const chain = explore ? facts.primary : chainOfObjective(facts, objective.id);
+  if (!chain) return null;
+
+  // Lower-cased at the first letter only: "Serum PSA" is "serum PSA" mid-sentence,
+  // and lower-casing it whole wrote "adcp/adcref" for "ADCp/ADCref".
+  const labelOf = (name: string) => {
+    const text = byName.get(name)?.label ?? name.replace(/_/g, " ");
+    return /^[A-Z]{2,}/.test(text) ? text : text[0].toLowerCase() + text.slice(1);
+  };
+  const typeOf = (name: string) => byName.get(name)?.type ?? "continuous";
+  const reference = referenceOf(facts, chain);
+  const unit = facts.unit_of_analysis.unit;
+  const repeats = facts.unit_of_analysis.repeats_within_participant;
+  // Several lesions from one man are not several men. The intervals of every
+  // accuracy measure are too narrow unless the resampling keeps them together.
+  const clustered = repeats
+    ? `, with confidence intervals from a bootstrap that resamples participants, because one participant contributes more than one ${unit}`
+    : "";
+
+  const accuracy = (indexTests: string[]) => {
+    const row = matchKey(tests(), `${typeOf(indexTests[0] ?? "")}/diagnostic`);
+    const compared =
+      indexTests.length > 1
+        ? "; the areas under the curve of the index tests compared by DeLong's test for correlated curves, since every index test is read on the same participants"
+        : "";
+    return {
+      test: `${row?.["Unadjusted test"] ?? "Sensitivity and specificity with exact binomial confidence intervals"}${compared}${clustered}`,
+      fallback: row?.["Unadjusted fallback"] || null,
+    };
+  };
+  const accuracyMeasure =
+    matchKey(effectMeasures(), "diagnostic|binary")?.["Effect measure"] ?? "Sensitivity and specificity";
+
+  let outcome = anchorOf(facts, chain);
+  let predictors: string[] = [];
+  let effect = accuracyMeasure;
+  let unadjusted: { test: string; fallback: string | null };
+
+  if (!explore) {
+    const question = questionOf(chain);
+    const indexTests = indexTestsOf(facts, chain);
+    if (question === "accuracy") {
+      predictors = indexTests;
+      unadjusted = accuracy(indexTests);
+    } else if (question === "correlation") {
+      predictors = indexTests;
+      const row = matchKey(tests(), "ordinal/pair");
+      effect = "Correlation coefficient";
+      unadjusted = {
+        // The grade's label as written: it is usually a surname - Gleason,
+        // Bethesda - and a first letter lower-cased reads as a typo.
+        test: `${row?.["Unadjusted test"] ?? "Spearman rank correlation with a 95% confidence interval"}, for each index test with the ${byName.get(outcome)?.label ?? outcome}${clustered}`,
+        fallback: null,
+      };
+    } else {
+      predictors = [
+        ...(reference ? [reference] : []),
+        ...indexTests.filter((name) => name !== outcome),
+      ];
+      const results = byName.get(reference ?? "")?.options?.length ?? facts.groups.length;
+      const row = matchKey(tests(), `${typeOf(outcome)}/${results > 2 ? "many_groups" : "two_groups"}`);
+      const isSkewed = chain.distribution === "skewed" || skewed.has(outcome);
+      const { test, fallback } = row ? resolveSkew(isSkewed, row) : { test: "", fallback: null };
+      effect =
+        matchKey(effectMeasures(), `other|${typeOf(outcome)}`)?.["Effect measure"] ?? "Mean difference";
+      unadjusted = {
+        test: `${test}, for each of ${listed(indexTests.map(labelOf))} between the results of ${reference ? labelOf(reference) : "the reference standard"}${clustered}`,
+        fallback,
+      };
+    }
+  } else {
+    // Exploratory questions are asked of the primary's index tests.
+    const indexTests = indexTestsOf(facts, facts.primary);
+    const others = explore.reuses.slice(1);
+    outcome = explore.reuses[0];
+    predictors = others;
+    if (explore.kind === "subgroup" || explore.kind === "interaction") {
+      unadjusted = {
+        test: `The area under the ROC curve of ${listed(indexTests.map(labelOf))}, with a DeLong interval, estimated separately within each category of ${listed(others.map(labelOf))}, and the areas compared between categories by a z-test for independent curves${clustered}`,
+        fallback: null,
+      };
+    } else if (explore.kind === "derivation") {
+      unadjusted = accuracy(others.length ? others : indexTests);
+    } else {
+      const numbers = others.filter((name) => NUMBERS.includes(typeOf(name)));
+      const categories = others.filter((name) => !NUMBERS.includes(typeOf(name)));
+      const against = reference ? labelOf(reference) : "the reference standard";
+      const parts = [
+        ...(numbers.length > 1
+          ? [`Spearman rank correlation between ${listed(numbers.map(labelOf))}, with 95% confidence intervals`]
+          : []),
+        ...(numbers.length
+          ? [`${listed(numbers.map(labelOf))} compared between the results of ${against} by the Mann-Whitney test`]
+          : []),
+        ...(categories.length
+          ? [
+              `${listed(categories.map(labelOf))} compared between the results of ${against} by the chi-square test, and ${labelOf(indexTests[0] ?? "the index test")} compared across their categories by the Mann-Whitney or Kruskal-Wallis test`,
+            ]
+          : []),
+      ];
+      const joined = parts.join("; ");
+      effect = numbers.length > 1 ? "Correlation coefficient" : "Difference between the reference-standard results";
+      unadjusted = {
+        test: `${joined[0]?.toUpperCase() ?? ""}${joined.slice(1)}${clustered}`,
+        fallback: numbers.length ? null : "Fisher's exact test where any expected count is below 5",
+      };
+    }
+  }
+
+  const variable = byName.get(outcome);
+  return {
+    objective: objective.id,
+    outcome,
+    predictors,
+    data_type: variable?.type ?? chain.type,
+    unit_of_analysis: `per ${unit}`,
+    count: repeats ? `more than one ${unit} per participant` : "1 value per participant",
+    expected_frequency: chain.expected_frequency,
+    effect_measure: effect,
+    absolute: null,
+    unadjusted: { ...unadjusted, table: "" },
+    adjusted: null,
+    exception: "diagnostic",
+  };
 }

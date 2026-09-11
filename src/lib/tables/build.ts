@@ -17,7 +17,14 @@ import type {
 } from "../study/types.ts";
 import { ARM } from "../variables/build.ts";
 import { visitLabel } from "../objectives/build.ts";
-import { variableName } from "../variables/name.ts";
+import {
+  anchorOf,
+  groupWord,
+  indexTestsOf,
+  isDiagnostic,
+  questionOf,
+  referenceOf,
+} from "../study/diagnostic.ts";
 
 /**
  * Step 6: every empty results table the thesis will carry.
@@ -111,6 +118,27 @@ function rowsFor(variable: Variable, skewed: Set<string>): TableRow[] {
 
 const blank = (label: string): TableRow => ({ label, variable: null, indent: false });
 
+/**
+ * A diagnostic objective's own words, as a table title.
+ *
+ * Its index tests are in the rows and columns already, and naming them in the
+ * title as well gave the first real one a title of four measure names, each
+ * forty characters long. The objective's wording says what the table answers,
+ * and differs between two tables that list the same index tests. A trailing
+ * aside in brackets - "(stated only in the statistical analysis section)" -
+ * is the reading's note to the investigator, not part of the question.
+ */
+const question = (chain: OutcomeChain) =>
+  chain.what.replace(/\s*\([^()]*\)\s*$/, "").trim();
+
+/** "Mean stiffness, maximum stiffness and serum TSH", for a title. */
+const listOf = (labels: string[]) => {
+  const words = labels.map((text, i) => (i === 0 ? text : lower(text)));
+  return words.length <= 1
+    ? (words[0] ?? "")
+    : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+};
+
 /* ---- the builder ----------------------------------------------------- */
 
 export function buildTables(
@@ -128,7 +156,7 @@ export function buildTables(
   const skewed = new Set(
     [facts.primary, ...facts.secondary]
       .filter((c) => c.distribution === "skewed")
-      .flatMap((c) => [variableName(c.what), ...c.measures]),
+      .flatMap((c) => [anchorOf(facts, c), ...c.measures]),
   );
 
   const groups = facts.groups;
@@ -141,6 +169,13 @@ export function buildTables(
   const versus = comparative ? `${a.code} minus ${b.code}` : "";
 
   const codes = groups.map((g) => g.code);
+  // What the columns are split by: the arm in a trial, and in a diagnostic
+  // study the reference standard, which is a measure and has no arm variable.
+  const byGroup = comparative ? groupWord(facts) : "group";
+  const groupVariable =
+    isDiagnostic(facts) && !byName.has(ARM)
+      ? (referenceOf(facts, facts.primary) ?? ARM)
+      : ARM;
 
   let n = 0;
   const next = () => `${++n}`;
@@ -152,8 +187,8 @@ export function buildTables(
     const headsColumns = codes.some((code) =>
       table.columns.some((column) => column.startsWith(code)),
     );
-    if (headsColumns && !table.variables.includes(ARM)) {
-      table.variables = [...table.variables, ARM];
+    if (headsColumns && !table.variables.includes(groupVariable)) {
+      table.variables = [...table.variables, groupVariable];
     }
     tables.push(table);
     return table;
@@ -175,7 +210,7 @@ export function buildTables(
       number: next(),
       block: "descriptive",
       kind: "descriptive",
-      title: `Baseline ${block} by ${comparative ? "arm" : "group"}`,
+      title: `Baseline ${block} by ${byGroup}`,
       columns: comparative
         ? ["Variable", ...groupColumns]
         : ["Variable", "n (%) or Mean ± SD"],
@@ -266,7 +301,7 @@ export function buildTables(
           number: `${figures.length + 1}`,
           after: lastAdded?.number ?? "",
           block,
-          caption: `${label(chain)} over time by ${comparative ? "arm" : "group"}, on one continuous time axis from ${lower(visitLabel(facts, chain.time[0]))} to ${lower(visitLabel(facts, chain.time[chain.time.length - 1]))}`,
+          caption: `${label(chain)} over time by ${byGroup}, on one continuous time axis from ${lower(visitLabel(facts, chain.time[0]))} to ${lower(visitLabel(facts, chain.time[chain.time.length - 1]))}`,
           footnote: "means with 95% confidence intervals at each visit",
         });
         continue;
@@ -285,6 +320,7 @@ export function buildTables(
           skewed,
           versus,
           comparative,
+          byGroup,
           rules,
           todos,
         }),
@@ -298,13 +334,18 @@ export function buildTables(
         block,
         kind: "sensitivity",
         title: "Sensitivity analyses",
-        columns: ["Analysis", `${label(chain)} - effect (95% CI)`],
+        // A diagnostic study has no single effect to be robust: it has the
+        // accuracy measures, and each of them can move.
+        columns: isDiagnostic(facts)
+          ? ["Analysis", "Sensitivity (95% CI)", "Specificity (95% CI)", "Area under the curve (95% CI)"]
+          : ["Analysis", `${label(chain)} - effect (95% CI)`],
         rows: rules.sensitivity_rows.map(blank),
-        footnote:
-          "robustness of the primary estimate to missing-data and definition choices",
+        footnote: isDiagnostic(facts)
+          ? "robustness of the primary accuracy estimates to indeterminate results, the cut-off and missing reference standards"
+          : "robustness of the primary estimate to missing-data and definition choices",
         fit_table_of: null,
         fills: rows.map((r) => r.objective),
-        variables: [variableName(chain.what)],
+        variables: [anchorOf(facts, chain)],
       });
     }
   }
@@ -315,6 +356,11 @@ export function buildTables(
     if (!row) continue;
     const outcomeVariable = byName.get(row.outcome);
     const by = byName.get(outcome.reuses[1] ?? "");
+
+    if (isDiagnostic(facts)) {
+      add(diagnosticExploratory(next(), outcome, row, facts, byName, todos));
+      continue;
+    }
 
     if (outcome.kind === "correlation") {
       add({
@@ -349,7 +395,7 @@ export function buildTables(
       number: next(),
       block: "exploratory",
       kind: "subgroup",
-      title: `${label2(outcomeVariable)} by ${by?.label.toLowerCase() ?? "subgroup"} and ${comparative ? "arm" : "group"}`,
+      title: `${label2(outcomeVariable)} by ${by?.label.toLowerCase() ?? "subgroup"} and ${byGroup}`,
       columns: [
         `${by?.label ?? "Subgroup"}`,
         ...groups.map((g) => g.code),
@@ -364,6 +410,110 @@ export function buildTables(
   }
 
   return { tables, figures, todos };
+}
+
+/* ---- the exploratory tables of a diagnostic study --------------------- */
+
+/**
+ * One table per exploratory question, for a diagnostic accuracy study.
+ *
+ * The general exploratory tables split an effect by arm, and a diagnostic
+ * study has no arm and no effect. What it asks instead is whether the index
+ * tests perform differently in a subgroup, how an alternative definition of
+ * the index test performs, or how something else relates to the reference
+ * standard, and each of those is a different grid.
+ */
+function diagnosticExploratory(
+  number: string,
+  outcome: ExploratoryOutcome,
+  row: AnalysisRow,
+  facts: FactsSheet,
+  byName: Map<VariableName, Variable>,
+  todos: string[],
+): ShellTable {
+  const others = outcome.reuses.slice(1);
+  const label = (name: string) => byName.get(name)?.label ?? name;
+  // Exploratory questions are asked of the primary's index tests.
+  const indexTests = indexTestsOf(facts, facts.primary);
+  const base = {
+    number,
+    block: "exploratory" as const,
+    fit_table_of: null,
+    fills: [outcome.id],
+    variables: outcome.reuses.filter((name) => byName.has(name)),
+    footnote: `${footnoteFor(row.unadjusted)}; exploratory`,
+  };
+
+  if (outcome.kind === "derivation") {
+    return {
+      ...base,
+      kind: "accuracy",
+      title: others.length > 2
+        ? "Accuracy of each definition of the index test"
+        : `Accuracy of each definition of the index test: ${lower(listOf(others.map(label)))}`,
+      columns: ["Measure", ...others.map((name) => `${label(name)} (95% CI)`)],
+      rows: [
+        "Area under the curve",
+        "Sensitivity at the cut-off",
+        "Specificity at the cut-off",
+        ...(others.length > 1 ? ["Areas under the curve compared, p (DeLong)"] : []),
+      ].map(blank),
+    };
+  }
+
+  if (outcome.kind === "subgroup" || outcome.kind === "interaction") {
+    const strata = others.flatMap((name) => {
+      const variable = byName.get(name);
+      if (!variable) {
+        return [blank(`**TODO:** ${name.replace(/_/g, " ")} is not recorded by the study; add it to the form or drop the question`)];
+      }
+      if (!variable.options?.length) {
+        todos.push(
+          `${outcome.id} splits the sample by ${variable.label.toLowerCase()} and its categories are not stated. A split chosen after the data arrive is a different analysis from the one being planned.`,
+        );
+        return [blank(`**TODO:** state the categories of ${variable.label.toLowerCase()}, then one row per category`)];
+      }
+      return variable.options.map((option) => blank(`${variable.label} - ${option}`));
+    });
+    return {
+      ...base,
+      kind: "accuracy_by_subgroup",
+      title: `Accuracy of the index tests within each category of ${lower(listOf(others.map((name) => label(name).replace(/_/g, " "))))}`,
+      columns: [
+        "Subgroup",
+        "Reference positive / negative, n",
+        ...(indexTests.length
+          ? indexTests.map((name) => `${label(name)} - area under the curve (95% CI)`)
+          : ["Area under the curve (95% CI)"]),
+        "p for difference",
+      ],
+      rows: strata,
+    };
+  }
+
+  // A correlation question: each variable against the reference standard.
+  const reference = byName.get(row.outcome);
+  const results = reference?.options?.length ? reference.options : ["Reference positive", "Reference negative"];
+  const numbers = others.filter((name) =>
+    ["continuous", "count", "ordinal"].includes(byName.get(name)?.type ?? ""),
+  );
+  return {
+    ...base,
+    kind: "correlation",
+    title: `${listOf(others.map(label))} by reference-standard result`,
+    columns: ["Variable", ...results, "p"],
+    rows: [
+      ...others.flatMap((name) => {
+        const variable = byName.get(name);
+        return variable ? rowsFor(variable, new Set()) : [blank(name)];
+      }),
+      ...numbers.flatMap((first, i) =>
+        numbers.slice(i + 1).map((second) =>
+          blank(`Spearman ρ, ${lower(label(first))} with ${lower(label(second))} (95% CI)`),
+        ),
+      ),
+    ],
+  };
 }
 
 /* ---- helpers --------------------------------------------------------- */
@@ -439,8 +589,14 @@ function situationOf(
 ): string {
   // The design is asked first, and only here. A diagnostic study's outcome is
   // a yes or no like any other, and drawing it as one gives a summary table
-  // where the plan owes a two-by-two, sensitivity, specificity and calibration.
-  if (facts.design === "diagnostic_accuracy") return "diagnostic";
+  // where the plan owes a two-by-two, sensitivity and specificity. But not every
+  // question a diagnostic study asks is about accuracy: one that asks how a
+  // measurement tracks a grade owes a correlation, and one that asks how the
+  // values differ between the reference results owes a comparison.
+  if (isDiagnostic(facts)) {
+    const question = questionOf(chain);
+    return question === "accuracy" ? "diagnostic" : `diagnostic_${question}`;
+  }
   if (facts.question_type === "prediction") return "prediction";
   if (isSafety(chain)) return "safety";
   if (rows.every((r) => r.exception === "estimation")) return "estimation";
@@ -461,7 +617,7 @@ function situationOf(
     return (chain.expected_frequency ?? 0.5) < 0.1 ? "binary_rare" : "binary_common";
   }
   if (repeated) return "continuous_repeated";
-  if (skewed.has(variableName(chain.what))) return "skewed_continuous";
+  if (skewed.has(anchorOf(facts, chain))) return "skewed_continuous";
   return "continuous_single";
 }
 
@@ -515,6 +671,8 @@ type DrawArgs = {
   skewed: Set<string>;
   versus: string;
   comparative: boolean;
+  /** "arm", "group" or "reference-standard result". */
+  byGroup: string;
   rules: Rules;
   todos: string[];
 };
@@ -522,7 +680,7 @@ type DrawArgs = {
 function drawTable(args: DrawArgs): ShellTable {
   const {
     kind, number, block, chain, level, shape, facts, byName, skewed,
-    versus, comparative, todos,
+    versus, comparative, byGroup, todos,
   } = args;
   const codes = facts.groups.map((g) => g.code);
   const outcome = byName.get(level.outcome);
@@ -561,7 +719,7 @@ function drawTable(args: DrawArgs): ShellTable {
           : `${chain.what}`;
       return {
         ...base,
-        title: `${named} by ${comparative ? "arm" : "group"} - summary`,
+        title: `${named} by ${byGroup} - summary`,
         columns: comparative
           ? ["Outcome", ...codes.map((c) => `${c} - ${how}`)]
           : ["Outcome", how],
@@ -580,7 +738,7 @@ function drawTable(args: DrawArgs): ShellTable {
           : `${chain.what}`;
       return {
         ...base,
-        title: `${named} by ${comparative ? "arm" : "group"}`,
+        title: `${named} by ${byGroup}`,
         columns: [
           "Outcome",
           ...codes.map((c) => `${c} - Median (IQR)`),
@@ -620,7 +778,7 @@ function drawTable(args: DrawArgs): ShellTable {
     case "per_time_point":
       return {
         ...base,
-        title: `${measures[0]?.label ?? chain.what} at each visit by ${comparative ? "arm" : "group"} (descriptive)`,
+        title: `${measures[0]?.label ?? chain.what} at each visit by ${byGroup} (descriptive)`,
         columns: [
           "Visit",
           ...(codes.length
@@ -738,7 +896,7 @@ function drawTable(args: DrawArgs): ShellTable {
     case "survival": {
       return {
         ...base,
-        title: `${chain.what} by ${comparative ? "arm" : "group"}`,
+        title: `${chain.what} by ${byGroup}`,
         // Items down the side and arms across the top, as a published survival
         // table is laid out. It is the only shape that takes any number of
         // horizons without the table growing a column for each.
@@ -770,7 +928,7 @@ function drawTable(args: DrawArgs): ShellTable {
       const other = lower(chain.competing_event ?? "the competing event");
       return {
         ...base,
-        title: `Cumulative incidence of ${lower(chain.what)}, and of ${other}, by ${comparative ? "arm" : "group"}`,
+        title: `Cumulative incidence of ${lower(chain.what)}, and of ${other}, by ${byGroup}`,
         columns: survivalColumns(codes, comparative),
         rows: [
           blank("Participants, n"),
@@ -819,23 +977,52 @@ function drawTable(args: DrawArgs): ShellTable {
         ],
       };
 
-    case "two_by_two":
+    case "two_by_two": {
+      // One pair of rows per index test, because a study that reads four
+      // measurements against one reference standard has four two-by-two
+      // tables, and a single "Positive / Negative" grid says which of them
+      // nobody knows.
+      const reference = byName.get(referenceOf(facts, chain) ?? "");
+      const [positive, negative] =
+        reference?.options?.length === 2
+          ? reference.options
+          : ["Reference standard positive", "Reference standard negative"];
+      const indexTests = level.predictors
+        .map((name) => byName.get(name))
+        .filter((v): v is Variable => Boolean(v));
       return {
         ...base,
-        title: `${chain.what} against the reference standard`,
-        columns: ["Index test", "Reference standard positive", "Reference standard negative", "Total"],
-        rows: [blank("Positive"), blank("Negative"), blank("Total")],
+        title: `${question(chain)}: each index test against the reference standard, counts at its cut-off`,
+        columns: ["Index test at its cut-off", positive, negative, "Total"],
+        rows: [
+          ...(indexTests.length
+            ? indexTests.flatMap((v) => [
+                blank(`${v.label} - positive`),
+                blank(`${v.label} - negative`),
+              ])
+            : [blank("Positive"), blank("Negative")]),
+          blank("Total"),
+        ],
         footnote:
-          "counts at the pre-specified cut-off. **TODO:** name the reference standard, and confirm that whoever applied it was blind to the index test",
+          "counts at each index test's cut-off. **TODO:** state each cut-off before the data are seen, or say that it is chosen by the Youden index in these data, in which case the bootstrap optimism correction applies; and confirm that whoever read the reference standard was blind to the index test",
         fills: [level.objective],
       };
+    }
 
-    case "accuracy":
+    case "accuracy": {
+      const indexTests = level.predictors
+        .map((name) => byName.get(name))
+        .filter((v): v is Variable => Boolean(v));
       return {
         ...base,
-        title: `Accuracy of ${lower(chain.what)} at the pre-specified cut-off`,
-        columns: ["Measure", "Estimate", "95% CI"],
+        title: indexTests.length
+          ? `${question(chain)}: accuracy of each index test`
+          : `Accuracy of ${lower(chain.what)} at the pre-specified cut-off`,
+        columns: indexTests.length
+          ? ["Measure", ...indexTests.map((v) => `${v.label} (95% CI)`)]
+          : ["Measure", "Estimate", "95% CI"],
         rows: [
+          ...(indexTests.length ? ["Cut-off"] : []),
           "Sensitivity",
           "Specificity",
           "Positive predictive value",
@@ -843,11 +1030,51 @@ function drawTable(args: DrawArgs): ShellTable {
           "Positive likelihood ratio",
           "Negative likelihood ratio",
           "Area under the curve",
+          ...(indexTests.length > 1 ? ["Areas under the curve compared, p (DeLong)"] : []),
         ].map(blank),
-        footnote:
-          "predictive values depend on how common the condition is here and do not transfer to a setting with a different prevalence",
+        footnote: isDiagnostic(facts)
+          ? `${footnoteFor(level.unadjusted)}. Predictive values depend on how common the condition is here and do not transfer to a setting with a different prevalence`
+          : "predictive values depend on how common the condition is here and do not transfer to a setting with a different prevalence",
         fills: [level.objective],
       };
+    }
+
+    case "correlation_index": {
+      const grade = byName.get(level.outcome);
+      return {
+        ...base,
+        // The objective already names the grade, and lower-casing its label
+        // for a suffix wrote "gleason score" for a surname.
+        title: question(chain),
+        columns: ["Index test", `Spearman ρ with ${grade?.label ?? "the grade"}`, "95% CI", "p"],
+        rows: level.predictors.map((name) => blank(byName.get(name)?.label ?? name)),
+        footnote: footnoteFor(level.unadjusted),
+        fills: [level.objective],
+      };
+    }
+
+    case "by_reference": {
+      const reference = byName.get(referenceOf(facts, chain) ?? "");
+      const results = codes.length ? codes : (reference?.options ?? []);
+      const values = [level.outcome, ...level.predictors]
+        .filter((name) => name !== reference?.name)
+        .map((name) => byName.get(name))
+        .filter((v): v is Variable => Boolean(v));
+      const how = skewed.has(level.outcome) ? "Median (IQR)" : "Mean ± SD";
+      return {
+        ...base,
+        title: `${question(chain)}, by ${byGroup}`,
+        columns: [
+          "Index value",
+          ...results.map((result) => `${result} - ${how}`),
+          skewed.has(level.outcome) ? "Hodges-Lehmann difference (95% CI)" : "Mean difference (95% CI)",
+          "p",
+        ],
+        rows: values.map((v) => blank(`${v.label}${unitOf(v)}`)),
+        footnote: footnoteFor(level.unadjusted),
+        fills: [level.objective],
+      };
+    }
 
     case "prediction_model":
       return {
@@ -900,7 +1127,7 @@ function drawTable(args: DrawArgs): ShellTable {
         : "";
       return {
         ...base,
-        title: `${chain.what}${at} by ${comparative ? "arm" : "group"}`,
+        title: `${chain.what}${at} by ${byGroup}`,
         columns: [
           "Category",
           ...(codes.length ? codes.map((c) => `${c} n (%)`) : ["n (%)"]),
@@ -921,7 +1148,7 @@ function drawTable(args: DrawArgs): ShellTable {
     case "proportions":
       return {
         ...base,
-        title: `${chain.what} by ${comparative ? "arm" : "group"} (descriptive only)`,
+        title: `${chain.what} by ${byGroup} (descriptive only)`,
         columns: ["Comparison", ...codes.map((c) => `${c} n/N (%)`), "p"],
         rows: [blank(chain.what)],
         footnote:
@@ -939,7 +1166,7 @@ function drawTable(args: DrawArgs): ShellTable {
       );
       return {
         ...base,
-        title: `${chain.what} by ${comparative ? "arm" : "group"} (safety set)`,
+        title: `${chain.what} by ${byGroup} (safety set)`,
         columns: [
           "Adverse effect",
           ...codes.map((c) => `${c} n (%)`),
@@ -1011,7 +1238,7 @@ export function numberTheMap(
 ): AnalysisRow[] {
   // Which kind of table answers which half of a row. A ratio table carries the
   // crude and the adjusted estimate in one grid, so it answers both.
-  const UNADJUSTED = ["unadjusted", "summary_test", "per_time_point", "ratio", "safety", "proportions", "correlation", "summary"];
+  const UNADJUSTED = ["unadjusted", "summary_test", "per_time_point", "ratio", "safety", "proportions", "correlation", "summary", "accuracy", "correlation_index", "by_reference", "accuracy_by_subgroup"];
   const ADJUSTED = ["adjusted", "rate_of_change", "ratio", "subgroup", "cox"];
 
   return analysis.map((row) => {

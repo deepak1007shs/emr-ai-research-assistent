@@ -140,11 +140,19 @@ export function step4Checks(
 
   /* S4-6: an ordered scale cut into two. */
   const byName = new Map(variables.map((v) => [v.name, v]));
+  // The rule is a cut "without the ordinal analysis beside it", so a scale
+  // that another row analyses as the ordered outcome it is has its analysis.
+  // A diagnostic study's target condition is nearly always a grade cut in two -
+  // clinically significant cancer is a Gleason score of 3+4 or more - and the
+  // first one through the rebuild was warned about it on eight rows while its
+  // own correlation with the Gleason score sat two rows below.
+  const analysedAsOrdinal = new Set(rows.map((row) => row.outcome));
   const flattened = rows.filter((row) => {
     if (row.data_type !== "binary") return false;
     const variable = byName.get(row.outcome);
     return (variable?.derived_from ?? []).some(
-      (input) => byName.get(input)?.type === "ordinal",
+      (input) =>
+        byName.get(input)?.type === "ordinal" && !analysedAsOrdinal.has(input),
     );
   });
   results.push(
@@ -187,7 +195,12 @@ export function step4Checks(
   /* S4-8: the sample size assumed the result the analysis estimates. */
   const primary = rows.find((r) => r.objective.startsWith("P1"));
   const assumed = facts.sample_size.formula_family.toLowerCase();
+  // A diagnostic accuracy sample size is written as the precision of a
+  // proportion, so it is asked first: read as a two-proportion formula it
+  // expected a risk ratio, and the first real diagnostic protocol was warned
+  // that its sample size and its analysis disagreed when they did not.
   const FAMILY: [RegExp, RegExp][] = [
+    [/sensitivity|specificity|area under/, /sensitivity|specificity|area under/i],
     [/two.mean|mean difference|t.test/, /mean difference|ratio of geometric means/i],
     [/two.proportion|proportion|chi.square/, /risk ratio|odds ratio|prevalence ratio|risk difference/i],
     [/survival|log.rank|hazard/, /hazard ratio/i],

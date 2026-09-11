@@ -73,7 +73,11 @@ export function step6Checks(
   /* S6-3: the sensitivity table closes the primary block. */
   const primary = numbered.filter((t) => t.block === "primary");
   const last = primary[primary.length - 1];
-  const sensitivity = primary.find((t) => /sensitivity/i.test(t.title));
+  // Keyed on the kind, like S6-4 and S7-5, and not on the title. A diagnostic
+  // study's accuracy tables are about sensitivity too, and on the first one
+  // through the rebuild this check found the word in the primary's own title
+  // and reported the accuracy table as a misplaced sensitivity analysis.
+  const sensitivity = primary.find((t) => t.kind === "sensitivity");
   results.push(
     !sensitivity || last === sensitivity
       ? ok("S6-3", sensitivity ? "The sensitivity table is the last table of the primary block." : "There is no primary block to close.")

@@ -6,7 +6,14 @@ import type {
   VariableName,
 } from "../study/types.ts";
 import type { Role } from "../study/vocabulary.ts";
-import { variableName } from "./name.ts";
+import { chainOfObjective } from "../objectives/build.ts";
+import {
+  anchorOf,
+  groupWord,
+  indexTestsOf,
+  isDiagnostic,
+  referenceOf,
+} from "../study/diagnostic.ts";
 
 /**
  * Step 2: the master variable list, built from the dictionary and the
@@ -101,10 +108,17 @@ export function buildVariables(
   };
 
   /* ---- the group a person is in ------------------------------------ */
-  if (facts.groups.length >= 2) {
+  // In a diagnostic accuracy study the groups are the reference standard's two
+  // results, and the reference standard is already a measure. A second
+  // variable holding the same thing is a field somebody fills in twice.
+  const diagnostic = isDiagnostic(facts);
+  const groupsAreAMeasure =
+    diagnostic && referenceOf(facts, facts.primary) !== null;
+  if (facts.groups.length >= 2 && !groupsAreAMeasure) {
+    const word = groupWord(facts);
     push({
       name: ARM,
-      label: "Trial arm",
+      label: word === "arm" ? "Trial arm" : word[0].toUpperCase() + word.slice(1),
       roles: {},
       type: "nominal",
       unit: null,
@@ -139,8 +153,10 @@ export function buildVariables(
   }
 
   /* ---- one variable per outcome that is not itself a measure -------- */
+  // A diagnostic study's outcomes are relations among measures, and its anchor
+  // is one of them, so nothing is derived. See `study/diagnostic.ts`.
   for (const outcome of [facts.primary, ...facts.secondary]) {
-    const name = variableName(outcome.what);
+    const name = anchorOf(facts, outcome);
     if (byName.has(name)) continue;
     push({
       name,
@@ -179,11 +195,30 @@ export function buildVariables(
 
     const arm = byName.get(ARM);
     if (arm) arm.roles[objective.id] = "exposure";
+
+    // What a diagnostic question evaluates: its index tests, and for a
+    // comparison of index values, the reference result they are split by.
+    const chain = diagnostic ? chainOfObjective(facts, objective.id) : null;
+    if (chain) {
+      const evaluated = [...indexTestsOf(facts, chain)];
+      const reference = referenceOf(facts, chain);
+      if (reference && reference !== objective.outcome) evaluated.push(reference);
+      for (const name of evaluated) {
+        const variable = byName.get(name);
+        if (variable && !variable.roles[objective.id]) {
+          variable.roles[objective.id] = "exposure";
+        }
+      }
+    }
   }
 
   /* ---- what the adjusted models hold constant ----------------------- */
+  // A diagnostic accuracy study fits no adjusted model: how well a test finds
+  // a condition is estimated, not adjusted. Giving its covariates that role
+  // asked the investigator to confirm them "as covariates of the adjusted
+  // models" that do not exist.
   const modelled = objectives.filter((o) => o.family !== "exploratory");
-  for (const covariate of facts.covariates) {
+  for (const covariate of diagnostic ? [] : facts.covariates) {
     const variable = byName.get(covariate.measure);
     if (!variable) continue;
     for (const objective of modelled) {

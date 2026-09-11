@@ -1,5 +1,6 @@
 import type { ShellTable } from "@/lib/study/types";
 import type { SapBuild } from "@/lib/sap/build";
+import { DIAGNOSTIC_NOTE } from "@/lib/study/diagnostic";
 
 /**
  * The plan on screen, laid out the way the .docx lays it out.
@@ -226,6 +227,7 @@ export function SapDocument({ build }: { build: SapBuild }) {
                     {row.exception === "estimation" && (
                       <div>Estimation objective: interval, no p value.</div>
                     )}
+                    {row.exception === "diagnostic" && <div>{DIAGNOSTIC_NOTE}</div>}
                   </td>
                 </tr>
               ))}

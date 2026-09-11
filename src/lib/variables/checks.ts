@@ -5,7 +5,7 @@ import type {
   Objective,
   Variable,
 } from "../study/types.ts";
-import { variableName } from "./name.ts";
+import { anchorOf, isDiagnostic } from "../study/diagnostic.ts";
 
 /**
  * The five checks Step 2 owes.
@@ -37,7 +37,7 @@ export function step2Checks(
   /* S2-1: every outcome is a variable, and no two outcomes are the same one. */
   const chains = [facts.primary, ...facts.secondary].map((c) => ({
     what: c.what,
-    name: variableName(c.what),
+    name: anchorOf(facts, c),
   }));
   const missingOutcomes = chains.filter((c) => !names.has(c.name));
 
@@ -46,8 +46,14 @@ export function step2Checks(
   // point at it, and the plan reports the first outcome's number under the
   // second outcome's title. Nothing else catches it: every check downstream
   // finds a variable where it expects one.
+  //
+  // In a diagnostic study several outcomes are about one measure on purpose -
+  // how well each index test finds the same reference standard - and nothing is
+  // derived, so nothing is inherited. Only a derived anchor can collide.
+  const measured = new Set(facts.measures.map((m) => m.name));
   const byShortName = new Map<string, string[]>();
   for (const chain of chains) {
+    if (isDiagnostic(facts) && measured.has(chain.name)) continue;
     byShortName.set(chain.name, [...(byShortName.get(chain.name) ?? []), chain.what]);
   }
   const collided = [...byShortName.entries()].filter(([, whats]) => whats.length > 1);

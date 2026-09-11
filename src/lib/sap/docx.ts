@@ -14,6 +14,7 @@ import { HOUSE_BORDER, HOUSE_STYLES, spaced } from "../render/house-style.ts";
 import { BLOCK_ORDER } from "../study/vocabulary.ts";
 import type { ShellTable } from "../study/types.ts";
 import type { SapBuild } from "./build.ts";
+import { DIAGNOSTIC_NOTE } from "../study/diagnostic.ts";
 import {
   MAP_LINE,
   PICOT_LINE,
@@ -277,6 +278,7 @@ export async function buildSapDocx(
         if (row.exception === "estimation") {
           parts.push("Estimation objective: interval, no p value.");
         }
+        if (row.exception === "diagnostic") parts.push(DIAGNOSTIC_NOTE);
         return [
           `${family.toUpperCase()} - ${row.objective}`,
           row.outcome,

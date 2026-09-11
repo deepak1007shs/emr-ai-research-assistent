@@ -481,7 +481,10 @@ export type Adjusted = {
  * `exception` records the two places where "unadjusted then adjusted" does not
  * apply: an estimation objective, which gets a summary with an interval and no
  * p value, and a safety outcome, which is reported and not modelled. A third,
- * `too_few_events`, records a model that must not be fitted at all.
+ * `too_few_events`, records a model that must not be fitted at all. A fourth,
+ * `diagnostic`, records a question a diagnostic accuracy study asks: how well
+ * a test finds a condition, or how it tracks a grade, is estimated and not
+ * adjusted, because there is no exposure effect to hold anything constant for.
  */
 export type AnalysisRow = {
   objective: ObjectiveId;
@@ -499,7 +502,7 @@ export type AnalysisRow = {
   absolute: string | null;
   unadjusted: Unadjusted | null;
   adjusted: Adjusted | null;
-  exception: "estimation" | "safety" | "too_few_events" | null;
+  exception: "estimation" | "safety" | "too_few_events" | "diagnostic" | null;
 };
 
 /* ---- Step 5 -------------------------------------------------------- */

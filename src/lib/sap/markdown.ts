@@ -2,6 +2,7 @@ import { spaced } from "../render/plain.ts";
 import type { AnalysisRow, ShellTable } from "../study/types.ts";
 import { BLOCK_ORDER } from "../study/vocabulary.ts";
 import type { SapBuild } from "./build.ts";
+import { DIAGNOSTIC_NOTE } from "../study/diagnostic.ts";
 
 /**
  * The plan, rendered top to bottom.
@@ -94,6 +95,7 @@ function testCell(row: AnalysisRow): string {
   if (row.exception === "too_few_events") {
     parts.push("Too few events to fit a model: descriptive only.");
   }
+  if (row.exception === "diagnostic") parts.push(DIAGNOSTIC_NOTE);
   return parts.join("; ");
 }
 

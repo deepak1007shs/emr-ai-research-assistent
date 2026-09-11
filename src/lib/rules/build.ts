@@ -9,6 +9,7 @@ import type {
 } from "../study/types.ts";
 import type { ObjectiveFamily } from "../study/vocabulary.ts";
 import { parseTable, type Row } from "../analysis/decision-tables.ts";
+import { isDiagnostic } from "../study/diagnostic.ts";
 
 /**
  * Step 5: the rules that govern every table.
@@ -82,6 +83,20 @@ function populationsFor(facts: FactsSheet, rows: AnalysisRow[]): Population[] {
     .map((r) => r.objective)
     .join(", ");
   const all = confirmatory.map((r) => r.objective).join(", ");
+
+  // A diagnostic study's denominator is not everyone eligible: it is everyone
+  // with both results, because accuracy is one test read against the other.
+  // Who lacks either is itself a finding - STARD asks for them in the flow
+  // diagram - and quietly dropping them is how verification bias gets in.
+  if (isDiagnostic(facts)) {
+    const unit = facts.unit_of_analysis.unit;
+    return [
+      {
+        name: "Diagnostic accuracy set",
+        definition: `Every eligible participant with both the index test and the reference standard${all ? `: ${all}` : ""}. Analysed per ${unit}${facts.unit_of_analysis.repeats_within_participant ? ", with the " + unit + "s of one participant kept together" : ""}. Participants with a missing or indeterminate result on either are counted in the STARD flow diagram, with the reason, and not silently dropped.`,
+      },
+    ];
+  }
 
   if (!TRIALS.includes(facts.design)) {
     return [
@@ -168,6 +183,22 @@ function multiplicityFor(
 
 /** The alternative assumptions the primary estimate is re-run under (5.6). */
 function sensitivityFor(facts: FactsSheet, rows: AnalysisRow[]): string[] {
+  // Missing data and a tipping point are about an effect estimate. What moves a
+  // diagnostic estimate is what was counted as positive, where the cut-off
+  // came from, and who never had the reference standard.
+  if (isDiagnostic(facts)) {
+    const unit = facts.unit_of_analysis.unit;
+    return [
+      "Complete case: every participant with both the index test and the reference standard, which is the primary analysis.",
+      "Indeterminate or uninterpretable index test results counted first as positive and then as negative.",
+      "The cut-off fixed in advance in place of the one chosen by the Youden index in these data, or the reverse, whichever the primary analysis did not use.",
+      "Participants without the reference standard included by multiple imputation of their reference result, as a check on verification bias.",
+      ...(facts.unit_of_analysis.repeats_within_participant
+        ? [`One ${unit} per participant, the index ${unit}, in place of every ${unit}, to remove the clustering.`]
+        : []),
+    ];
+  }
+
   const list = [
     "Complete case, which is the primary analysis.",
     "Multiple imputation by chained equations, with the arm, the baseline outcome and every covariate in the imputation model.",
@@ -217,7 +248,9 @@ export function buildRules(
   // The line that opens the primary block. Short on purpose: the full
   // definitions are above it, and this one is read every time a reader looks
   // at a primary table.
-  const populationLine = trial
+  const populationLine = isDiagnostic(facts)
+    ? `Analysis population: the diagnostic accuracy set, every eligible participant with both the index test and the reference standard. The ${flow} flow, with every missing or indeterminate result and its reason, is shown in the STARD flow diagram.`
+    : trial
     ? `Analysis population: intention to treat, every randomised participant analysed as randomised. Complete case for the primary outcome, with the ${flow} flow shown in the results. Missing data are handled by the general rules above.`
     : `Analysis population: the analysis cohort, every eligible participant with the exposure recorded. Complete case for the primary outcome, with the ${flow} flow shown in the results. Missing data are handled by the general rules above.`;
 

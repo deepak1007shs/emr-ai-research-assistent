@@ -29,12 +29,19 @@ attaches to the table before it and takes that table's number with a letter.
 | time_to_event_competing | Time to an event, with a competing event | cumulative_incidence, overlap, cox, fit |
 | count_outcome | Counts | summary, unadjusted, overlap, adjusted, fit |
 | count_repeated | Counts, measured three times or more | summary, unadjusted, per_time_point, rate_of_change, fit, overlap, adjusted, fit |
-| diagnostic | A test against a reference standard | two_by_two, accuracy, calibration |
+| diagnostic | A test against a reference standard | two_by_two, accuracy |
+| diagnostic_correlation | A diagnostic study's index tests against an ordered grade | correlation_index |
+| diagnostic_comparison | A diagnostic study's index values between the reference standard's results | by_reference |
 | prediction | A score built to predict an outcome | prediction_model, calibration |
 | safety | Harms, reported and not modelled | safety |
 | correlation | Two continuous variables | correlation |
 | subgroup | An effect asked separately within levels of something | subgroup |
 | estimation | One group, one value estimated | summary |
+
+A diagnostic row draws no calibration table. Calibration asks whether predicted
+probabilities are right, and a measurement read at a cut-off predicts none; the
+first real diagnostic protocol through the rebuild was given one per objective.
+It stays in the prediction row, where a model does predict a probability.
 
 The sensitivity table is not in this list. It is always the last table of the
 primary block, whatever the primary outcome's situation, and 6.7 makes that a
