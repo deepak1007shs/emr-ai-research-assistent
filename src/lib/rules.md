@@ -57,6 +57,9 @@ measures and how; it is never asked which test to run.
 | The effect measure follows from the design before the test follows from the data type | `test-rules.md` |
 | A common outcome gets a risk or prevalence ratio by log-binomial or modified Poisson, never an odds ratio | `TBL20`, `TBL31` |
 | A skewed measure is never summarised by a mean | `TBL30` |
+| A trial that measured its outcome at baseline adjusts by ANCOVA, never by a change score | `test-rules.md` |
+| A competing risk chooses its model by the question: cause-specific for mechanism, Fine-Gray for prognosis | `test-rules.md` |
+| A violated proportional-hazards assumption has a route out, and silence is not one | `test-rules.md` |
 | A table reporting a comparison names the test it used | `TBL09`, `TBL10` |
 | Every test the plan chooses has its assumptions stated | `MAP14` |
 | A table reports only the estimate the plan chose for that outcome | `TBL20`, `TBL29` |

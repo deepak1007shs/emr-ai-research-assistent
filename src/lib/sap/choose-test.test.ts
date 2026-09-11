@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { DesignFamily } from "./types.ts";
 import { chooseTest, degreesOfFreedomNote, loadRules } from "./choose-test.ts";
 import type { AnalysisRow } from "./types.ts";
 
@@ -165,7 +166,25 @@ describe("time to event", () => {
   it("rules out Kaplan-Meier where a competing event prevents the outcome", () => {
     const plan = chooseTest(row({ data_type: "time_to_event", comparison: "two_groups" }))!;
     expect(plan.avoid).toContain("competing");
-    expect(plan.avoid).toContain("Fine-Gray");
+    // One minus Kaplan-Meier counts a patient who died of something else as
+    // though they could still have the outcome.
+    expect(plan.avoid).toContain("cumulative incidence function");
+  });
+
+  it("names the competing-risks model by the question, not by the data", () => {
+    // The deck's rule and the app's: cause-specific for a question about
+    // mechanism, Fine-Gray for a question about a patient's prognosis. They
+    // estimate different quantities and are not expected to agree.
+    const plan = chooseTest(row({ data_type: "time_to_event", comparison: "two_groups" }))!;
+    expect(plan.adjusted).toContain("cause-specific Cox");
+    expect(plan.adjusted).toContain("Fine-Gray");
+  });
+
+  it("offers a measure that needs no proportional-hazards assumption", () => {
+    const plan = chooseTest(row({ data_type: "time_to_event", comparison: "two_groups" }))!;
+    const ph = plan.assumptions.find((a) => a.assumption.includes("proportional"))!;
+    expect(ph.if_violated).toContain("restricted mean survival time");
+    expect(ph.if_violated).toContain("fixed in advance");
   });
 });
 
@@ -321,5 +340,53 @@ describe("degreesOfFreedomNote", () => {
     const { overfits, note } = degreesOfFreedomNote(100, 3);
     expect(overfits).toBe(false);
     expect(note).toContain("adequately supported");
+  });
+});
+
+/**
+ * The baseline value, in the studies that measure one.
+ *
+ * The deck's first fork on a measured outcome: was it also measured at
+ * baseline? Almost every trial measures it, so ANCOVA is almost always the
+ * right answer, and comparing change scores is the commoner and weaker choice.
+ */
+describe("a measured outcome in a trial", () => {
+  const trial = (design: DesignFamily) =>
+    chooseTest(
+      row({ data_type: "continuous", comparison: "two_groups", design_family: design }),
+    )!;
+
+  it("adjusts by ANCOVA, with the baseline value as a covariate", () => {
+    const designs: DesignFamily[] = [
+      "randomised_trial",
+      "non_inferiority_trial",
+      "cluster_trial",
+      "factorial_trial",
+      "pre_post",
+    ];
+    for (const design of designs) {
+      expect(trial(design).adjusted, design).toContain("ANCOVA");
+      expect(trial(design).adjusted, design).toContain("baseline value as a covariate");
+    }
+  });
+
+  it("rules out the change score and the final value alone", () => {
+    expect(trial("randomised_trial").avoid).toContain("change scores");
+    expect(trial("randomised_trial").avoid).toContain("final values alone");
+  });
+
+  it("rules out testing the baseline balance, which tests the randomisation", () => {
+    expect(trial("randomised_trial").avoid).toContain("tests the randomisation");
+  });
+
+  it("leaves an observational study on plain linear regression", () => {
+    // ANCOVA is for a study that measured the outcome before and after. A
+    // cohort is not one by default, and a rule that claimed otherwise would be
+    // naming a model the study cannot fit.
+    const cohort = chooseTest(
+      row({ data_type: "continuous", comparison: "two_groups", design_family: "cohort" }),
+    )!;
+    expect(cohort.adjusted).toContain("Multivariable linear regression");
+    expect(cohort.adjusted).not.toContain("ANCOVA");
   });
 });

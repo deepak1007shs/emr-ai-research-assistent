@@ -31,7 +31,11 @@ The heading carries the five facts that decide the analysis, in order:
   risk. Those blocks are written above the frequency ones, because the design is
   the stronger fact.
 
-`any` matches anything. Correlation and agreement blocks are written above the
+`any` matches anything. A fact may name several values separated by commas,
+where one rule holds for a family of designs: writing the block once per design
+is how a table of rules drifts, five copies of ANCOVA with four of them edited.
+
+Correlation and agreement blocks are written above the
 repeated block on purpose: two raters measuring one patient is repetition of a
 different kind, and a mixed model is not what it needs.
 
@@ -529,11 +533,39 @@ assumptions:
   - The paired differences are approximately normal :: Shapiro-Wilk on the differences, not on either occasion :: Report the Wilcoxon signed-rank row instead
   - The distribution of the differences is symmetric :: Histogram of the paired differences :: Report the sign test, which assumes only a median
   - Censoring is independent of the outcome :: Compare those censored with those still at risk :: Report a sensitivity analysis under informative censoring
-  - Hazards are proportional over time :: Schoenfeld residuals against time, and log-minus-log curves :: Fit a time-varying coefficient or stratify on the offending variable
+  - Hazards are proportional over time :: Schoenfeld residuals against time, and log-minus-log curves :: Report restricted mean survival time to a horizon fixed in advance, which assumes nothing about proportionality; or report the hazard ratio by time period; or stratify on the offending variable where it is a nuisance and not the exposure; or fit a time-varying coefficient. Reporting one hazard ratio and saying nothing about the violation is the one thing that must not happen
 adjusted_assumptions:
   - The random effect is correctly specified :: Compare a random intercept against a random slope by likelihood ratio :: Fit the richer structure
   - The residuals are approximately normal at each level :: Q-Q plot of the residuals and of the random effects :: Transform the outcome, or fit a generalised mixed model
   - Data are missing at random :: Compare those with and without complete series on baseline characteristics :: Report a sensitivity analysis under a departure from that assumption
+
+## continuous | two_groups | any | any | randomised_trial, non_inferiority_trial, cluster_trial, factorial_trial, pre_post
+
+why: Two arms and a measured outcome. Where the outcome was measured at baseline as well, the baseline value goes in as a covariate, which is what makes this ANCOVA rather than a comparison of final values. Where the outcome exists only after the intervention - blood loss, operative duration, time to a target - there is no baseline to adjust for and this is plain linear regression
+summary: Mean +/- SD where the distribution allows it, median (IQR) where it does not
+normality: Shapiro-Wilk in each group, read with a histogram and a Q-Q plot. p >= 0.05 uses the parametric row; p < 0.05 uses the non-parametric one
+parametric: Independent t-test, Welch where variances differ; mean difference with 95% CI
+  statistic: t(df)
+  effect: Cohen's d
+  adjusted: ANCOVA: linear regression on the final value with the baseline value as a covariate, adjusted mean difference with 95% CI; plain linear regression where the outcome was not measured at baseline
+  measures: Adjusted mean difference
+nonparametric: Mann-Whitney U; median (IQR) per group and Hodges-Lehmann median difference with 95% CI
+  statistic: U
+  effect: r = Z / sqrt(N)
+  adjusted: ANCOVA on the ranked outcome, or quantile (median) regression with the baseline value as a covariate, where the outcome was measured at baseline; quantile (median) regression without it where the outcome exists only after the intervention, as blood loss and time to a target do
+  measures: Hodges-Lehmann median difference
+post_hoc: -
+avoid: Comparing change scores, which is noisier than ANCOVA and answers the same question less precisely; comparing final values alone, which throws the baseline away; and testing whether the baseline values differ between arms, which tests the randomisation and not the treatment
+assumptions:
+  - Independence of observations :: Design check: one measurement per patient, and no patient in two groups :: Use a mixed-effects model
+  - Each group is approximately normal :: Shapiro-Wilk in each group, read with a histogram and a Q-Q plot :: Report the non-parametric row instead
+  - The two groups have similar variance :: Levene's test :: Use the Welch correction, which does not assume it
+adjusted_assumptions:
+  - The residuals are approximately normal :: Q-Q plot of the residuals :: Transform the outcome, or use quantile regression
+  - The residual variance is constant :: Residuals against fitted values :: Use robust standard errors
+  - The baseline value has a straight-line relation with the final value :: Plot one against the other :: Model the baseline with a spline
+  - The treatment effect does not depend on the baseline value :: Add a treatment by baseline interaction and test it :: Report the interaction rather than one adjusted mean difference
+  - No severe collinearity :: Variance inflation factor above 5 is a warning, above 10 a problem :: Drop one of a collinear pair
 
 ## continuous | two_groups | any | any | any
 
@@ -613,6 +645,25 @@ adjusted_assumptions:
   - The residual variance is constant :: Residuals against fitted values :: Use robust standard errors
   - No severe collinearity :: Variance inflation factor above 5 is a warning, above 10 a problem :: Drop one of a collinear pair, decided on clinical grounds
 
+## continuous | adjusted | any | any | randomised_trial, non_inferiority_trial, cluster_trial, factorial_trial, pre_post
+
+why: A measured outcome with confounders held constant, in a design that usually measures it at baseline as well
+summary: Mean +/- SD where the distribution allows it, median (IQR) where it does not
+test: Group means (SD) and the crude mean difference
+  statistic: t(df)
+  effect: Cohen's d
+post_hoc: -
+adjusted: ANCOVA: linear regression on the final value with the baseline value as a covariate and the confounders beside it, adjusted mean difference with 95% CI; without the baseline term where the outcome exists only after the intervention
+measures: Adjusted mean difference
+avoid: Comparing change scores; and adjusting for a variable on the causal path
+assumptions:
+  - Independence of observations :: Design check: one measurement per patient, and no patient in two groups :: Use a mixed-effects model
+adjusted_assumptions:
+  - The residuals are approximately normal :: Q-Q plot of the residuals :: Transform the outcome, or use quantile regression
+  - The residual variance is constant :: Residuals against fitted values :: Use robust standard errors
+  - The baseline value has a straight-line relation with the final value :: Plot one against the other :: Model the baseline with a spline
+  - No severe collinearity :: Variance inflation factor above 5 is a warning, above 10 a problem :: Drop one of a collinear pair
+
 ## continuous | adjusted | any | any | any
 
 why: A continuous outcome with confounders held constant
@@ -677,7 +728,7 @@ assumptions:
   - Each pair is independent of every other pair :: Design check :: Account for the clustering
   - The distribution of the differences is symmetric :: Histogram of the paired differences :: Report the sign test, which assumes only a median
   - Censoring is independent of the outcome :: Compare those censored with those still at risk :: Report a sensitivity analysis under informative censoring
-  - Hazards are proportional over time :: Schoenfeld residuals against time, and log-minus-log curves :: Fit a time-varying coefficient or stratify on the offending variable
+  - Hazards are proportional over time :: Schoenfeld residuals against time, and log-minus-log curves :: Report restricted mean survival time to a horizon fixed in advance, which assumes nothing about proportionality; or report the hazard ratio by time period; or stratify on the offending variable where it is a nuisance and not the exposure; or fit a time-varying coefficient. Reporting one hazard ratio and saying nothing about the violation is the one thing that must not happen
 adjusted_assumptions:
   - The random effect is correctly specified :: Compare a random intercept against a random slope by likelihood ratio :: Fit the richer structure
   - The residuals are approximately normal at each level :: Q-Q plot of the residuals and of the random effects :: Transform the outcome, or fit a generalised mixed model
@@ -839,56 +890,56 @@ adjusted_assumptions:
 ## time_to_event | two_groups | any | any | any
 
 why: Time to an event, compared between two groups
-summary: Events / N, and median survival with 95% CI
+summary: Events / N, and median survival with 95% CI, read from a Kaplan-Meier curve with the numbers at risk printed beneath it
 test: Kaplan-Meier curves with the log-rank test; median survival with 95% CI
   statistic: chi-square(df)
   effect: Hazard ratio
 post_hoc: Pairwise log-rank with Bonferroni adjustment, where there are more than two groups
-adjusted: Cox proportional-hazards regression, adjusted HR with 95% CI; the assumption is checked on Schoenfeld residuals
+adjusted: Cox proportional-hazards regression, adjusted HR with 95% CI; the assumption is checked on Schoenfeld residuals. Where a competing event can prevent the outcome, cause-specific Cox for a question about mechanism and Fine-Gray for a question about a patient's prognosis: the two estimate different quantities and are not expected to agree
 measures: Hazard ratio; Difference in median survival; Difference in restricted mean survival time
-avoid: Kaplan-Meier where a competing event prevents the outcome: use cumulative incidence and Fine-Gray
+avoid: Kaplan-Meier where a competing event prevents the outcome, and one minus Kaplan-Meier as a risk: both count a patient who died of something else as though they could still have the outcome. Report the cumulative incidence function
 assumptions:
   - Censoring is independent of the outcome :: Compare those censored with those still at risk :: Report a sensitivity analysis under informative censoring
-  - Hazards are proportional over time :: Schoenfeld residuals against time, and log-minus-log curves :: Fit a time-varying coefficient or stratify on the offending variable
+  - Hazards are proportional over time :: Schoenfeld residuals against time, and log-minus-log curves :: Report restricted mean survival time to a horizon fixed in advance, which assumes nothing about proportionality; or report the hazard ratio by time period; or stratify on the offending variable where it is a nuisance and not the exposure; or fit a time-varying coefficient. Reporting one hazard ratio and saying nothing about the violation is the one thing that must not happen
 adjusted_assumptions:
   - Censoring is independent of the outcome :: Compare those censored with those still at risk :: Report a sensitivity analysis under informative censoring
-  - Hazards are proportional over time :: Schoenfeld residuals against time, and log-minus-log curves :: Fit a time-varying coefficient or stratify on the offending variable
+  - Hazards are proportional over time :: Schoenfeld residuals against time, and log-minus-log curves :: Report restricted mean survival time to a horizon fixed in advance, which assumes nothing about proportionality; or report the hazard ratio by time period; or stratify on the offending variable where it is a nuisance and not the exposure; or fit a time-varying coefficient. Reporting one hazard ratio and saying nothing about the violation is the one thing that must not happen
 
 ## time_to_event | association | any | any | any
 
 why: Time to an event with a predictor
-summary: Events / N, and median survival with 95% CI
+summary: Events / N, and median survival with 95% CI, read from a Kaplan-Meier curve with the numbers at risk printed beneath it
 test: Univariable Cox regression, HR with 95% CI
   statistic: Wald chi-square(df), and the score (log-rank) test
   effect: Harrell's c-statistic
 post_hoc: -
-adjusted: Multivariable Cox regression, adjusted HR with 95% CI; proportional hazards checked on Schoenfeld residuals
+adjusted: Multivariable Cox regression, adjusted HR with 95% CI; proportional hazards checked on Schoenfeld residuals. Where a competing event can prevent the outcome, cause-specific Cox for a question about mechanism and Fine-Gray for a question about a patient's prognosis
 measures: Hazard ratio per unit
 avoid: Reporting a hazard ratio without testing proportional hazards
 assumptions:
   - Censoring is independent of the outcome :: Compare those censored with those still at risk :: Report a sensitivity analysis under informative censoring
-  - Hazards are proportional over time :: Schoenfeld residuals against time, and log-minus-log curves :: Fit a time-varying coefficient or stratify on the offending variable
+  - Hazards are proportional over time :: Schoenfeld residuals against time, and log-minus-log curves :: Report restricted mean survival time to a horizon fixed in advance, which assumes nothing about proportionality; or report the hazard ratio by time period; or stratify on the offending variable where it is a nuisance and not the exposure; or fit a time-varying coefficient. Reporting one hazard ratio and saying nothing about the violation is the one thing that must not happen
 adjusted_assumptions:
   - Censoring is independent of the outcome :: Compare those censored with those still at risk :: Report a sensitivity analysis under informative censoring
-  - Hazards are proportional over time :: Schoenfeld residuals against time, and log-minus-log curves :: Fit a time-varying coefficient or stratify on the offending variable
+  - Hazards are proportional over time :: Schoenfeld residuals against time, and log-minus-log curves :: Report restricted mean survival time to a horizon fixed in advance, which assumes nothing about proportionality; or report the hazard ratio by time period; or stratify on the offending variable where it is a nuisance and not the exposure; or fit a time-varying coefficient. Reporting one hazard ratio and saying nothing about the violation is the one thing that must not happen
 
 ## time_to_event | adjusted | any | any | any
 
 why: Time to an event with confounders held constant
-summary: Events / N, and median survival with 95% CI
+summary: Events / N, and median survival with 95% CI, read from a Kaplan-Meier curve with the numbers at risk printed beneath it
 test: Kaplan-Meier by group, with the log-rank test
   statistic: chi-square(df)
   effect: Hazard ratio
 post_hoc: -
 adjusted: Multivariable Cox regression, adjusted HR with 95% CI; a time-varying covariate or a stratified model where the assumption fails
 measures: Hazard ratio
-avoid: Ignoring a competing risk
+avoid: Ignoring a competing risk, and reporting one minus Kaplan-Meier as the risk where one exists
 assumptions:
   - Censoring is independent of the outcome :: Compare those censored with those still at risk :: Report a sensitivity analysis under informative censoring
-  - Hazards are proportional over time :: Schoenfeld residuals against time, and log-minus-log curves :: Fit a time-varying coefficient or stratify on the offending variable
+  - Hazards are proportional over time :: Schoenfeld residuals against time, and log-minus-log curves :: Report restricted mean survival time to a horizon fixed in advance, which assumes nothing about proportionality; or report the hazard ratio by time period; or stratify on the offending variable where it is a nuisance and not the exposure; or fit a time-varying coefficient. Reporting one hazard ratio and saying nothing about the violation is the one thing that must not happen
 adjusted_assumptions:
   - Censoring is independent of the outcome :: Compare those censored with those still at risk :: Report a sensitivity analysis under informative censoring
-  - Hazards are proportional over time :: Schoenfeld residuals against time, and log-minus-log curves :: Fit a time-varying coefficient or stratify on the offending variable
+  - Hazards are proportional over time :: Schoenfeld residuals against time, and log-minus-log curves :: Report restricted mean survival time to a horizon fixed in advance, which assumes nothing about proportionality; or report the hazard ratio by time period; or stratify on the offending variable where it is a nuisance and not the exposure; or fit a time-varying coefficient. Reporting one hazard ratio and saying nothing about the violation is the one thing that must not happen
 
 ## any | descriptive | any | any | any
 
