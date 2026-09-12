@@ -210,7 +210,10 @@ export function buildTables(
       number: next(),
       block: "descriptive",
       kind: "descriptive",
-      title: `Baseline ${block} by ${byGroup}`,
+      // A study with nothing to split by is summarised whole. "Baseline
+      // characteristics by group" printed a second column that no study with
+      // one cohort can fill.
+      title: comparative ? `Baseline ${block} by ${byGroup}` : `Baseline ${block}`,
       columns: comparative
         ? ["Variable", ...groupColumns]
         : ["Variable", "n (%) or Mean ± SD"],
@@ -563,6 +566,10 @@ function skip(
     case "cox":
     case "ratio":
       return !level.adjusted;
+    // A ratio and a difference are what a yes-or-no outcome reports. Drawn for
+    // a quality-of-life score it asked for the prevalence ratio of a number.
+    case "ratio_difference":
+      return level.data_type !== "binary" || !level.adjusted;
     case "rate_of_change":
     case "figure":
       return !shape?.adjusted;
@@ -597,6 +604,12 @@ function situationOf(
     const question = questionOf(chain);
     return question === "accuracy" ? "diagnostic" : `diagnostic_${question}`;
   }
+  // What the outcome says it is asked about, before its data type is read. A
+  // cohort's primary is a yes or no like any other, and drawn as one it gets a
+  // single two-by-two ratio table where the plan owes three: the screen of each
+  // factor, the adjusted model, and the ratio and difference by exposure.
+  if (chain.kind === "accuracy" && chain.exposures.length) return "accuracy_objective";
+  if (chain.kind === "association" && chain.exposures.length) return "association";
   if (facts.question_type === "prediction") return "prediction";
   if (isSafety(chain)) return "safety";
   if (rows.every((r) => r.exception === "estimation")) return "estimation";
@@ -1036,6 +1049,84 @@ function drawTable(args: DrawArgs): ShellTable {
           ? `${footnoteFor(level.unadjusted)}. Predictive values depend on how common the condition is here and do not transfer to a setting with a different prevalence`
           : "predictive values depend on how common the condition is here and do not transfer to a setting with a different prevalence",
         fills: [level.objective],
+      };
+    }
+
+    case "screen": {
+      // One row per factor, which is what "one factor at a time" means on the
+      // page. The footnote names the tests; the rows name what they are run on.
+      const factors = chain.exposures
+        .map((exposure) => byName.get(exposure.measure))
+        .filter((v): v is Variable => Boolean(v));
+      const outcomeLabel = byName.get(level.outcome)?.label ?? chain.what;
+      return {
+        ...base,
+        title: `Unadjusted association of each factor with ${lower(outcomeLabel)}`,
+        columns: [
+          "Factor",
+          `${outcomeLabel} - yes (n = )`,
+          `${outcomeLabel} - no (n = )`,
+          `Crude ${lower(level.effect_measure)} (95% CI)`,
+          "p",
+        ],
+        rows: factors.flatMap((v) => rowsFor(v, skewed)),
+        footnote: `${footnoteFor(level.unadjusted)}. Hypothesis-generating: this screen decides what the adjusted model can carry, and is not a set of confirmatory tests`,
+        fills: [level.objective],
+        variables: [level.outcome, ...factors.map((v) => v.name)],
+      };
+    }
+
+    case "ratio_difference": {
+      // The ratio and the difference beside it, by exposure. A ratio alone
+      // cannot say whether the difference matters, and rule 4.3 asks for both.
+      const factors = chain.exposures
+        .map((exposure) => byName.get(exposure.measure))
+        .filter((v): v is Variable => Boolean(v));
+      return {
+        ...base,
+        title: `${chain.what} by each factor`,
+        columns: [
+          "Exposure group",
+          `${byName.get(level.outcome)?.label ?? chain.what} n (%)`,
+          interval(level.effect_measure),
+          interval(level.absolute ?? "Absolute difference"),
+          "p",
+        ],
+        rows: factors.flatMap((v) =>
+          v.options?.length
+            ? v.options.map((option) => blank(`${v.label} - ${option}`))
+            : [
+                blank(
+                  `**TODO:** state the cut-off that splits ${v.label.toLowerCase()} into groups, then one row per group`,
+                ),
+              ],
+        ),
+        footnote: footnoteFor(level.adjusted, level.adjusted?.model),
+        fills: [level.objective],
+        variables: [level.outcome, ...factors.map((v) => v.name)],
+      };
+    }
+
+    case "delong": {
+      // Every pair of curves, which is what a reader compares. Six rows for
+      // four index tests, and the table says which pair each row is.
+      const tests = level.predictors
+        .map((name) => byName.get(name))
+        .filter((v): v is Variable => Boolean(v));
+      const pairs = tests.flatMap((first, i) =>
+        tests.slice(i + 1).map((second) => blank(`${first.label} versus ${second.label}`)),
+      );
+      return {
+        ...base,
+        title: "Pairwise comparison of the areas under the curve",
+        columns: ["Comparison", "Difference in area", "95% CI", "p"],
+        rows: pairs.length
+          ? pairs
+          : [blank("**TODO:** name a second value to compare the first against")],
+        footnote:
+          "DeLong's test for correlated ROC curves, which is the paired form: every value is read on the same participants",
+        fills: [level.objective],
+        variables: level.predictors,
       };
     }
 

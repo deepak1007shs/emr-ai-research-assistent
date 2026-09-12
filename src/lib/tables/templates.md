@@ -29,6 +29,8 @@ attaches to the table before it and takes that table's number with a letter.
 | time_to_event_competing | Time to an event, with a competing event | cumulative_incidence, overlap, cox, fit |
 | count_outcome | Counts | summary, unadjusted, overlap, adjusted, fit |
 | count_repeated | Counts, measured three times or more | summary, unadjusted, per_time_point, rate_of_change, fit, overlap, adjusted, fit |
+| association | Factors observed within one cohort | screen, overlap, adjusted, fit, ratio_difference |
+| accuracy_objective | One objective asking how well measured values identify the outcome | accuracy, delong |
 | diagnostic | A test against a reference standard | two_by_two, accuracy |
 | diagnostic_correlation | A diagnostic study's index tests against an ordered grade | correlation_index |
 | diagnostic_comparison | A diagnostic study's index values between the reference standard's results | by_reference |
