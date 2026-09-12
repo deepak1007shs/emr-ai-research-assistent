@@ -64,6 +64,12 @@ export const CHECKS: Check[] = [
     rule: "Every word in the title that promises an analysis maps to an objective id, or to a TODO." },
   { id: "S1-4", step: "step1", type: "block",
     rule: "Every outcome measured more than once has both a level objective and a shape objective." },
+  // Not in the written process. A trauma cohort stating five objectives got a
+  // plan answering three - shock and lactate, and fasciotomy, became
+  // confounders of another question - and all forty-three checks passed,
+  // because not one of them compares the plan with the protocol's own list.
+  { id: "S1-5", step: "step1", type: "block",
+    rule: "Every objective the protocol states reaches an objective of the plan, or is recorded as a decision." },
 
   /* ---- Step 2: the master variable list ----------------------------- */
   { id: "S2-1", step: "step2", type: "block",

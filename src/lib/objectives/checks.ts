@@ -89,6 +89,45 @@ export function step1Checks(
         },
   );
 
+  /* S1-5: nothing the protocol asks for is missing from the plan. */
+  // Structural, never a word match. A stated objective names the measure it is
+  // about and the factors it asks about, and an outcome chain covers it when it
+  // reports that measure and estimates those factors. The words either side are
+  // a statistician's and a surgeon's, and matching them would find nothing.
+  const outcomes = [facts.primary, ...facts.secondary];
+  const settled = new Set(facts.decisions.map((decision) => decision.item.toLowerCase()));
+  const unanswered = facts.stated_objectives.filter((stated) => {
+    if (settled.has(stated.text.toLowerCase())) return false;
+    return !outcomes.some((chain) => {
+      const reports =
+        !stated.outcome ||
+        chain.measures.includes(stated.outcome) ||
+        anchorOf(facts, chain) === stated.outcome;
+      const estimates = stated.factors.every((factor) =>
+        chain.exposures.some((exposure) => exposure.measure === factor),
+      );
+      return reports && estimates;
+    });
+  });
+
+  results.push(
+    unanswered.length === 0
+      ? ok(
+          "S1-5",
+          facts.stated_objectives.length
+            ? `All ${facts.stated_objectives.length} objectives the protocol states reach an objective of the plan.`
+            : "The protocol's objectives were not recorded, so there is nothing to check against.",
+        )
+      : {
+          id: "S1-5",
+          pass: false,
+          failing: unanswered.map((stated) => stated.text),
+          message: `The protocol asks ${unanswered.length === 1 ? "this and the plan does not answer it" : `these ${unanswered.length} things and the plan answers none of them`}: ${unanswered
+            .map((stated) => `"${stated.text}"`)
+            .join("; ")}. An objective that becomes a confounder of another question has not been answered, it has been removed.`,
+        },
+  );
+
   /* S1-4: a repeated outcome owes a level question and a shape question. */
   const chains = [facts.primary, ...facts.secondary].filter(isRepeated);
   const halfDone = chains.filter((chain) => {

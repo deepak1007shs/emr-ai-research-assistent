@@ -148,6 +148,32 @@ export const idaPreg: FactsSheet = {
       measures: ["adverse_effects"],
     },
   ],
+  // The protocol's own objectives, as its objectives section lists them. Check
+  // S1-5 reads these: a plan that answers three of four has lost one, and
+  // before this field nothing recorded that it ever had four.
+  stated_objectives: [
+    {
+      text: "To compare the rise in haemoglobin between intravenous ferric carboxymaltose and oral ferrous ascorbate",
+      outcome: "haemoglobin",
+      factors: [],
+    },
+    {
+      text: "To compare the proportion of women whose anaemia is corrected at six weeks",
+      outcome: "haemoglobin",
+      factors: [],
+    },
+    {
+      text: "To compare the rise in serum ferritin between the two arms",
+      outcome: "serum_ferritin",
+      factors: [],
+    },
+    {
+      text: "To record the adverse effects of each preparation",
+      outcome: "adverse_effects",
+      factors: [],
+    },
+  ],
+  decisions: [],
   exploratory_ideas: [
     {
       question:

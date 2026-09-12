@@ -126,6 +126,33 @@ export const elastography: FactsSheet = {
       ["stiffness_mean", "stiffness_max", "ratio_mean", "malignant"],
     ),
   ],
+  // The outcome each objective is about, and no factors. This study's chains
+  // still route through the diagnostic branch by design rather than by kind,
+  // so they carry no exposures, and naming factors here would assert something
+  // the chains do not hold - which is what S1-5 exists to catch.
+  stated_objectives: [
+    {
+      text: "To evaluate the diagnostic accuracy of normalised shear-wave stiffness in differentiating benign from malignant thyroid nodules",
+      outcome: "malignant",
+      factors: [],
+    },
+    {
+      text: "To compare the diagnostic accuracy of normalised stiffness with that of absolute stiffness",
+      outcome: "malignant",
+      factors: [],
+    },
+    {
+      text: "To correlate normalised stiffness with the Bethesda category",
+      outcome: "bethesda",
+      factors: [],
+    },
+    {
+      text: "To compare absolute and normalised stiffness between benign and malignant nodules",
+      outcome: "stiffness_mean",
+      factors: [],
+    },
+  ],
+  decisions: [],
   exploratory_ideas: [
     {
       question: "Does the accuracy of normalised stiffness differ by nodule size?",

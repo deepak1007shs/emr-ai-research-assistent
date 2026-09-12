@@ -20,6 +20,14 @@ import type { FactsSheet } from "../study/types.ts";
  * Its analysis plan is pinned in `sap/vishal.test.ts`.
  */
 export const vishal: FactsSheet = {
+  // Left empty on purpose. The thesis states five objectives - ischaemia,
+  // mechanism, anatomical level, shock and lactate, fasciotomy - and the plan
+  // written for this study answers them as three: two became confounders of
+  // another question. Filling this in would settle which of the two documents
+  // is the authority, and that is the investigator's call, not this fixture's.
+  // Until it is made, S1-5 has nothing to check here and says so.
+  stated_objectives: [],
+  decisions: [],
   "aim": "To determine the various factors affecting the amputation rates among the patients presenting with extremity vascular trauma",
   "frame": "PECO",
   "title": "FACTORS AFFECTING THE RATES OF AMPUTATIONS AMONG THE PATIENTS SUSTAINING VASCULAR TRAUMA TO THE EXTREMITIES",

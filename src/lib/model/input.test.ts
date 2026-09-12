@@ -93,7 +93,14 @@ const REVIEW = "7f83f9a7cbbdf781";
 // adjusted a cohort's primary for ten factors on sixteen events, where the plan
 // written for that study adjusts for four. Take `covariates` out of
 // `outcomeChain` and the previous hash returns.
-const FACTS = "27f93e634c48ed70";
+//
+// And once more, 27f93e634c48ed70 to bea4963f6406e439, for the two fields that
+// make the reading answerable to the protocol rather than only to itself: the
+// objectives section as the protocol writes it, and every open point that had
+// to be settled with who settled it. A trauma cohort stating five objectives
+// got a plan answering three, and no check could ask where the other two went,
+// because nothing held the five.
+const FACTS = "bea4963f6406e439";
 
 describe("what the model receives", () => {
   process.env.ANTHROPIC_API_KEY = "test";

@@ -179,6 +179,45 @@ export type OutcomeChain = {
   covariates: NamedCovariate[];
 };
 
+/**
+ * One objective as the protocol writes it.
+ *
+ * The field whose absence let a trauma cohort lose two of its five objectives.
+ * The reading recorded the aim, the outcomes and the covariates, and nothing
+ * held "To assess the role of systemic factors such as shock and lactate" - so
+ * when shock and lactate became confounders of another question, no check could
+ * ask where that objective had gone.
+ *
+ * `outcome` and `factors` are measure names rather than prose, so check S1-5 is
+ * a set operation and never a word match.
+ */
+export type StatedObjective = {
+  /** The objective as the protocol writes it, word for word. */
+  text: string;
+  /** The measure it is about, where it names one. */
+  outcome: VariableName | null;
+  /** The measures it asks about. Empty for an objective that estimates. */
+  factors: VariableName[];
+};
+
+/**
+ * A point the protocol left open, settled so the plan could be built.
+ *
+ * Who settled it is the part that matters. An investigator reading their own
+ * improved protocol has to be able to see which lines they chose and which the
+ * application supplied, or the document asserts things its author never agreed
+ * to - and a supervisor asking "why six hours?" gets no answer.
+ */
+export type Decision = {
+  /** What was open: "the ischaemia cut-off", "the complication grading". */
+  item: string;
+  /** What it was settled as. */
+  chosen: string;
+  source: "protocol" | "investigator" | "app";
+  /** One line: why this and not something else. */
+  why: string;
+};
+
 /** One factor an objective is about, with the level the others are read against. */
 export type Exposure = {
   measure: VariableName;
@@ -390,6 +429,15 @@ export type FactsSheet = {
   measures: Measure[];
   primary: OutcomeChain;
   secondary: OutcomeChain[];
+  /**
+   * The protocol's objectives section, verbatim, in the order it lists them.
+   *
+   * Read before anything is built from it, and checked afterwards: S1-5 refuses
+   * a plan that answers fewer objectives than the protocol states.
+   */
+  stated_objectives: StatedObjective[];
+  /** Every open point settled to build the plan, and who settled it. */
+  decisions: Decision[];
   /** Anything in the aims or hypothesis that is not a formal objective. */
   exploratory_ideas: ExploratoryIdea[];
   covariates: NamedCovariate[];

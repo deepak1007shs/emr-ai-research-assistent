@@ -51,6 +51,21 @@ const timeToEvent: FactsSheet = {
     distribution: "unknown",
   },
   secondary: [idaPreg.secondary[2]],
+  // This variant keeps one secondary, so it states the objectives it keeps. The
+  // inherited four named a ferritin outcome this study does not have, and S1-5
+  // said so - which is the check working on a fixture, before a protocol.
+  stated_objectives: [
+    {
+      text: "To compare the time to correction of anaemia between the two arms",
+      outcome: "haemoglobin",
+      factors: [],
+    },
+    {
+      text: "To record the adverse effects of each preparation",
+      outcome: "adverse_effects",
+      factors: [],
+    },
+  ],
   exploratory_ideas: [],
 };
 
@@ -83,6 +98,18 @@ const competingRisk: FactsSheet = {
     competing_event: "death from any cause",
   },
   secondary: [idaPreg.secondary[2]],
+  stated_objectives: [
+    {
+      text: "To compare the time to relapse of anaemia between the two arms",
+      outcome: "haemoglobin",
+      factors: [],
+    },
+    {
+      text: "To record the adverse effects of each preparation",
+      outcome: "adverse_effects",
+      factors: [],
+    },
+  ],
   exploratory_ideas: [],
 };
 

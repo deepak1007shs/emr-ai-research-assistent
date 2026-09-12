@@ -95,7 +95,11 @@ function factors(outcome: OutcomeChain, facts: FactsSheet): string {
 /** The covariates an adjusted model holds constant, for the question's tail. */
 function heldConstant(facts: FactsSheet, outcome: OutcomeChain): string {
   const exposures = new Set(outcome.exposures.map((e) => e.measure));
-  const labels = facts.covariates
+  // What this objective holds constant, which is what its model fits. Reading
+  // the Facts Sheet's global list here while Step 4 read the outcome's own
+  // made the question promise eleven confounders and the model fit four.
+  const named = outcome.covariates.length ? outcome.covariates : facts.covariates;
+  const labels = named
     .filter((covariate) => !exposures.has(covariate.measure))
     .map((covariate) => {
       const measure = facts.measures.find((m) => m.name === covariate.measure);
@@ -126,7 +130,13 @@ function levelQuestion(outcome: OutcomeChain, facts: FactsSheet): string {
           : lower(outcome.what);
 
   if (outcome.kind === "accuracy" && outcome.exposures.length) {
-    return `How well do ${factors(outcome, facts)} identify ${lower(outcome.what)}?`;
+    // What is identified is the condition, which is the measure the outcome is
+    // read against - not the outcome's own wording. An outcome written
+    // "diagnostic accuracy of MESS and GANGA for predicting amputation" asked
+    // how well MESS and GANGA identify the diagnostic accuracy of MESS and
+    // GANGA.
+    const condition = facts.measures.find((m) => m.name === outcome.measures[0]);
+    return `How well do ${factors(outcome, facts)} identify ${lower(condition?.label ?? outcome.what)}?`;
   }
 
   if (outcome.kind === "association" && outcome.exposures.length) {

@@ -93,7 +93,7 @@ export const FACTS_JSON_SCHEMA = {
   additionalProperties: false,
   required: [
     "title", "aim", "hypothesis", "question_type", "unit_of_analysis", "exposure_fixed_at_baseline", "population", "intervention", "comparator", "design", "design_label", "guideline", "frame", "groups", "allocation",
-    "timepoints", "measures", "visit_schedule", "primary", "secondary", "exploratory_ideas", "covariates",
+    "timepoints", "measures", "visit_schedule", "stated_objectives", "decisions", "primary", "secondary", "exploratory_ideas", "covariates",
     "proforma", "sample_size", "stated_rules", "open_items",
   ],
   properties: {
@@ -180,6 +180,31 @@ export const FACTS_JSON_SCHEMA = {
     },
     primary: { ...outcomeChain, description: "The one primary outcome. If the protocol names more than one, choose the one the title and aim promise and list the rest in open_items." },
     secondary: { type: "array", items: outcomeChain, description: "Each secondary outcome, with the same chain. Include one that appears only in the methods." },
+    stated_objectives: {
+      type: "array",
+      description: "The protocol's own objectives, from its aims and objectives section, one entry for each, in the order it lists them. Read this section before anything else and copy what it says: never merge two objectives into one, never split one into two, and never leave one out because another objective covers the same outcome. A protocol listing five objectives whose plan answers three has lost two, and this is the only field that records it.",
+      items: {
+        type: "object", additionalProperties: false, required: ["text", "outcome", "factors"],
+        properties: {
+          text: { ...str, description: "The objective as the protocol writes it, word for word." },
+          outcome: { type: "string", description: "The name, from `measures`, of what this objective is about: the thing whose rate, value or occurrence it asks after. Empty where the protocol names none." },
+          factors: { ...strArray, description: "The names, from `measures`, of the factors this objective asks about. 'To assess the role of shock and lactate on amputation rates' has two. Empty for an objective that only estimates something." },
+        },
+      },
+    },
+    decisions: {
+      type: "array",
+      description: "Every point the protocol leaves open that had to be settled before the plan could be built: a cut-off it does not give, an outcome it does not define, a grading scheme it does not name, a sample-size formula that does not match its design. Say what was settled on and who settled it. Empty where the protocol settles everything itself.",
+      items: {
+        type: "object", additionalProperties: false, required: ["item", "chosen", "source", "why"],
+        properties: {
+          item: { ...str, description: "What was open: 'the ischaemia cut-off', 'the complication grading scheme'." },
+          chosen: { ...str, description: "What it was settled as." },
+          source: { type: "string", enum: ["protocol", "investigator", "app"], description: "'protocol' where the protocol settles it after all, 'investigator' where the note supplied it, 'app' where neither did and you applied the recommendation. Be honest here: a line the investigator never wrote, printed as theirs, is a claim they cannot answer for." },
+          why: { ...str, description: "One line: why this and not something else." },
+        },
+      },
+    },
     exploratory_ideas: {
       type: "array",
       description: "Anything in the aims or the hypothesis that is not a formal objective. The hypothesis often names one, and it is often the only place a variable is mentioned.",
@@ -349,6 +374,28 @@ export const factsSchema = z
         measures: z.array(z.string()),
       }),
     ),
+    // Defaulted, so a reading stored before these fields existed still parses
+    // and still builds its plan. A protocol read after them says what its
+    // objectives are and who settled what.
+    stated_objectives: z
+      .array(
+        z.object({
+          text: z.string(),
+          outcome: absent,
+          factors: z.array(z.string()),
+        }),
+      )
+      .default([]),
+    decisions: z
+      .array(
+        z.object({
+          item: z.string(),
+          chosen: z.string(),
+          source: z.enum(["protocol", "investigator", "app"]),
+          why: z.string(),
+        }),
+      )
+      .default([]),
     primary: chain,
     secondary: z.array(chain),
     exploratory_ideas: z.array(
