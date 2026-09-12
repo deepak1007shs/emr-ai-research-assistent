@@ -64,7 +64,7 @@ describe("the protocol rail", () => {
     // the form had been removed from the application - which stopped being
     // true when the form was built from the plan's own objects.
     const text = open([protocol()]);
-    for (const shown of ["Review", "Plan", "Form"]) {
+    for (const shown of ["Review", "SAP", "CRF"]) {
       expect(text, shown).toContain(shown);
     }
     expect(text).not.toContain("Shell Tables");

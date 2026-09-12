@@ -20,11 +20,16 @@ export const DOC_LABEL: Record<DocKind, string> = {
   crf: "Case Record Form",
 };
 
-/** The short form, for the rail where the protocol name already takes the width. */
+/**
+ * The short form, for the rail where the protocol name already takes the width.
+ *
+ * The initials rather than the words: everyone who uses this calls them the SAP
+ * and the CRF, and a rail is read at a glance.
+ */
 export const DOC_SHORT: Record<DocKind, string> = {
   review: "Review",
-  sap: "Plan",
-  crf: "Form",
+  sap: "SAP",
+  crf: "CRF",
 };
 
 // The order they are made in, which is also the order they are read in: the
