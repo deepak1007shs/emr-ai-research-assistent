@@ -8,6 +8,7 @@ import type {
   Variable,
   VariableName,
 } from "../study/types.ts";
+import type { FieldType } from "../study/vocabulary.ts";
 import { chainOfObjective } from "../objectives/build.ts";
 import { STUDY } from "../variables/build.ts";
 
@@ -55,6 +56,16 @@ export type FieldNeed = {
    * A field with a variable takes its options from the variable instead.
    */
   options: string[] | null;
+  /**
+   * The kind of answer space, for an infrastructure field.
+   *
+   * A field with a variable takes its type from the variable's data type, which
+   * the reading recorded. A synthesised one has no variable, and working its
+   * type out from its own label would be deciding by wording - the thing this
+   * build refuses everywhere else - so the field says what it is when it is
+   * made.
+   */
+  type: FieldType | null;
 };
 
 export type FieldList = {
@@ -215,7 +226,12 @@ export function buildFieldList(input: FieldInput): FieldList {
 
   /* ---- C5: capture infrastructure ------------------------------------ */
   const infrastructure: FieldNeed[] = [];
-  const infra = (label: string, timepoints: Timepoint[], traces: CrfTrace[] = []) => {
+  const infra = (
+    label: string,
+    timepoints: Timepoint[],
+    type: FieldType,
+    traces: CrfTrace[] = [],
+  ) => {
     infrastructure.push({
       source: "infrastructure",
       label,
@@ -224,6 +240,7 @@ export function buildFieldList(input: FieldInput): FieldList {
       needed: [],
       traces: traces.length ? traces : [{ infrastructure: true }],
       options: null,
+      type,
     });
   };
 
@@ -231,7 +248,7 @@ export function buildFieldList(input: FieldInput): FieldList {
   const firstVisit = facts.visit_schedule.find((v) => v.timepoint === first);
   const later = facts.visit_schedule.filter((v) => v.timepoint !== first);
 
-  infra(STUDY_ID, first ? [first] : []);
+  infra(STUDY_ID, first ? [first] : [], "text");
 
   // The dates the study needs. A model of the rate of change is fitted on the
   // time of each reading, and no protocol records that as a measure: the
@@ -240,12 +257,14 @@ export function buildFieldList(input: FieldInput): FieldList {
   // dates carry its table number, so Gate C can see what they are for.
   const timed = tables.filter((t) => t.kind === "rate_of_change");
   const forTime: CrfTrace[] = timed.map((t) => ({ table: t.number }));
-  if (firstVisit) infra(enrolmentLabel(firstVisit.label), [firstVisit.timepoint], forTime);
+  if (firstVisit) {
+    infra(enrolmentLabel(firstVisit.label), [firstVisit.timepoint], "date", forTime);
+  }
   for (const visit of later) {
-    infra(VISIT_DATE, [visit.timepoint], forTime);
+    infra(VISIT_DATE, [visit.timepoint], "date", forTime);
   }
 
-  infra(COMPLETED_BY, first ? [first] : []);
+  infra(COMPLETED_BY, first ? [first] : [], "text");
 
   // Who finished the study and who did not. It is on the form for the same
   // reason the visit dates are: the plan's primary block opens with an analysis
@@ -262,6 +281,7 @@ export function buildFieldList(input: FieldInput): FieldList {
       needed: [],
       traces: [{ infrastructure: true }],
       options: [...COMPLETION_OPTIONS],
+      type: "single_select",
     });
   }
 
@@ -283,6 +303,7 @@ export function buildFieldList(input: FieldInput): FieldList {
       needed,
       traces: entry.traces,
       options: null,
+      type: null,
     });
   }
 
@@ -296,7 +317,7 @@ export function buildFieldList(input: FieldInput): FieldList {
   const todos: string[] = [];
   const identifiers = variables.filter((v) => v.roles[STUDY] === "administrative");
   for (const variable of identifiers) {
-    infra(variable.label, variable.timepoints, [{ infrastructure: true }]);
+    infra(variable.label, variable.timepoints, "text", [{ infrastructure: true }]);
   }
   if (identifiers.length) {
     todos.push(
