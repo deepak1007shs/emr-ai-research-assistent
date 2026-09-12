@@ -31,11 +31,30 @@ const DATA_TYPES = [
   "time_to_event",
 ] as const;
 
+const CHAIN_KINDS = ["comparison", "association", "accuracy", "estimation"] as const;
+
 const outcomeChain = {
   type: "object",
   additionalProperties: false,
-  required: ["what", "how", "instrument", "time", "unit", "type", "measures", "distribution", "expected_frequency", "competing_event"],
+  required: ["what", "how", "instrument", "time", "unit", "type", "measures", "distribution", "expected_frequency", "competing_event", "kind", "exposures"],
   properties: {
+    kind: {
+      type: "string",
+      enum: CHAIN_KINDS,
+      description: "What this outcome is asked about. 'comparison' where named groups are compared, the way a trial compares its arms. 'association' where the factors are variables inside one cohort - duration of ischaemia, mechanism of injury, whether a procedure was done - and the study has no arms. 'accuracy' where measured values are asked how well they identify the outcome: a score, a biomarker, or an index test against a reference standard. 'estimation' only where the study genuinely reports one number and compares nothing, as a prevalence survey does. Most outcomes of an observational study are an association, not an estimation.",
+    },
+    exposures: {
+      type: "array",
+      description: "For an association or an accuracy outcome, the factors this objective is actually about, in the order the protocol names them. Empty for a comparison or an estimation. These are what the analysis estimates; the confounders it holds constant belong in `covariates` and are not repeated here. A protocol asking 'is amputation associated with ischaemia time, mechanism and level of injury, adjusted for age and shock' has three exposures here and age and shock as covariates.",
+      items: {
+        type: "object", additionalProperties: false, required: ["measure", "at", "reference"],
+        properties: {
+          measure: { ...str, description: "The name, from `measures`, of the factor." },
+          at: { type: "string", description: "The visit code the value is taken at, where it is recorded at several. Empty otherwise." },
+          reference: { type: "string", description: "For a categorical factor, the category the others are compared with: 'Blunt', 'No shock'. Empty for a measured value." },
+        },
+      },
+    },
     what: { ...str, description: "Exactly what is measured. 'Change in haemoglobin', not 'efficacy'." },
     how: { ...str, description: "The method or definition: how the value is arrived at." },
     instrument: { ...str, description: "The tool, scale, assay or criteria used." },
@@ -255,6 +274,14 @@ const chain = z.object({
   distribution: z.enum(["normal", "skewed", "unknown"]),
   expected_frequency: z.number().nullable(),
   competing_event: absent,
+  // Defaulted rather than required, so that a reading stored before these
+  // fields existed still parses and still builds its plan. A protocol read
+  // after them says which it is; one read before is a comparison, which is
+  // what every study the application had built until then actually was.
+  kind: z.enum(CHAIN_KINDS).default("comparison"),
+  exposures: z
+    .array(z.object({ measure: z.string(), at: absent, reference: absent }))
+    .default([]),
 });
 
 export const factsSchema = z

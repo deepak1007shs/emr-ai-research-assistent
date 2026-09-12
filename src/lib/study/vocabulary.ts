@@ -74,6 +74,23 @@ export type ObjectiveFamily = "primary" | "secondary" | "exploratory";
  */
 export type ObjectiveKind = "level" | "shape" | "single";
 
+/**
+ * What an outcome is asked about, which decides the whole analysis.
+ *
+ * A property of the objective and not of the study: one protocol asks an
+ * association of its primary outcome and an accuracy of its first secondary,
+ * and its own analysis plan says so - "the comparator differs by objective, not
+ * one fixed group".
+ *
+ * This was read off `groups.length` until a cohort study of amputation after
+ * vascular trauma went through. Its exposures are variables rather than arms,
+ * so `groups` was empty, so every objective was taken to compare nothing: the
+ * plan estimated eleven proportions, fitted no model, and left thirteen
+ * correctly read covariates unused. `estimation` now means what it says, and
+ * nothing else infers it.
+ */
+export type ChainKind = "comparison" | "association" | "accuracy" | "estimation";
+
 /** Where an objective came from, so a reader can tell a promise from a plan. */
 export type ObjectiveSource = "objective" | "hypothesis" | "title_promise";
 

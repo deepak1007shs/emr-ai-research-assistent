@@ -1,5 +1,6 @@
 import type {
   Block,
+  ChainKind,
   CrfPattern,
   DataType,
   DesignFamily,
@@ -144,6 +145,37 @@ export type OutcomeChain = {
    * can intervene, or where the event is death itself.
    */
   competing_event: string | null;
+  /**
+   * What this outcome is asked about: a comparison, an association, an
+   * accuracy or an estimation.
+   *
+   * The field the build was missing. Every step used to read the question off
+   * `facts.groups`, so a study with no arms was a study that compared nothing,
+   * and an analytical cohort came out as a prevalence survey. See `ChainKind`.
+   */
+  kind: ChainKind;
+  /**
+   * The factors this objective estimates, for an association or an accuracy.
+   *
+   * Not the confounders. A confounder is held constant and lives in
+   * `covariates`; an exposure is the thing whose association is being reported,
+   * and the difference is the difference between the analysis a protocol asks
+   * for and the one it gets. Empty for a comparison, where the groups are the
+   * exposure, and for an estimation, which compares nothing.
+   *
+   * Per outcome rather than per study, because one protocol asks an
+   * association of its primary and an accuracy of its first secondary.
+   */
+  exposures: Exposure[];
+};
+
+/** One factor an objective is about, with the level the others are read against. */
+export type Exposure = {
+  measure: VariableName;
+  /** The visit the value is taken at, where it is recorded at several. */
+  at: Timepoint | null;
+  /** The category the others are compared with. Null for a measured value. */
+  reference: string | null;
 };
 
 /**

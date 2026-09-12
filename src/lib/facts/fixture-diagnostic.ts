@@ -37,6 +37,11 @@ const chain = (
   distribution: "unknown",
   expected_frequency: null,
   competing_event: null,
+  // Left as a comparison while the diagnostic branch still routes off the
+  // design. The chain kind takes over from `facts.design` in its own change,
+  // and this fixture is what proves the two agree before the switch.
+  kind: "comparison",
+  exposures: [],
   measures,
 });
 

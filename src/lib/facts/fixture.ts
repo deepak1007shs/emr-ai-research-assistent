@@ -94,6 +94,8 @@ export const idaPreg: FactsSheet = {
     distribution: "normal",
     expected_frequency: null,
     competing_event: null,
+    kind: "comparison",
+    exposures: [],
     measures: ["haemoglobin"],
   },
   secondary: [
@@ -107,6 +109,8 @@ export const idaPreg: FactsSheet = {
       distribution: "unknown",
       expected_frequency: null,
       competing_event: null,
+      kind: "comparison",
+      exposures: [],
       measures: ["haemoglobin"],
     },
     {
@@ -121,6 +125,8 @@ export const idaPreg: FactsSheet = {
       distribution: "skewed",
       expected_frequency: null,
       competing_event: null,
+      kind: "comparison",
+      exposures: [],
       measures: ["serum_ferritin"],
     },
     {
@@ -133,6 +139,8 @@ export const idaPreg: FactsSheet = {
       distribution: "unknown",
       expected_frequency: null,
       competing_event: null,
+      kind: "comparison",
+      exposures: [],
       measures: ["adverse_effects"],
     },
   ],

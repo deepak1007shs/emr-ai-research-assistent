@@ -477,6 +477,8 @@ describe("the model-choice deck", () => {
           time: ["W6"],
           unit: "Yes / No",
           type: "binary",
+          kind: "comparison",
+          exposures: [],
           distribution: "unknown",
           expected_frequency: 0.5,
           competing_event: null,

@@ -77,7 +77,16 @@ const REVIEW = "7f83f9a7cbbdf781";
 // added to the system prompt as text, and the instruction's last line. The
 // schema itself was also corrected: eight fields where the model's schema and
 // the parser disagreed, and fifteen nullable text fields made plain text.
-const FACTS = "3e7e238ee471e506";
+// Re-pinned on 12 Sep 2026, when the outcome chain gained `kind` and
+// `exposures`. The output is meant to change, and this is the one change so far
+// made to improve it rather than to cut the bill: a cohort study whose factors
+// are variables rather than arms had no field to say so, so its plan estimated
+// eleven proportions, fitted no model, and left thirteen correctly read
+// covariates unused. The model is now asked which of a comparison, an
+// association, an accuracy or an estimation each outcome is, and which factors
+// it is about. Nothing else in the request moved: take the two fields out of
+// `outcomeChain` and it hashes to 3e7e238ee471e506 again.
+const FACTS = "f2687ad23fa6d4b2";
 
 describe("what the model receives", () => {
   process.env.ANTHROPIC_API_KEY = "test";
