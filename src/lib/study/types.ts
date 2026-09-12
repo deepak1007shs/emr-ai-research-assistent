@@ -198,6 +198,17 @@ export type StatedObjective = {
   outcome: VariableName | null;
   /** The measures it asks about. Empty for an objective that estimates. */
   factors: VariableName[];
+  /**
+   * Which part of the protocol states it.
+   *
+   * A methodology often states an objective the objectives section never
+   * repeats: a quality-of-life score assessed at three months, a follow-up
+   * assessment named only where the visits are described. Those are objectives
+   * and are analysed. What they are not is invisible - the plan says where each
+   * came from, and an objective found only in the methodology is one the
+   * investigator should add to the objectives section.
+   */
+  source: "objectives" | "methodology";
 };
 
 /**

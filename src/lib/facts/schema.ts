@@ -182,13 +182,14 @@ export const FACTS_JSON_SCHEMA = {
     secondary: { type: "array", items: outcomeChain, description: "Each secondary outcome, with the same chain. Include one that appears only in the methods." },
     stated_objectives: {
       type: "array",
-      description: "The protocol's own objectives, from its aims and objectives section, one entry for each, in the order it lists them. Read this section before anything else and copy what it says: never merge two objectives into one, never split one into two, and never leave one out because another objective covers the same outcome. A protocol listing five objectives whose plan answers three has lost two, and this is the only field that records it.",
+      description: "Every objective this study has, and nothing else. Read the aims and objectives section first, one entry for each objective, in the order it lists them: never merge two into one, never split one into two, and never leave one out because another objective covers the same outcome. Then read the methodology, and add any objective it states that the objectives section does not repeat - an outcome it says will be assessed, a score it says will be compared - marking it as coming from the methodology. A measurement the methodology merely says will be recorded is a variable, not an objective. Nothing else belongs here: this is the list the whole analysis is built from and checked against.",
       items: {
-        type: "object", additionalProperties: false, required: ["text", "outcome", "factors"],
+        type: "object", additionalProperties: false, required: ["text", "outcome", "factors", "source"],
         properties: {
           text: { ...str, description: "The objective as the protocol writes it, word for word." },
           outcome: { type: "string", description: "The name, from `measures`, of what this objective is about: the thing whose rate, value or occurrence it asks after. Empty where the protocol names none." },
           factors: { ...strArray, description: "The names, from `measures`, of the factors this objective asks about. 'To assess the role of shock and lactate on amputation rates' has two. Empty for an objective that only estimates something." },
+          source: { type: "string", enum: ["objectives", "methodology"], description: "'objectives' where the objectives section states it, 'methodology' where only the methodology does. The second is still an objective and is still analysed; saying so lets the plan tell the investigator to add it to the objectives section." },
         },
       },
     },
@@ -383,6 +384,7 @@ export const factsSchema = z
           text: z.string(),
           outcome: absent,
           factors: z.array(z.string()),
+          source: z.enum(["objectives", "methodology"]).default("objectives"),
         }),
       )
       .default([]),

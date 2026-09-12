@@ -100,7 +100,14 @@ const REVIEW = "7f83f9a7cbbdf781";
 // to be settled with who settled it. A trauma cohort stating five objectives
 // got a plan answering three, and no check could ask where the other two went,
 // because nothing held the five.
-const FACTS = "bea4963f6406e439";
+// And once more, bea4963f6406e439 to 245bfe0a836ac40e, when a stated objective
+// gained the part of the protocol it came from. A methodology often states an
+// objective the objectives section never repeats - a score assessed at three
+// months, an outcome named only where the visits are described - and those are
+// objectives and are analysed. Saying which is which lets the plan tell the
+// investigator to add it to the objectives section, rather than quietly
+// answering a question the protocol never asked in the place it asks them.
+const FACTS = "245bfe0a836ac40e";
 
 describe("what the model receives", () => {
   process.env.ANTHROPIC_API_KEY = "test";
