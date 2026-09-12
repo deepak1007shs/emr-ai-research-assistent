@@ -167,6 +167,16 @@ export type OutcomeChain = {
    * association of its primary and an accuracy of its first secondary.
    */
   exposures: Exposure[];
+  /**
+   * The confounders an adjusted model of this objective holds constant.
+   *
+   * Per objective, because the model for one outcome is not the model for
+   * another: the Facts Sheet's own list is global, and applied to every
+   * question it adjusted a cohort's primary for ten factors where its written
+   * plan adjusts for four, on sixteen events. Empty falls back to that global
+   * list, which is what every study built before this field did.
+   */
+  covariates: NamedCovariate[];
 };
 
 /** One factor an objective is about, with the level the others are read against. */

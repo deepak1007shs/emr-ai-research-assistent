@@ -96,6 +96,7 @@ export const idaPreg: FactsSheet = {
     competing_event: null,
     kind: "comparison",
     exposures: [],
+    covariates: [],
     measures: ["haemoglobin"],
   },
   secondary: [
@@ -111,6 +112,7 @@ export const idaPreg: FactsSheet = {
       competing_event: null,
       kind: "comparison",
       exposures: [],
+      covariates: [],
       measures: ["haemoglobin"],
     },
     {
@@ -127,6 +129,7 @@ export const idaPreg: FactsSheet = {
       competing_event: null,
       kind: "comparison",
       exposures: [],
+      covariates: [],
       measures: ["serum_ferritin"],
     },
     {
@@ -141,6 +144,7 @@ export const idaPreg: FactsSheet = {
       competing_event: null,
       kind: "comparison",
       exposures: [],
+      covariates: [],
       measures: ["adverse_effects"],
     },
   ],

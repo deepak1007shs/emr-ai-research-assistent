@@ -479,6 +479,7 @@ describe("the model-choice deck", () => {
           type: "binary",
           kind: "comparison",
           exposures: [],
+          covariates: [],
           distribution: "unknown",
           expected_frequency: 0.5,
           competing_event: null,

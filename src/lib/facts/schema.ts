@@ -36,8 +36,20 @@ const CHAIN_KINDS = ["comparison", "association", "accuracy", "estimation"] as c
 const outcomeChain = {
   type: "object",
   additionalProperties: false,
-  required: ["what", "how", "instrument", "time", "unit", "type", "measures", "distribution", "expected_frequency", "competing_event", "kind", "exposures"],
+  required: ["what", "how", "instrument", "time", "unit", "type", "measures", "distribution", "expected_frequency", "competing_event", "kind", "exposures", "covariates"],
   properties: {
+    covariates: {
+      type: "array",
+      description: "The confounders an adjusted model of THIS objective holds constant, which are not the factors it estimates. Empty where the objective is not adjusted for anything. A protocol asking whether amputation is associated with ischaemia time, mechanism and level of injury 'after adjustment for age, sex, shock and serum lactate' has those four here and the three factors in `exposures`. Different objectives hold different things constant: the model for one outcome is not the model for another, and a list that serves the whole study serves none of them.",
+      items: {
+        type: "object", additionalProperties: false, required: ["measure", "at", "inferred"],
+        properties: {
+          measure: { ...str, description: "The name, from `measures`, of the confounder." },
+          at: { type: "string", description: "The visit code the value is taken at, where it is recorded at several. Empty otherwise." },
+          inferred: { type: "boolean", description: "True where the protocol does not name it for this objective and you added it." },
+        },
+      },
+    },
     kind: {
       type: "string",
       enum: CHAIN_KINDS,
@@ -281,6 +293,9 @@ const chain = z.object({
   kind: z.enum(CHAIN_KINDS).default("comparison"),
   exposures: z
     .array(z.object({ measure: z.string(), at: absent, reference: absent }))
+    .default([]),
+  covariates: z
+    .array(z.object({ measure: z.string(), at: absent, inferred: z.boolean() }))
     .default([]),
 });
 

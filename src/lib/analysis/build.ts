@@ -213,6 +213,10 @@ function adjustmentSet(
     });
   }
 
+  // What this objective holds constant, where it says. The Facts Sheet's list
+  // is global and every objective used to take all of it.
+  const named = chain.covariates.length ? chain.covariates : facts.covariates;
+
   // Everything else the Facts Sheet named, minus any other outcome's baseline,
   // and minus this objective's own factors. A study that asks whether amputation
   // is associated with the duration of ischaemia cannot hold the duration of
@@ -223,7 +227,7 @@ function adjustmentSet(
     [facts.primary, ...facts.secondary].flatMap((c) => c.measures),
   );
   const estimated = new Set(chain.exposures.map((exposure) => exposure.measure));
-  for (const covariate of facts.covariates) {
+  for (const covariate of named) {
     const variable = byName.get(covariate.measure);
     if (!variable) continue;
     if (set.some((c) => c.var === covariate.measure)) continue;

@@ -45,11 +45,17 @@ describe("the primary question is a question about factors", () => {
       "level_of_vascular_injury",
     ]);
 
-    // Age, sex, shock and lactate are what the reference adjusts for.
+    // Age, sex, shock and lactate, and nothing else. The Facts Sheet's own
+    // covariate list is global and holds thirteen; applied whole to every
+    // objective it fitted ten terms on sixteen events, where the plan written
+    // for this study fits four.
+    expect(covariatesOf("P1")).toEqual([
+      "age",
+      "sex",
+      "shock_at_presentation",
+      "serum_lactate",
+    ]);
     const held = covariatesOf("P1");
-    for (const confounder of ["age", "sex", "shock_at_presentation", "serum_lactate"]) {
-      expect(held, confounder).toContain(confounder);
-    }
     // And nothing is both estimated and held constant.
     for (const factor of row("P1").predictors) {
       expect(held, factor).not.toContain(factor);

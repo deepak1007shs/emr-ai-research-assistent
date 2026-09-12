@@ -59,6 +59,28 @@ export const vishal: FactsSheet = {
         "at": "D0",
         "reference": ""
       }
+    ],
+    "covariates": [
+      {
+        "measure": "age",
+        "at": "D0",
+        "inferred": false
+      },
+      {
+        "measure": "sex",
+        "at": "D0",
+        "inferred": false
+      },
+      {
+        "measure": "shock_at_presentation",
+        "at": "D0",
+        "inferred": false
+      },
+      {
+        "measure": "serum_lactate",
+        "at": "D0",
+        "inferred": false
+      }
     ]
   },
   "measures": [
@@ -2022,7 +2044,8 @@ export const vishal: FactsSheet = {
       ],
       "measures": [
         "amputation"
-      ]
+      ],
+      "covariates": []
     },
     {
       "how": "Status of the affected limb recorded at the post-operative assessment and at the day 3 and day 30 follow-up visits; the protocol does not give an explicit definition of limb salvageability separate from the absence of amputation",
@@ -2062,6 +2085,28 @@ export const vishal: FactsSheet = {
           "measure": "level_of_vascular_injury",
           "at": "D0",
           "reference": ""
+        }
+      ],
+      "covariates": [
+        {
+          "measure": "age",
+          "at": "D0",
+          "inferred": false
+        },
+        {
+          "measure": "sex",
+          "at": "D0",
+          "inferred": false
+        },
+        {
+          "measure": "shock_at_presentation",
+          "at": "D0",
+          "inferred": false
+        },
+        {
+          "measure": "serum_lactate",
+          "at": "D0",
+          "inferred": false
         }
       ]
     },
@@ -2103,6 +2148,28 @@ export const vishal: FactsSheet = {
           "at": "D0",
           "reference": ""
         }
+      ],
+      "covariates": [
+        {
+          "measure": "age",
+          "at": "D0",
+          "inferred": false
+        },
+        {
+          "measure": "sex",
+          "at": "D0",
+          "inferred": false
+        },
+        {
+          "measure": "shock_at_presentation",
+          "at": "D0",
+          "inferred": false
+        },
+        {
+          "measure": "serum_lactate",
+          "at": "D0",
+          "inferred": false
+        }
       ]
     },
     {
@@ -2129,6 +2196,28 @@ export const vishal: FactsSheet = {
           "at": "D30",
           "reference": "No"
         }
+      ],
+      "covariates": [
+        {
+          "measure": "age",
+          "at": "D0",
+          "inferred": false
+        },
+        {
+          "measure": "sex",
+          "at": "D0",
+          "inferred": false
+        },
+        {
+          "measure": "shock_at_presentation",
+          "at": "D0",
+          "inferred": false
+        },
+        {
+          "measure": "serum_lactate",
+          "at": "D0",
+          "inferred": false
+        }
       ]
     },
     {
@@ -2152,6 +2241,28 @@ export const vishal: FactsSheet = {
           "measure": "amputation",
           "at": "D30",
           "reference": "No"
+        }
+      ],
+      "covariates": [
+        {
+          "measure": "age",
+          "at": "D0",
+          "inferred": false
+        },
+        {
+          "measure": "sex",
+          "at": "D0",
+          "inferred": false
+        },
+        {
+          "measure": "shock_at_presentation",
+          "at": "D0",
+          "inferred": false
+        },
+        {
+          "measure": "serum_lactate",
+          "at": "D0",
+          "inferred": false
         }
       ]
     }

@@ -42,6 +42,7 @@ const chain = (
   // and this fixture is what proves the two agree before the switch.
   kind: "comparison",
   exposures: [],
+  covariates: [],
   measures,
 });
 

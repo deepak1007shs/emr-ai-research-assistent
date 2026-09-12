@@ -86,7 +86,14 @@ const REVIEW = "7f83f9a7cbbdf781";
 // association, an accuracy or an estimation each outcome is, and which factors
 // it is about. Nothing else in the request moved: take the two fields out of
 // `outcomeChain` and it hashes to 3e7e238ee471e506 again.
-const FACTS = "f2687ad23fa6d4b2";
+//
+// Moved once more the same day, f2687ad23fa6d4b2 to 27f93e634c48ed70, for the
+// third field of the same repair: each outcome's own confounders. The Facts
+// Sheet's covariate list is global, and applied whole to every objective it
+// adjusted a cohort's primary for ten factors on sixteen events, where the plan
+// written for that study adjusts for four. Take `covariates` out of
+// `outcomeChain` and the previous hash returns.
+const FACTS = "27f93e634c48ed70";
 
 describe("what the model receives", () => {
   process.env.ANTHROPIC_API_KEY = "test";
