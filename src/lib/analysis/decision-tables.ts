@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 /**
- * The three decision tables, read from the markdown beside this file.
+ * The four decision tables, read from the markdown beside this file.
  *
  * They stay as markdown for the same reason the reviewer's knowledge does: a
  * statistician has to be able to read them, argue with a line, and change it,
@@ -61,6 +61,8 @@ function load(file: string): Row[] {
 export const effectMeasures = () => load("effect-measures.md");
 export const tests = () => load("tests.md");
 export const binaryModels = () => load("binary-models.md");
+/** Table B2: the unadjusted test for one factor, keyed on the factor's type too. */
+export const screens = () => load("screen.md");
 
 /** First row whose Key matches, with `*` standing for any one part. */
 export function matchKey(rows: Row[], key: string): Row | null {

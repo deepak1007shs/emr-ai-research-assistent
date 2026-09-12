@@ -18,7 +18,7 @@ import {
   questionOf,
   referenceOf,
 } from "../study/diagnostic.ts";
-import { binaryModels, effectMeasures, matchKey, tests } from "./decision-tables.ts";
+import { binaryModels, effectMeasures, matchKey, screens, tests } from "./decision-tables.ts";
 
 /**
  * Step 4: the Analysis Map, one row per objective.
@@ -107,8 +107,18 @@ function skewedNames(facts: FactsSheet): Set<string> {
   return names;
 }
 
-/** An outcome that is reported and not modelled (rule 4.11). */
-export const isSafety = (chain: OutcomeChain) => SAFETY.test(chain.what);
+/**
+ * An outcome that is reported and not modelled (rule 4.11).
+ *
+ * A harm tally, and not any outcome whose name contains the word complication.
+ * "Post-operative complications" graded by Clavien-Dindo and compared between
+ * the patients who lost a limb and those who did not is an outcome with a
+ * factor, and this rule filed it as a safety set: reported, not modelled, one
+ * row, no grades. An outcome the study asks a question of has exposures, and
+ * that is the difference the wording cannot see.
+ */
+export const isSafety = (chain: OutcomeChain) =>
+  SAFETY.test(chain.what) && chain.exposures.length === 0;
 
 /** The shape of the comparison, which is half of decision table B's key. */
 function shapeOf(
@@ -121,6 +131,11 @@ function shapeOf(
   // A diagnostic study never compares two groups. Its question is how well one
   // measurement agrees with a reference standard, and that is its own row.
   if (facts.design === "diagnostic_accuracy") return "diagnostic";
+  // What the outcome itself says it is asked about, before anything is read off
+  // the number of groups. An observational study compares levels of a factor
+  // inside one cohort, and counting its arms says "nothing is compared".
+  if (chain.kind === "accuracy" && chain.exposures.length) return "diagnostic";
+  if (chain.kind === "association" && chain.exposures.length) return "exposure";
   // The one question where the data may choose the variables. Judged by
   // discrimination, calibration and validation rather than by the p value of
   // any one predictor.
@@ -197,15 +212,22 @@ function adjustmentSet(
     });
   }
 
-  // Everything else the Facts Sheet named, minus any other outcome's baseline.
+  // Everything else the Facts Sheet named, minus any other outcome's baseline,
+  // and minus this objective's own factors. A study that asks whether amputation
+  // is associated with the duration of ischaemia cannot hold the duration of
+  // ischaemia constant while it asks: the covariate list is global and the
+  // factors are per objective, so the same variable is a confounder of one
+  // question and the subject of another.
   const outcomeMeasures = new Set(
     [facts.primary, ...facts.secondary].flatMap((c) => c.measures),
   );
+  const estimated = new Set(chain.exposures.map((exposure) => exposure.measure));
   for (const covariate of facts.covariates) {
     const variable = byName.get(covariate.measure);
     if (!variable) continue;
     if (set.some((c) => c.var === covariate.measure)) continue;
     if (outcomeMeasures.has(covariate.measure)) continue;
+    if (estimated.has(covariate.measure)) continue;
 
     set.push({
       var: covariate.measure,
@@ -362,12 +384,33 @@ export function buildAnalysis(
       // Ten events per covariate is the floor every one of these models needs.
       // Below it the question is not which risk model to fit but whether any
       // of them will fit at all, and the answer is the penalised one.
-      const covariates = Math.max(facts.covariates.length, 1);
+      //
+      // Counted against what this objective actually fits, not the Facts
+      // Sheet's whole covariate list: a study naming thirteen factors fits four
+      // of them in one model, and dividing its events by thirteen condemned
+      // every model it has.
+      const covariates = Math.max(
+        adjustmentSet(facts, chain, objective, variables).length +
+          chain.exposures.length,
+        1,
+      );
       const events =
         total !== null && chain.expected_frequency !== null
           ? chain.expected_frequency * total
           : null;
-      const tooFew = events !== null && events / covariates < 10;
+      const short = events !== null && events / covariates < 10;
+
+      // An association keeps the risk-ratio family and is told to carry fewer
+      // factors. Swapping the model instead answers a different question: a
+      // penalised odds ratio where the protocol, the sample size and the title
+      // all ask for a risk ratio. The shortfall is reported by S4-5 and by the
+      // note below, which is what the investigator acts on.
+      const tooFew = short && shape !== "exposure";
+      if (short && shape === "exposure" && events !== null) {
+        todos.push(
+          `${objective.id} fits ${covariates} terms on about ${Math.round(events)} events, which is below the ten events per term every risk model needs. Carry the factors the univariate screen supports and say which they are, rather than entering all of them at once. The model family does not change.`,
+        );
+      }
 
       const key = tooFew
         ? "few_events"
@@ -469,12 +512,20 @@ export function buildAnalysis(
     }
 
     /* ---- the two exceptions to unadjusted then adjusted ------------- */
+    // An estimation objective is one that estimates a number and compares
+    // nothing, which is a thing the reading now says outright. It used to be
+    // inferred from the study having fewer than two groups, and a cohort study
+    // asking which factors are associated with amputation has none: eleven
+    // objectives took this exception, so eleven questions were answered with a
+    // proportion and a confidence interval, and thirteen covariates the reading
+    // had correctly found were never put in a model.
     const safety = isSafety(chain);
-    const estimation = shape === "single";
+    const estimation = chain.kind === "estimation" || (shape === "single" && !chain.exposures.length);
     const exception = safety ? "safety" : estimation ? "estimation" : null;
 
     const predictors = [
       ...(facts.groups.length >= 2 ? [ARM] : []),
+      ...chain.exposures.map((exposure) => exposure.measure),
       ...(explore ? explore.reuses.slice(1) : []),
     ];
 
@@ -525,15 +576,17 @@ export function buildAnalysis(
               fallback: null,
               table: "",
             }
-          : {
-              // In a cluster trial the individual is not the unit that was
-              // allocated, so the unadjusted comparison is made between cluster
-              // summaries. Treating the rows as independent people is the
-              // fourth of the eight commonest mistakes.
-              test: clusterTrial ? `${test}, on cluster-level summary measures` : test,
-              fallback,
-              table: "",
-            },
+          : shape === "exposure"
+            ? screenOf(chain, byName, todos)
+            : {
+                // In a cluster trial the individual is not the unit that was
+                // allocated, so the unadjusted comparison is made between cluster
+                // summaries. Treating the rows as independent people is the
+                // fourth of the eight commonest mistakes.
+                test: clusterTrial ? `${test}, on cluster-level summary measures` : test,
+                fallback,
+                table: "",
+              },
       adjusted:
         exception || !adjustedModel || explore?.kind === "correlation"
           ? null
@@ -555,6 +608,52 @@ export function buildAnalysis(
   }
 
   return { rows, todos };
+}
+
+/* ---- the unadjusted screen of an observational study -------------------- */
+
+/**
+ * One test per factor, each chosen by that factor's own data type.
+ *
+ * Decision table B is keyed on the outcome and the shape of the comparison,
+ * which is enough where the comparison is an arm. Here the factors are of
+ * different kinds - a duration in hours, a mechanism with two categories, an
+ * anatomical level with several - and one row of table B cannot name a test for
+ * all of them. Table B2 carries the factor's type in its key, and this reads it
+ * once per factor and writes the sentence a footnote is made of.
+ */
+function screenOf(
+  chain: OutcomeChain,
+  byName: Map<string, Variable>,
+  todos: string[],
+): { test: string; fallback: string | null; table: string } {
+  const named: string[] = [];
+  const fallbacks: string[] = [];
+
+  for (const exposure of chain.exposures) {
+    const variable = byName.get(exposure.measure);
+    const label = (variable?.label ?? exposure.measure.replace(/_/g, " ")).toLowerCase();
+    const row = matchKey(screens(), `${chain.type}|${variable?.type ?? "continuous"}`);
+    if (!row) continue;
+    named.push(`${row.Test.toLowerCase()} for ${label}`);
+    if (row.Fallback) fallbacks.push(row.Fallback.toLowerCase());
+    // The last row of table B2 is a stated fallback, and a pairing it had to
+    // catch is a pairing somebody should look at before the data arrive.
+    if (row.Key === "*|*") {
+      todos.push(
+        `Name the test for ${label} against "${chain.what.toLowerCase()}". The decision tables have no row for a ${variable?.type ?? "measured"} factor against a ${chain.type.replace(/_/g, " ")} outcome, so the plan names the nearest one.`,
+      );
+    }
+  }
+
+  const sentence = named.length
+    ? `One factor at a time: ${listed(named)}`
+    : "One factor at a time, each by the test its data type owes";
+  return {
+    test: sentence,
+    fallback: fallbacks.length ? [...new Set(fallbacks)].join("; ") : null,
+    table: "",
+  };
 }
 
 /* ---- the diagnostic accuracy branch ------------------------------------ */

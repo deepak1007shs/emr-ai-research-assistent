@@ -156,6 +156,10 @@ describe("the decision tables and the templates agree with the code", () => {
     const SHAPES = [
       "two_groups", "many_groups", "paired", "repeated", "single", "pair",
       "competing", "diagnostic", "prediction",
+      // Reachable since an outcome says what it is asked about rather than the
+      // study's arms saying it: a chain of kind `association` carrying its
+      // factors takes this shape, and a cohort study has no arms at all.
+      "exposure",
     ];
     const reachable = new Set(
       TYPES.flatMap((type) => SHAPES.map((s) => `${type}/${s}`)),

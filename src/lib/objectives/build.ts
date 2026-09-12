@@ -82,7 +82,38 @@ function comparison(facts: FactsSheet): string {
   return `${a.label} and ${b.label}`;
 }
 
-/** The level question: is the value different between the groups? */
+/** "duration of ischaemia, mechanism of injury and anatomical level". */
+function factors(outcome: OutcomeChain, facts: FactsSheet): string {
+  const labels = outcome.exposures.map((exposure) => {
+    const measure = facts.measures.find((m) => m.name === exposure.measure);
+    return lower(measure?.label ?? exposure.measure.replace(/_/g, " "));
+  });
+  if (labels.length <= 1) return labels[0] ?? "";
+  return `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
+}
+
+/** The covariates an adjusted model holds constant, for the question's tail. */
+function heldConstant(facts: FactsSheet, outcome: OutcomeChain): string {
+  const exposures = new Set(outcome.exposures.map((e) => e.measure));
+  const labels = facts.covariates
+    .filter((covariate) => !exposures.has(covariate.measure))
+    .map((covariate) => {
+      const measure = facts.measures.find((m) => m.name === covariate.measure);
+      return lower(measure?.label ?? covariate.measure.replace(/_/g, " "));
+    });
+  if (!labels.length) return "";
+  if (labels.length === 1) return labels[0];
+  return `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
+}
+
+/**
+ * The level question: is the value different between the groups?
+ *
+ * Three questions, not one, and which it is comes from the outcome rather than
+ * from the number of arms. A study with no arms used to be asked "What is the
+ * proportion with amputation?", which is a prevalence survey's question, on a
+ * protocol whose title is "factors affecting the rates of amputations".
+ */
 function levelQuestion(outcome: OutcomeChain, facts: FactsSheet): string {
   const between = comparison(facts);
   const subject =
@@ -93,6 +124,16 @@ function levelQuestion(outcome: OutcomeChain, facts: FactsSheet): string {
         : outcome.type === "time_to_event"
           ? `the time to ${lower(outcome.what)}`
           : lower(outcome.what);
+
+  if (outcome.kind === "accuracy" && outcome.exposures.length) {
+    return `How well do ${factors(outcome, facts)} identify ${lower(outcome.what)}?`;
+  }
+
+  if (outcome.kind === "association" && outcome.exposures.length) {
+    const adjusted = heldConstant(facts, outcome);
+    const tail = adjusted ? `, after adjustment for ${adjusted}` : "";
+    return `Is ${lower(outcome.what)} associated with ${factors(outcome, facts)}${tail}?`;
+  }
 
   return between
     ? `Is ${subject} different between ${between}?`

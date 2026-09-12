@@ -11,6 +11,12 @@ variable that improves prediction can wreck a causal estimate.
 An empty cell means there is none: a paired continuous outcome has no adjusted
 model in this table, and a correlation has no adjusted model at all.
 
+The `exposure` rows are the one place where the unadjusted cell is deliberately
+empty. An observational study screens its factors one at a time, and the test
+depends on the factor's own data type as well as the outcome's, which is a key
+this table does not carry. Decision table B2, `screen.md`, holds those, and the
+row's unadjusted entry is assembled from it - one test named per factor.
+
 Nor does a diagnostic row. These rows used to name calibration - the slope,
 calibration in the large, the Brier score - as the adjusted model, and the first
 real diagnostic protocol through the rebuild, an MRI measurement against
@@ -28,6 +34,12 @@ group-by-time term.
 
 | Key | Situation | Unadjusted test | Unadjusted fallback | Adjusted model | Adjusted fallback |
 |---|---|---|---|---|---|
+| binary/exposure | Binary outcome, factors observed within one cohort | | | Log-binomial regression, planned on the assumption that the outcome is common | Modified Poisson regression with robust variance |
+| continuous/exposure | Measured outcome, factors observed within one cohort | | | Linear regression | |
+| count/exposure | Counted outcome, factors observed within one cohort | | | Negative binomial regression with an offset for person-time | Poisson regression with robust variance |
+| ordinal/exposure | Ordered outcome, factors observed within one cohort | | | Cumulative-link (ordinal) regression | Partial proportional-odds model where the proportional-odds assumption fails |
+| nominal/exposure | Unordered outcome, factors observed within one cohort | | | Multinomial logistic regression | |
+| time_to_event/exposure | Time to event, factors observed within one cohort | | | Cox proportional-hazards regression | |
 | continuous/two_groups | Continuous, two independent groups | Independent t-test | Welch's t-test where the variances differ; Mann-Whitney with the Hodges-Lehmann difference where the outcome is skewed | Linear regression, as analysis of covariance with the baseline value | |
 | continuous/many_groups | Continuous, more than two groups | One-way analysis of variance | Kruskal-Wallis where the outcome is skewed | Linear regression | |
 | continuous/paired | Continuous, the same person measured twice | Paired t-test | Wilcoxon signed-rank where the differences are skewed | | |
