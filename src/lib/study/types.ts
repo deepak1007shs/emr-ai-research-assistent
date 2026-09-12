@@ -592,6 +592,31 @@ export type CrfField = {
   condition: string | null;
 };
 
+/**
+ * Why a field is on the form.
+ *
+ * Kept per field and printed nowhere. Gate C is four set operations over these
+ * - not less, not extra, covariates, nothing derived - and a check that has to
+ * work out for itself why a field exists is a check that reads the form's words.
+ * The deleted builder did that, and its own comment says what it cost: a form
+ * whose fields were matched to variables by their wording, until ids replaced
+ * the matching.
+ *
+ * `via` is the derived value a raw field feeds: height and weight are on the
+ * form because Table 1 reports body mass index, and neither of them appears in
+ * Table 1 by name.
+ */
+export type CrfTrace =
+  /** A row label, a column group or a model term of that table. */
+  | { table: string; via?: VariableName }
+  /** Held constant by that table's model, or splitting it into sub-groups. */
+  | { table: string; as: "covariate" | "stratifier"; at: Timepoint | null }
+  /** Capture infrastructure: rule 5's five kinds, which analyse nothing. */
+  | { infrastructure: true };
+
+/** A capture rule stated between two tables, where one needs stating (C10). */
+export type CrfNote = { section: string; text: string };
+
 /* ---- Step 7 and check 7 -------------------------------------------- */
 
 export type CheckResult = {
