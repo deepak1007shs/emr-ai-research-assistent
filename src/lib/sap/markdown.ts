@@ -3,6 +3,7 @@ import type { AnalysisRow, ShellTable } from "../study/types.ts";
 import { BLOCK_ORDER } from "../study/vocabulary.ts";
 import type { SapBuild } from "./build.ts";
 import { DIAGNOSTIC_NOTE } from "../study/diagnostic.ts";
+import { labelOf } from "../variables/name.ts";
 
 /**
  * The plan, rendered top to bottom.
@@ -66,7 +67,7 @@ function grid(headings: string[], rows: string[][]): string {
 }
 
 /** The test cell of the Analysis Map, in the fixed order rule 4.9 gives. */
-function testCell(row: AnalysisRow): string {
+function testCell(row: AnalysisRow, label: (name: string) => string): string {
   const parts: string[] = [];
   if (row.unadjusted) {
     const fallback = row.unadjusted.fallback
@@ -77,7 +78,7 @@ function testCell(row: AnalysisRow): string {
     );
   }
   if (row.adjusted) {
-    const covariates = row.adjusted.covariates.map((c) => c.var).join(", ");
+    const covariates = row.adjusted.covariates.map((c) => label(c.var)).join(", ");
     const fallback = row.adjusted.fallback
       ? ` (fallback: ${row.adjusted.fallback})`
       : "";
@@ -169,6 +170,8 @@ export function renderSapMarkdown(build: SapBuild): string {
   }
 
   /* The Analysis Map */
+  // Labels, never the names code uses. See `labelOf`.
+  const label = (name: string) => labelOf(build.variables, name);
   say("## Analysis Map");
   say(italic(MAP_LINE));
   say(
@@ -179,10 +182,10 @@ export function renderSapMarkdown(build: SapBuild): string {
         const family = (objective?.family ?? "").toUpperCase();
         return [
           `${family} - ${row.objective}`,
-          row.outcome,
-          row.predictors.join(", ") || "none",
-          `${row.data_type}, ${row.unit_of_analysis}, ${row.count}`,
-          testCell(row),
+          label(row.outcome),
+          row.predictors.map(label).join(", ") || "none",
+          `${row.data_type.replace(/_/g, " ")}, ${row.unit_of_analysis}, ${row.count}`,
+          testCell(row, label),
         ];
       }),
     ),

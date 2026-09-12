@@ -24,3 +24,20 @@ export function variableName(label: string): VariableName {
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
 }
+
+/**
+ * The words a variable is written in, for anything a person reads.
+ *
+ * `variableName` is the inverse: it makes the name code uses. That name is
+ * lower case with underscores and is often the outcome's whole sentence -
+ * `limb_salvageability_affected_limb_salvaged_versus_not_salvaged_up_to_day_30`
+ * - and printed in a document it is unreadable, and being one unbroken token it
+ * cannot even wrap. The variable list already carries the label; every renderer
+ * reads it through here so none of them can drift.
+ */
+export function labelOf(
+  variables: { name: VariableName; label: string }[],
+  name: string,
+): string {
+  return variables.find((variable) => variable.name === name)?.label ?? name;
+}

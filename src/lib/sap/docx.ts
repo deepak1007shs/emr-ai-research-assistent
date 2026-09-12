@@ -15,6 +15,7 @@ import { BLOCK_ORDER } from "../study/vocabulary.ts";
 import type { ShellTable } from "../study/types.ts";
 import type { SapBuild } from "./build.ts";
 import { DIAGNOSTIC_NOTE } from "../study/diagnostic.ts";
+import { labelOf } from "../variables/name.ts";
 import {
   MAP_LINE,
   PICOT_LINE,
@@ -149,6 +150,8 @@ export async function buildSapDocx(
   const body: Block[] = [];
 
   const short = variant === "short";
+  // Labels, never the names code uses. See `labelOf`.
+  const label = (name: string) => labelOf(build.variables, name);
 
   body.push(
     new Paragraph({
@@ -269,7 +272,7 @@ export async function buildSapDocx(
           parts.push(`Unadjusted: ${row.unadjusted.test} to T${row.unadjusted.table}`);
         }
         if (row.adjusted) {
-          const covariates = row.adjusted.covariates.map((c) => c.var).join(", ");
+          const covariates = row.adjusted.covariates.map((c) => label(c.var)).join(", ");
           parts.push(
             `Adjusted: ${row.adjusted.model}${covariates ? ` + ${covariates}` : ""} to T${row.adjusted.table}${row.adjusted.fit_table ? ` (fit T${row.adjusted.fit_table})` : ""}`,
           );
@@ -281,9 +284,9 @@ export async function buildSapDocx(
         if (row.exception === "diagnostic") parts.push(DIAGNOSTIC_NOTE);
         return [
           `${family.toUpperCase()} - ${row.objective}`,
-          row.outcome,
-          row.predictors.join(", ") || "none",
-          `${row.data_type}, ${row.unit_of_analysis}, ${row.count}`,
+          label(row.outcome),
+          row.predictors.map(label).join(", ") || "none",
+          `${row.data_type.replace(/_/g, " ")}, ${row.unit_of_analysis}, ${row.count}`,
           parts.join("; "),
         ];
       }),

@@ -96,6 +96,16 @@ describe("the plan, end to end", () => {
     expect(text).toContain("Name the statistical software and its version.");
   });
 
+  it("prints no name that only code uses", () => {
+    // A variable is named `limb_salvageability_affected_limb_salvaged_versus_
+    // not_salvaged_up_to_day_30` so that every step can agree on one spelling.
+    // Printed in a document that is unreadable, and being one unbroken token it
+    // cannot wrap, so it drags a column as wide as itself. The variable list
+    // carries the words; the renderers read them through `labelOf`.
+    const offenders = [...sap().matchAll(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g)].map((m) => m[0]);
+    expect([...new Set(offenders)]).toEqual([]);
+  });
+
   it("uses no vocabulary that marks prose as machine-written", () => {
     expect(bannedWordsIn(sap())).toEqual([]);
   });

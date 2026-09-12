@@ -1,6 +1,7 @@
 import type { ShellTable } from "@/lib/study/types";
 import type { SapBuild } from "@/lib/sap/build";
 import { DIAGNOSTIC_NOTE } from "@/lib/study/diagnostic";
+import { labelOf as words } from "@/lib/variables/name";
 
 /**
  * How a variable is written for a reader: its label, not the name code uses.
@@ -8,8 +9,7 @@ import { DIAGNOSTIC_NOTE } from "@/lib/study/diagnostic";
  * The name is lower case with underscores and is often the outcome's whole
  * sentence. The variable list already carries the words a person reads.
  */
-const labelOf = (build: SapBuild, name: string) =>
-  build.variables.find((variable) => variable.name === name)?.label ?? name;
+const labelOf = (build: SapBuild, name: string) => words(build.variables, name);
 
 /**
  * The plan on screen, laid out the way the .docx lays it out.
