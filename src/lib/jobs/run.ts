@@ -403,10 +403,21 @@ export async function runJob(
       }
 
       await report.enter(stage);
-      if (stage === "review") {
-        await runReview(db, job.userId, job.protocolId, report, stopping.signal);
-      } else {
-        await runSap(db, job.userId, job.protocolId, report, stopping.signal);
+      // A switch with an exhaustive check, and not the if/else this was. The
+      // else meant "the plan", so a third stage added to the union would have
+      // run the plan builder under the new stage's name, written its row to
+      // sap_plans, and reported it as finished. Nothing would have failed.
+      switch (stage) {
+        case "review":
+          await runReview(db, job.userId, job.protocolId, report, stopping.signal);
+          break;
+        case "sap":
+          await runSap(db, job.userId, job.protocolId, report, stopping.signal);
+          break;
+        default: {
+          const unbuilt: never = stage;
+          throw new Error(`The job asked for ${String(unbuilt)}, which nothing builds.`);
+        }
       }
     }
     if (asked) await report.cancelled(stoppedNote(report.produced()));
