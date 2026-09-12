@@ -25,51 +25,78 @@ export default async function UploadPage() {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
       <div className="mx-auto w-full max-w-[var(--sheet-w)] space-y-8">
+      {/*
+        The page a study starts on, so it says what to do and not what the
+        first document is called. It read "Protocol Understanding & Review"
+        over an upload box - the name of a document nobody has yet - followed
+        by four lines of prose describing three documents, with the only
+        action on the page below all of it.
+      */}
       <header>
-        <h1 className="text-xl font-semibold tracking-tight">
-          Protocol Understanding &amp; Review
-        </h1>
-        <p className="mt-2 max-w-prose text-sm text-muted">
-          Upload a thesis protocol, synopsis, or research proposal. You get back its
-          design, PICO/PECO, objectives and outcomes, a sample-size verdict, and the
-          issues to fix, each with the exact correction. From there you answer the
-          issues and build the analysis plan and the case record form.
+        <h1 className="text-xl font-semibold tracking-tight">Start a new protocol</h1>
+        <p className="mt-2 text-sm text-muted">
+          A thesis protocol, synopsis or research proposal. Three documents come back.
         </p>
       </header>
 
       <UploadForm />
 
-      <section className="card p-4">
-        <h2 className="text-xs font-semibold tracking-wide text-muted uppercase">
-          What happens next
-        </h2>
-        <ol className="mt-3 space-y-2 text-xs leading-relaxed">
-          {[
-            "The review reads the protocol and lists the blockers, in the order to fix them.",
-            "You answer each blocker in its own box. Your answers outrank the protocol.",
-            "The Statistical Analysis Plan turns the objectives into answerable questions and picks each test.",
-            "Its Section 6 lays out every table the thesis will report, with the cells empty.",
-            "The Case Record Form collects exactly what those tables report, and nothing the plan can calculate.",
-          ].map((step, i) => (
-            <li key={i} className="flex gap-2">
-              <span className="mt-px flex size-4 shrink-0 items-center justify-center rounded-full bg-accent text-[0.6rem] font-semibold text-accent-foreground">
-                {i + 1}
+      <section className="grid gap-3 sm:grid-cols-3">
+        {[
+          {
+            step: "1",
+            name: "Protocol Review",
+            detail:
+              "The design, the PICO or PECO, every objective and outcome, a verdict on the sample size, and each issue with the correction it needs.",
+            state: null,
+          },
+          {
+            step: "2",
+            name: "Analysis Plan",
+            detail:
+              "Every objective as an answerable question, the test each one owes, and Section 6: every table the thesis will report, with the cells empty.",
+            state: null,
+          },
+          {
+            step: "3",
+            name: "Case Record Form",
+            detail:
+              "The fields that fill those tables, grouped by visit. Nothing the plan can calculate, and nothing no table reports.",
+            state: "not built yet",
+          },
+        ].map((doc) => (
+          <article key={doc.name} className="card flex flex-col gap-2 p-4">
+            <div className="flex items-baseline gap-2">
+              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-accent text-[0.65rem] font-semibold text-accent-foreground">
+                {doc.step}
               </span>
-              <span>{step}</span>
-            </li>
-          ))}
-        </ol>
-        {reviews && reviews.length > 0 && (
-          <div className="mt-3 border-t border-border pt-3">
-            <UsageTotal
-              rows={reviews.map((r) => ({
-                model: r.model,
-                usage: (r.usage as TokenUsage | null) ?? null,
-              }))}
-            />
-          </div>
-        )}
+              <h2 className="text-sm font-semibold tracking-tight">{doc.name}</h2>
+            </div>
+            <p className="text-xs leading-relaxed text-muted">{doc.detail}</p>
+            {/*
+              Said plainly rather than promised. The page claimed the form was
+              one of the three you get back, and the builder it needs is not
+              wired to the application yet.
+            */}
+            {doc.state && (
+              <span className="mt-auto w-fit rounded-full border border-border px-2 py-0.5 text-[0.65rem] text-muted">
+                {doc.state}
+              </span>
+            )}
+          </article>
+        ))}
+      </section>
+
+      {reviews && reviews.length > 0 && (
+        <section className="card p-4">
+          <UsageTotal
+            rows={reviews.map((r) => ({
+              model: r.model,
+              usage: (r.usage as TokenUsage | null) ?? null,
+            }))}
+          />
         </section>
+      )}
       </div>
     </div>
   );

@@ -12,20 +12,25 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * tables are insert-only, so the newest ready row wins.
  */
 
-export type DocKind = "review" | "sap";
+export type DocKind = "review" | "sap" | "crf";
 
 export const DOC_LABEL: Record<DocKind, string> = {
   review: "Protocol Review",
   sap: "Analysis Plan",
+  crf: "Case Record Form",
 };
 
 /** The short form, for the rail where the protocol name already takes the width. */
 export const DOC_SHORT: Record<DocKind, string> = {
   review: "Review",
   sap: "Plan",
+  crf: "Form",
 };
 
-export const DOC_ORDER: DocKind[] = ["review", "sap"];
+// The order they are made in, which is also the order they are read in: the
+// review says what is wrong, the plan says what will be analysed, the form
+// collects what the plan's tables report.
+export const DOC_ORDER: DocKind[] = ["review", "sap", "crf"];
 
 export type DocState = {
   kind: DocKind;
@@ -57,7 +62,7 @@ function newestByProtocol<T extends { protocol_id: string }>(rows: T[] | null): 
 }
 
 export async function loadRail(supabase: SupabaseClient): Promise<ProtocolRow[]> {
-  const [protocols, reviews, plans] = await Promise.all([
+  const [protocols, reviews, plans, forms] = await Promise.all([
     supabase.from("protocols").select("id, filename, created_at").order("created_at", { ascending: false }),
     supabase
       .from("reviews")
@@ -69,6 +74,12 @@ export async function loadRail(supabase: SupabaseClient): Promise<ProtocolRow[]>
       .select("id, protocol_id, plan")
       .eq("status", "ready")
       .not("plan", "is", null)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("crf_forms")
+      .select("id, protocol_id, sap_id, form")
+      .eq("status", "ready")
+      .not("form", "is", null)
       .order("created_at", { ascending: false }),
   ]);
 
@@ -87,11 +98,22 @@ export async function loadRail(supabase: SupabaseClient): Promise<ProtocolRow[]>
     }[],
   );
 
+  const latestForm = newestByProtocol(
+    forms.data as unknown as {
+      protocol_id: string;
+      id: string;
+      sap_id: string | null;
+      form: { checks?: { pass: boolean }[]; todos?: string[] } | null;
+    }[],
+  );
+
   return ((protocols.data as { id: string; filename: string; created_at: string }[] | null) ?? []).map(
     (protocol) => {
       const review = latestReview.get(protocol.id) ?? null;
       const plan = latestPlan.get(protocol.id) ?? null;
+      const form = latestForm.get(protocol.id) ?? null;
       const failing = (plan?.plan?.checks ?? []).filter((c) => !c.pass).length;
+      const formFailing = (form?.form?.checks ?? []).filter((c) => !c.pass).length;
 
       return {
         id: protocol.id,
@@ -115,6 +137,17 @@ export async function loadRail(supabase: SupabaseClient): Promise<ProtocolRow[]>
             // open item is a question, and there are usually several.
             errors: failing,
             warnings: plan?.plan?.todos?.length ?? 0,
+          },
+          crf: {
+            kind: "crf" as const,
+            id: form?.id ?? null,
+            // The first use of this field since the rebuild typed it: a form
+            // built from a plan that has since been rebuilt says so, rather
+            // than being read as current.
+            stale: Boolean(plan && form && form.sap_id !== plan.id),
+            behindAnswers: false,
+            errors: formFailing,
+            warnings: form?.form?.todos?.length ?? 0,
           },
         },
       };

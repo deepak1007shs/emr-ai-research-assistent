@@ -38,7 +38,11 @@ const protocol = (over: Partial<ProtocolRow> = {}): ProtocolRow => ({
   id: "p1",
   filename: "thesis.docx",
   created_at: "2026-08-01T00:00:00.000Z",
-  documents: { review: doc(), sap: doc({ kind: "sap", id: null }) },
+  documents: {
+    review: doc(),
+    sap: doc({ kind: "sap", id: null }),
+    crf: doc({ kind: "crf", id: null }),
+  },
   ...over,
 });
 
@@ -55,13 +59,15 @@ const open = (p: ProtocolRow[], active: string | null = "p1") =>
 
 describe("the protocol rail", () => {
   it("lists the document of the open protocol", () => {
-    // One. The plan, its shell tables and the case record form were removed,
-    // and the rail has no place for what is not built.
+    // Three: the review, the plan and the form, in the order they are made.
+    // This asserted that the rail held only the review, because the plan and
+    // the form had been removed from the application - which stopped being
+    // true when the form was built from the plan's own objects.
     const text = open([protocol()]);
-    expect(text).toContain("Review");
-    for (const gone of ["SAP", "CRF", "Shell Tables"]) {
-      expect(text, gone).not.toContain(gone);
+    for (const shown of ["Review", "Plan", "Form"]) {
+      expect(text, shown).toContain(shown);
     }
+    expect(text).not.toContain("Shell Tables");
     expect(text).toContain("thesis.docx");
   });
 

@@ -6,6 +6,9 @@ import { extractFacts } from "../facts/extract.ts";
 import { blockers, buildSap, warnings } from "../sap/build.ts";
 import { gateA } from "../facts/gate.ts";
 import { renderSapMarkdown } from "../sap/markdown.ts";
+import type { SapBuild } from "../sap/build.ts";
+import { buildCrf, crfBlockers, crfWarnings } from "../crf/build.ts";
+import { renderCrfMarkdown } from "../crf/markdown.ts";
 import { addUsage as add, costOf, type TokenUsage } from "../protocol/pricing.ts";
 import { STAGE_LABEL, stagesOf, type JobKind, type Produced, type Stage } from "./plan.ts";
 
@@ -366,6 +369,75 @@ async function runSap(
   }
 }
 
+/**
+ * The Case Record Form.
+ *
+ * The one document built from another document rather than from the protocol.
+ * It reads the newest ready plan, and everything it decides is a set operation
+ * over that plan's own objects: the shell tables say what must be captured, the
+ * variable list says what each thing is, and Step 8's rules say where it goes on
+ * the page. There is no model call, so there is no usage to record and no batch
+ * to resume - the zero below is the truth and not a placeholder.
+ *
+ * Gate C does not stop the row being written, for the reason `runSap` gives: a
+ * form whose check failed is the most useful thing an investigator can be shown,
+ * because it names the field or the table that failed.
+ */
+async function runCrf(
+  db: Db,
+  userId: string,
+  protocolId: string,
+  report: Reporter,
+): Promise<Produced> {
+  await report.step("Reading the analysis plan");
+
+  const { data: plan } = await db
+    .from("sap_plans")
+    .select("id, facts, plan")
+    .eq("protocol_id", protocolId)
+    .eq("status", "ready")
+    .not("plan", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!plan?.plan || !plan.facts) {
+    throw new Error(
+      "The form is built from the analysis plan, and this protocol has none. Build the plan first.",
+    );
+  }
+
+  const built = { ...(plan.plan as object), facts: plan.facts } as SapBuild;
+
+  await report.step("Collecting the fields the tables need");
+  const form = buildCrf(built, plan.id as string);
+  const markdown = renderCrfMarkdown(form);
+
+  const { data: row, error } = await db
+    .from("crf_forms")
+    .insert({
+      protocol_id: protocolId,
+      sap_id: plan.id,
+      owner: userId,
+      status: "ready",
+      form,
+      markdown,
+      counts: form.counts,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+
+  const entry: Produced = {
+    kind: "crf",
+    id: row.id,
+    errors: crfBlockers(form).length,
+    warnings: crfWarnings(form).length + form.todos.length,
+  };
+  await report.finished(entry, ZERO);
+  return entry;
+}
+
 export async function runJob(
   db: Db,
   job: { id: string; kind: JobKind; protocolId: string; userId: string },
@@ -413,6 +485,9 @@ export async function runJob(
           break;
         case "sap":
           await runSap(db, job.userId, job.protocolId, report, stopping.signal);
+          break;
+        case "crf":
+          await runCrf(db, job.userId, job.protocolId, report);
           break;
         default: {
           const unbuilt: never = stage;

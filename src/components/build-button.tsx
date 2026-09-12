@@ -18,6 +18,7 @@ const VERB: Record<JobKind, { build: string; checked: string }> = {
   review: { build: "Review this protocol", checked: "The protocol was reviewed" },
   sap: { build: "Build the analysis plan", checked: "The plan was built" },
   both: { build: "Review it and build the plan", checked: "Both were built" },
+  crf: { build: "Build the case record form", checked: "The form was built" },
 };
 
 /** "The plan was checked and 2 problems need your attention." */

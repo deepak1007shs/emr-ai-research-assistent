@@ -21,13 +21,21 @@ const protocols: ProtocolRow[] = [
     id: "p1",
     filename: "first-study.docx",
     created_at: "2026-08-01T00:00:00.000Z",
-    documents: { review: doc("r1", "review"), sap: doc("s1", "sap") },
+    documents: {
+      review: doc("r1", "review"),
+      sap: doc("s1", "sap"),
+      crf: doc("c1", "crf"),
+    },
   },
   {
     id: "p2",
     filename: "second-study.pdf",
     created_at: "2026-08-02T00:00:00.000Z",
-    documents: { review: doc("r2", "review"), sap: doc(null, "sap") },
+    documents: {
+      review: doc("r2", "review"),
+      sap: doc(null, "sap"),
+      crf: doc(null, "crf"),
+    },
   },
 ];
 

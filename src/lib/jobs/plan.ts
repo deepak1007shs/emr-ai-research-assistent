@@ -13,17 +13,34 @@
  */
 
 /** The documents this application builds. */
-export type Stage = "review" | "sap";
+export type Stage = "review" | "sap" | "crf";
 
 /** What was asked for: one document, or the review and the plan in order. */
 export type JobKind = Stage | "both";
 
+// Deliberately still the review and the plan. "Both" is what a user asks for
+// when they upload a protocol, and the form is built afterwards from the plan,
+// so widening this would change what an old request means.
 export const STAGES: Stage[] = ["review", "sap"];
 
 export const STAGE_LABEL: Record<Stage, string> = {
   review: "Protocol Review",
   sap: "Statistical Analysis Plan",
+  crf: "Case Record Form",
 };
+
+/**
+ * Why a document cannot be built yet, where something must come first.
+ *
+ * The form is built from the plan's own objects rather than from the protocol,
+ * so there is nothing to build until the plan exists.
+ */
+export function needsFirst(kind: JobKind, has: { sap: boolean }): string | null {
+  if (kind === "crf" && !has.sap) {
+    return "The form is built from the analysis plan, so build the plan first.";
+  }
+  return null;
+}
 
 /** The stages a job runs, in the order it runs them. */
 export function stagesOf(kind: JobKind): Stage[] {

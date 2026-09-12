@@ -20,7 +20,6 @@ const TABLE = {
   review: "reviews",
   sap: "sap_plans",
   crf: "crf_forms",
-  tables: "shell_tables",
 } as const;
 
 type Kind = keyof typeof TABLE;

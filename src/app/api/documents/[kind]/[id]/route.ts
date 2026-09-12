@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildSapDocx } from "@/lib/sap/docx";
 import type { SapBuild } from "@/lib/sap/build";
+import { buildCrfDocx } from "@/lib/crf/docx";
+import type { CrfForm } from "@/lib/crf/build";
 
 export const runtime = "nodejs";
 
@@ -17,6 +19,7 @@ export const runtime = "nodejs";
 const TABLE = {
   review: "reviews",
   sap: "sap_plans",
+  crf: "crf_forms",
 } as const;
 
 type Kind = keyof typeof TABLE;
@@ -49,9 +52,45 @@ export async function GET(
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
+  // The form re-renders from its own stored row and never from the plan, so a
+  // form downloaded after its plan was rebuilt is the form that was checked.
+  if (kind === "crf") {
+    const { data: form } = await supabase
+      .from("crf_forms")
+      .select("id, form, markdown, protocols ( filename )")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (!form?.form) {
+      return NextResponse.json({ error: "Document not found." }, { status: 404 });
+    }
+
+    const of = form.protocols as unknown as { filename?: string } | { filename?: string }[] | null;
+    const from = (Array.isArray(of) ? of[0]?.filename : of?.filename) ?? "protocol";
+    const name = `${from.replace(/\.[^.]+$/, "")} - case record form`;
+
+    if (format === "md") {
+      return new NextResponse(form.markdown ?? "", {
+        headers: {
+          "Content-Type": "text/markdown; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${encodeURIComponent(name)}.md"`,
+        },
+      });
+    }
+
+    const file = await buildCrfDocx(form.form as CrfForm);
+    return new NextResponse(new Uint8Array(file), {
+      headers: {
+        "Content-Type":
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "Content-Disposition": `attachment; filename="${encodeURIComponent(name)}.docx"`,
+      },
+    });
+  }
+
   if (kind !== "sap") {
     return NextResponse.json(
-      { error: "Only the analysis plan is downloaded from here. The review has its own export." },
+      { error: "Only the analysis plan and the case record form are downloaded from here. The review has its own export." },
       { status: 400 },
     );
   }

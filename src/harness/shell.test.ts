@@ -23,11 +23,11 @@ const d = (id: string | null, kind: DocKind, over: object = {}) => ({
 
 const protocols: ProtocolRow[] = [
   { id: "p1", filename: "Satyanarayana \u2014 DM Thesis (Final)", created_at: "2026-08-26",
-    documents: { review: d("r", "review"), sap: d("s", "sap") } },
+    documents: { review: d("r", "review"), sap: d("s", "sap"), crf: d("c", "crf") } },
   { id: "p2", filename: "Laparoscopic conversion \u2014 cohort", created_at: "2026-08-20",
-    documents: { review: d(null, "review"), sap: d(null, "sap") } },
+    documents: { review: d(null, "review"), sap: d(null, "sap"), crf: d(null, "crf") } },
   { id: "p3", filename: "Thyroid FNAC diagnostic accuracy", created_at: "2026-08-11",
-    documents: { review: d("r3", "review"), sap: d("s3", "sap", { errors: 2 }) } },
+    documents: { review: d("r3", "review"), sap: d("s3", "sap", { errors: 2 }), crf: d(null, "crf") } },
 ];
 
 /**
