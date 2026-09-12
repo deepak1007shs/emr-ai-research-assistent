@@ -13,6 +13,7 @@ import { variableName } from "../variables/name.ts";
 import { chainOfObjective } from "../objectives/build.ts";
 import {
   anchorOf,
+  asksAccuracy,
   indexTestsOf,
   isDiagnostic,
   questionOf,
@@ -264,11 +265,12 @@ function interactionModel(
   base: string,
   by: string | undefined,
   byName: Map<string, Variable>,
+  against: string,
 ): string {
   const family = base.split(",")[0].trim();
   const label = by ? (byName.get(by)?.label ?? by).toLowerCase() : "the covariate";
-  const article = /^[aeiou]/.test(ARM) ? "an" : "a";
-  return `${family} with ${article} ${ARM}-by-${label} interaction term`;
+  const article = /^[aeiou]/.test(against) ? "an" : "a";
+  return `${family} with ${article} ${against}-by-${label} interaction term`;
 }
 
 export function buildAnalysis(
@@ -301,7 +303,10 @@ export function buildAnalysis(
   for (const objective of objectives) {
     const explore = exploratory.find((e) => e.id === objective.id);
 
-    if (isDiagnostic(facts)) {
+    // A whole diagnostic study, or one objective of any study that asks how
+    // well something identifies its outcome.
+    const asked = chainOfObjective(facts, objective.id);
+    if (isDiagnostic(facts) || (asked && asksAccuracy(facts, asked))) {
       const row = diagnosticRow(facts, objective, explore, byName, skewed);
       if (row) rows.push(row);
       continue;
@@ -354,12 +359,38 @@ export function buildAnalysis(
 
     const clusterTrial = clusteredByDesign(facts);
 
-    const { test, fallback } = resolveSkew(
-      // A correlation is skewed if either side of it is.
+    // A correlation is a pair, and a pair has two data types. Table B is keyed
+    // on the outcome's alone, so every pairing with a binary outcome landed on
+    // `binary/pair` and was reported as the phi coefficient - a measure between
+    // two yes-or-no variables - for a MESS score, a serum lactate and a
+    // duration in hours alike. Table B2 carries the other side's type.
+    const partner = explore?.kind === "correlation" ? (explore.reuses[1] ?? "") : "";
+    const paired = partner ? byName.get(partner) : undefined;
+    // A correlation whose other side the study does not collect has no test to
+    // name. S3-1 already blocks on the dangling name; the row takes the table's
+    // stated fallback rather than the phi coefficient, which named a measure
+    // between two yes-or-no variables for an injury severity score.
+    const pairRow = explore?.kind === "correlation"
+      ? matchKey(screens(), `${dataType}|${paired?.type ?? "*"}`)
+      : null;
+    if (explore?.kind === "correlation" && !paired) {
+      todos.push(
+        `${objective.id} correlates "${chain.what.toLowerCase()}" with ${partner.replace(/_/g, " ")}, which the study does not collect. Add it to the form or drop the question; until then the plan names the nearest test rather than the right one.`,
+      );
+    }
+    // Whichever table the row came from, the skew rule is the same: where the
+    // Facts Sheet already says a side is skewed, the rank test is the test and
+    // not the fallback. `resolveSkew` reads decision table B's column names, so
+    // a row from table B2 is handed over under them.
+    const skewedHere =
       explore?.kind === "correlation"
         ? explore.reuses.some((n) => skewed.has(n))
-        : chain.distribution === "skewed",
-      testRow,
+        : chain.distribution === "skewed";
+    const { test, fallback } = resolveSkew(
+      skewedHere,
+      pairRow
+        ? { "Unadjusted test": pairRow.Test, "Unadjusted fallback": pairRow.Fallback ?? "" }
+        : testRow,
     );
 
     let adjustedModel = testRow["Adjusted model"] || "";
@@ -523,9 +554,13 @@ export function buildAnalysis(
     const estimation = chain.kind === "estimation" || (shape === "single" && !chain.exposures.length);
     const exception = safety ? "safety" : estimation ? "estimation" : null;
 
+    // An exploratory question is asked of the primary's outcome and not of its
+    // factors, so the chain's exposures belong to the confirmatory row alone.
+    // Appended to both, every exploratory row in a cohort study carried the
+    // primary's three factors beside its own.
     const predictors = [
       ...(facts.groups.length >= 2 ? [ARM] : []),
-      ...chain.exposures.map((exposure) => exposure.measure),
+      ...(explore ? [] : chain.exposures.map((exposure) => exposure.measure)),
       ...(explore ? explore.reuses.slice(1) : []),
     ];
 
@@ -592,7 +627,18 @@ export function buildAnalysis(
           ? null
           : {
               model: explore
-                ? interactionModel(adjustedModel, explore.reuses[1], byName)
+                ? interactionModel(
+                    adjustedModel,
+                    explore.reuses[1],
+                    byName,
+                    // What the effect is said to differ by. An arm where the
+                    // study has arms; otherwise its first factor, because
+                    // "an arm-by-fasciotomy interaction" names a term that
+                    // does not exist in a single-cohort study.
+                    facts.groups.length >= 2
+                      ? ARM
+                      : (chain.exposures[0]?.measure.replace(/_/g, " ") ?? "the exposure"),
+                  )
                 : adjustedModel,
               fallback: adjustedFallback,
               covariates,

@@ -37,6 +37,19 @@ export type DiagnosticQuestion = "accuracy" | "correlation" | "comparison";
 
 export const isDiagnostic = (facts: FactsSheet) => facts.design === "diagnostic_accuracy";
 
+/**
+ * Whether this outcome is asked how well something identifies it.
+ *
+ * A whole diagnostic study asks it of every objective; a cohort study can ask it
+ * of one. "How accurately do MESS, GANGA, lactate and ischaemia time predict
+ * amputation" is the second secondary objective of a trauma cohort, and keying
+ * this branch on the design alone sent it to the risk-ratio rows: an area under
+ * a curve reported as a relative risk, with no cut-off and no comparison of the
+ * four curves.
+ */
+export const asksAccuracy = (facts: FactsSheet, chain: OutcomeChain) =>
+  isDiagnostic(facts) || chain.kind === "accuracy";
+
 const typeOf = (facts: FactsSheet, name: VariableName) =>
   facts.measures.find((m) => m.name === name)?.type;
 
@@ -72,7 +85,7 @@ export function referenceOf(facts: FactsSheet, chain: OutcomeChain): VariableNam
  * cannot disagree.
  */
 export function anchorOf(facts: FactsSheet, chain: OutcomeChain): VariableName {
-  if (!isDiagnostic(facts)) return variableName(chain.what);
+  if (!asksAccuracy(facts, chain)) return variableName(chain.what);
   const question = questionOf(chain);
   const wanted = question === "accuracy" ? "binary" : question === "correlation" ? "ordinal" : null;
   const found = wanted
@@ -86,6 +99,15 @@ export function anchorOf(facts: FactsSheet, chain: OutcomeChain): VariableName {
  * anchor and the reference standard.
  */
 export function indexTestsOf(facts: FactsSheet, chain: OutcomeChain): VariableName[] {
+  // Where the outcome names its factors, they are the index tests. A diagnostic
+  // study lists them among the outcome's measures; a cohort study asking an
+  // accuracy question of one objective carries them as that outcome's
+  // exposures, and its `measures` hold only the thing being identified.
+  if (chain.exposures.length) {
+    return chain.exposures
+      .map((exposure) => exposure.measure)
+      .filter((name) => INDEX_TYPES.includes(typeOf(facts, name) ?? ""));
+  }
   const anchor = anchorOf(facts, chain);
   const reference = referenceOf(facts, chain);
   const measured = chain.measures.filter(
