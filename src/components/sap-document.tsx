@@ -3,6 +3,15 @@ import type { SapBuild } from "@/lib/sap/build";
 import { DIAGNOSTIC_NOTE } from "@/lib/study/diagnostic";
 
 /**
+ * How a variable is written for a reader: its label, not the name code uses.
+ *
+ * The name is lower case with underscores and is often the outcome's whole
+ * sentence. The variable list already carries the words a person reads.
+ */
+const labelOf = (build: SapBuild, name: string) =>
+  build.variables.find((variable) => variable.name === name)?.label ?? name;
+
+/**
  * The plan on screen, laid out the way the .docx lays it out.
  *
  * The same objects the renderer reads, drawn as HTML rather than as markdown,
@@ -196,16 +205,24 @@ export function SapDocument({ build }: { build: SapBuild }) {
                   <td className="border border-line px-2 py-1.5 align-top font-semibold">
                     {row.objective}
                   </td>
-                  <td className="border border-line px-2 py-1.5 align-top">
-                    {row.outcome}
+                  {/*
+                    The label, not the name. A variable is named for code -
+                    `amputation_primary_or_secondary_of_the_injured_extremity_within_30_days_of_injury` -
+                    and printed raw it is unreadable and, having no spaces, it
+                    forces the column as wide as itself and leaves every other
+                    row a tall empty box.
+                  */}
+                  <td className="border border-line px-2 py-1.5 align-top break-words">
+                    {labelOf(build, row.outcome)}
                   </td>
-                  <td className="border border-line px-2 py-1.5 align-top">
-                    {row.predictors.join(", ") || "none"}
+                  <td className="border border-line px-2 py-1.5 align-top break-words">
+                    {row.predictors.map((name) => labelOf(build, name)).join(", ") ||
+                      "none"}
                   </td>
                   <td className="border border-line px-2 py-1.5 align-top">
                     {row.data_type}, {row.count}
                   </td>
-                  <td className="border border-line px-2 py-1.5 align-top">
+                  <td className="border border-line px-2 py-1.5 align-top break-words">
                     {row.unadjusted && (
                       <div>
                         Unadjusted: {row.unadjusted.test} → T{row.unadjusted.table}
@@ -215,7 +232,9 @@ export function SapDocument({ build }: { build: SapBuild }) {
                       <div>
                         Adjusted: {row.adjusted.model}
                         {row.adjusted.covariates.length
-                          ? ` + ${row.adjusted.covariates.map((c) => c.var).join(", ")}`
+                          ? ` + ${row.adjusted.covariates
+                              .map((c) => labelOf(build, c.var))
+                              .join(", ")}`
                           : ""}{" "}
                         → T{row.adjusted.table}
                         {row.adjusted.fit_table ? ` (fit T${row.adjusted.fit_table})` : ""}
