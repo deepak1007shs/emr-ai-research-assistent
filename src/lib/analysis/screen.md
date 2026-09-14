@@ -22,31 +22,31 @@ the multiplicity line.
 standing for any one part. The first row whose key matches wins, so the specific
 rows are above the general ones.
 
-| Key | Situation | Test | Fallback |
-|---|---|---|---|
-| binary\|binary | A yes-or-no factor against a yes-or-no outcome | Chi-square test | Fisher's exact test where any expected count is below 5 |
-| binary\|nominal | An unordered factor against a yes-or-no outcome | Chi-square test across the categories | Fisher's exact test where any expected count is below 5 |
-| binary\|ordinal | An ordered factor against a yes-or-no outcome | Chi-square test across the ordered categories, with the Cochran-Armitage test for trend | Fisher's exact test where any expected count is below 5 |
-| binary\|continuous | A measured factor against a yes-or-no outcome | Independent t-test | Mann-Whitney test where the factor is skewed |
-| binary\|count | A counted factor against a yes-or-no outcome | Mann-Whitney test | |
-| binary\|time_to_event | A time against a yes-or-no outcome | Mann-Whitney test on the observed times | |
-| continuous\|binary | A yes-or-no factor against a measured outcome | Independent t-test | Mann-Whitney test where the outcome is skewed |
-| continuous\|nominal | An unordered factor against a measured outcome | One-way analysis of variance | Kruskal-Wallis test where the outcome is skewed |
-| continuous\|ordinal | An ordered factor against a measured outcome | Spearman rank correlation with a 95% confidence interval | |
-| continuous\|continuous | A measured factor against a measured outcome | Pearson correlation with a 95% confidence interval | Spearman correlation where either is skewed |
-| continuous\|count | A counted factor against a measured outcome | Spearman rank correlation with a 95% confidence interval | |
-| ordinal\|binary | A yes-or-no factor against an ordered outcome | Mann-Whitney test | |
-| ordinal\|nominal | An unordered factor against an ordered outcome | Kruskal-Wallis test | |
-| ordinal\|ordinal | An ordered factor against an ordered outcome | Spearman rank correlation with a 95% confidence interval | |
-| ordinal\|continuous | A measured factor against an ordered outcome | Spearman rank correlation with a 95% confidence interval | |
-| count\|binary | A yes-or-no factor against a counted outcome | Mann-Whitney test | |
-| count\|continuous | A measured factor against a counted outcome | Spearman rank correlation with a 95% confidence interval | |
-| nominal\|* | Any factor against an unordered outcome | Chi-square test | Fisher's exact test where any expected count is below 5 |
-| time_to_event\|binary | A yes-or-no factor against a time to event | Log-rank test | |
-| time_to_event\|nominal | An unordered factor against a time to event | Log-rank test across the categories | |
-| time_to_event\|ordinal | An ordered factor against a time to event | Log-rank test for trend across the ordered categories | |
-| time_to_event\|continuous | A measured factor against a time to event | Univariable Cox regression, with the factor entered as it is measured | |
-| *\|* | A factor whose pairing the table does not name | Chi-square test for categories, or the Mann-Whitney test where either side is measured | |
+| Key | Situation | Test | Fallback | Short |
+| --- | --- | --- | --- | --- |
+| binary\|binary | A yes-or-no factor against a yes-or-no outcome | Chi-square test | Fisher's exact test where any expected count is below 5 |  |
+| binary\|nominal | An unordered factor against a yes-or-no outcome | Chi-square test across the categories | Fisher's exact test where any expected count is below 5 |  |
+| binary\|ordinal | An ordered factor against a yes-or-no outcome | Chi-square test across the ordered categories, with the Cochran-Armitage test for trend | Fisher's exact test where any expected count is below 5 | Chi-square, Cochran-Armitage trend test |
+| binary\|continuous | A measured factor against a yes-or-no outcome | Independent t-test | Mann-Whitney test where the factor is skewed |  |
+| binary\|count | A counted factor against a yes-or-no outcome | Mann-Whitney test |  |  |
+| binary\|time_to_event | A time against a yes-or-no outcome | Mann-Whitney test on the observed times |  |  |
+| continuous\|binary | A yes-or-no factor against a measured outcome | Independent t-test | Mann-Whitney test where the outcome is skewed |  |
+| continuous\|nominal | An unordered factor against a measured outcome | One-way analysis of variance | Kruskal-Wallis test where the outcome is skewed |  |
+| continuous\|ordinal | An ordered factor against a measured outcome | Spearman rank correlation with a 95% confidence interval |  | Spearman correlation |
+| continuous\|continuous | A measured factor against a measured outcome | Pearson correlation with a 95% confidence interval | Spearman correlation where either is skewed | Pearson correlation |
+| continuous\|count | A counted factor against a measured outcome | Spearman rank correlation with a 95% confidence interval |  | Spearman correlation |
+| ordinal\|binary | A yes-or-no factor against an ordered outcome | Mann-Whitney test |  |  |
+| ordinal\|nominal | An unordered factor against an ordered outcome | Kruskal-Wallis test |  |  |
+| ordinal\|ordinal | An ordered factor against an ordered outcome | Spearman rank correlation with a 95% confidence interval |  | Spearman correlation |
+| ordinal\|continuous | A measured factor against an ordered outcome | Spearman rank correlation with a 95% confidence interval |  | Spearman correlation |
+| count\|binary | A yes-or-no factor against a counted outcome | Mann-Whitney test |  |  |
+| count\|continuous | A measured factor against a counted outcome | Spearman rank correlation with a 95% confidence interval |  | Spearman correlation |
+| nominal\|* | Any factor against an unordered outcome | Chi-square test | Fisher's exact test where any expected count is below 5 |  |
+| time_to_event\|binary | A yes-or-no factor against a time to event | Log-rank test |  |  |
+| time_to_event\|nominal | An unordered factor against a time to event | Log-rank test across the categories |  |  |
+| time_to_event\|ordinal | An ordered factor against a time to event | Log-rank test for trend across the ordered categories |  | Log-rank test for trend |
+| time_to_event\|continuous | A measured factor against a time to event | Univariable Cox regression, with the factor entered as it is measured |  | Univariable Cox regression |
+| *\|* | A factor whose pairing the table does not name | Chi-square test for categories, or the Mann-Whitney test where either side is measured |  | Chi-square or Mann-Whitney test |
 
 The last row is a stated fallback rather than a silent one: it is reported as an
 open item, because a pairing this table does not name is a pairing somebody

@@ -561,6 +561,14 @@ export type Covariate = {
 
 export type Unadjusted = {
   test: string;
+  /**
+   * The test's name as the Analysis Map prints it: "Kaplan-Meier, log-rank
+   * test" for a sentence that goes on to name the median survival by group.
+   * The whole sentence and its fallback are in the footnote of the table this
+   * row names. Absent from a plan stored before short names existed, which
+   * prints the whole sentence instead.
+   */
+  short?: string;
   /** The named test used when the assumption fails. */
   fallback: string | null;
   table: string;
@@ -568,6 +576,8 @@ export type Unadjusted = {
 
 export type Adjusted = {
   model: string;
+  /** The model's name as the Analysis Map prints it. See `Unadjusted.short`. */
+  short?: string;
   /** The named model used when the first fails to converge. */
   fallback: string | null;
   covariates: Covariate[];

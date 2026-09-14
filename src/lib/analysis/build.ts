@@ -166,19 +166,23 @@ function shapeOf(
  */
 function resolveSkew(isSkewed: boolean, row: Record<string, string>) {
   const test = row["Unadjusted test"];
+  // A blank short cell means the test's name is already short.
+  const short = row["Unadjusted short"] || test;
   const fallback = row["Unadjusted fallback"] || null;
-  if (!isSkewed || !fallback) return { test, fallback };
+  if (!isSkewed || !fallback) return { test, fallback, short };
 
   const skewed = fallback
     .split(";")
     .map((part) => part.trim())
     .find((part) => /skew/i.test(part));
-  if (!skewed) return { test, fallback };
+  if (!skewed) return { test, fallback, short };
 
-  return {
-    test: skewed.replace(/\s*where (the )?(outcome|differences|either)\b.*$/i, "").trim(),
-    fallback: null,
-  };
+  // The fallback taken as the test is a clause of one sentence, cut at
+  // "where", so it is its own short name. Decision table B2 words its skew
+  // condition "where the factor is skewed", which the cut used to miss, and
+  // named "Mann-Whitney test where the factor is skewed" as the test itself.
+  const resolved = skewed.replace(/\s*where (the )?(outcome|differences|either|factor)\b.*$/i, "").trim();
+  return { test: resolved, fallback: null, short: resolved };
 }
 
 /**
@@ -390,19 +394,27 @@ export function buildAnalysis(
       explore?.kind === "correlation"
         ? explore.reuses.some((n) => skewed.has(n))
         : chain.distribution === "skewed";
-    const { test, fallback } = resolveSkew(
+    const { test, fallback, short: testShort } = resolveSkew(
       skewedHere,
       pairRow
-        ? { "Unadjusted test": pairRow.Test, "Unadjusted fallback": pairRow.Fallback ?? "" }
+        ? {
+            "Unadjusted test": pairRow.Test,
+            "Unadjusted fallback": pairRow.Fallback ?? "",
+            "Unadjusted short": pairRow.Short ?? "",
+          }
         : testRow,
     );
 
     let adjustedModel = testRow["Adjusted model"] || "";
+    // The short name follows every edit made to the model below, so the map
+    // never names more than the model is.
+    let adjustedShort = testRow["Adjusted short"] || adjustedModel;
     if (!hasBaseline) {
       adjustedModel = adjustedModel.replace(
         /,\s*as analysis of covariance with the baseline value/,
         "",
       );
+      adjustedShort = adjustedShort.replace(/ \(ANCOVA\)$/, "");
     }
     let adjustedFallback = testRow["Adjusted fallback"] || null;
 
@@ -462,6 +474,7 @@ export function buildAnalysis(
       if (modelRow) {
         effect = modelRow["Effect measure"];
         adjustedModel = modelRow.Model;
+        adjustedShort = modelRow.Short || modelRow.Model;
         adjustedFallback = modelRow["Named fallback"] || null;
       }
       if (chain.expected_frequency === null && !isSafety(chain)) {
@@ -471,9 +484,16 @@ export function buildAnalysis(
       }
     }
 
+    // The family an exploratory interaction is named from, taken before the
+    // clauses below are appended. `interactionModel` keeps the family and
+    // drops the rest, so a short name taken later could name the log scale or
+    // analysis of covariance for a model whose full sentence does not.
+    const familyShort = adjustedShort.replace(/ \(ANCOVA\)$/, "");
+
     /* ---- a skewed continuous outcome is modelled on the log scale --- */
     if (dataType === "continuous" && skewed.has(outcomeName) && adjustedModel) {
       adjustedModel = `${adjustedModel} on the log scale`;
+      adjustedShort = `${adjustedShort} on the log scale`;
       effect = "Ratio of geometric means";
     }
 
@@ -544,6 +564,9 @@ export function buildAnalysis(
       adjustedModel = adjustedModel
         .replace(/fixed effects for group, visit, the group-by-visit interaction and /, "fixed effects for visit and ")
         .replace(/with a group-by-time term/, "with time as a fixed effect");
+      adjustedShort = adjustedShort
+        .replace(/with a group-by-visit interaction/, "with visit as a fixed effect")
+        .replace(/with a group-by-time term/, "with time as a fixed effect");
     }
 
     /* ---- the two exceptions to unadjusted then adjusted ------------- */
@@ -612,6 +635,7 @@ export function buildAnalysis(
                 facts.groups.length >= 2
                   ? "Fisher's exact test, with the Newcombe confidence interval for the risk difference"
                   : "Proportions with 95% confidence intervals, by the Wilson method",
+              short: facts.groups.length >= 2 ? "Fisher's exact test" : "Proportions with 95% CI",
               fallback: null,
               table: "",
             }
@@ -623,6 +647,7 @@ export function buildAnalysis(
                 // summaries. Treating the rows as independent people is the
                 // fourth of the eight commonest mistakes.
                 test: clusterTrial ? `${test}, on cluster-level summary measures` : test,
+                short: testShort,
                 fallback,
                 table: "",
               },
@@ -644,6 +669,16 @@ export function buildAnalysis(
                       : (chain.exposures[0]?.measure.replace(/_/g, " ") ?? "the exposure"),
                   )
                 : adjustedModel,
+              short: explore
+                ? interactionModel(
+                    familyShort,
+                    explore.reuses[1],
+                    byName,
+                    facts.groups.length >= 2
+                      ? ARM
+                      : (chain.exposures[0]?.measure.replace(/_/g, " ") ?? "the exposure"),
+                  )
+                : adjustedShort,
               fallback: adjustedFallback,
               covariates,
               table: "",
@@ -676,8 +711,9 @@ function screenOf(
   chain: OutcomeChain,
   byName: Map<string, Variable>,
   todos: string[],
-): { test: string; fallback: string | null; table: string } {
+): { test: string; short: string; fallback: string | null; table: string } {
   const named: string[] = [];
+  const shorts: string[] = [];
   const fallbacks: string[] = [];
 
   for (const exposure of chain.exposures) {
@@ -686,6 +722,10 @@ function screenOf(
     const row = matchKey(screens(), `${chain.type}|${variable?.type ?? "continuous"}`);
     if (!row) continue;
     named.push(`${row.Test.toLowerCase()} for ${label}`);
+    // Each test once, in factor order, in the table's own capitals:
+    // lower-cased, a surname reads as "mann-whitney".
+    const short = row.Short || row.Test;
+    if (!shorts.includes(short)) shorts.push(short);
     if (row.Fallback) fallbacks.push(row.Fallback.toLowerCase());
     // The last row of table B2 is a stated fallback, and a pairing it had to
     // catch is a pairing somebody should look at before the data arrive.
@@ -701,6 +741,9 @@ function screenOf(
     : "One factor at a time, each by the test its data type owes";
   return {
     test: sentence,
+    short: shorts.length
+      ? `Each factor alone: ${shorts.join(", ")}`
+      : "Each factor alone, by the test its data type owes",
     fallback: fallbacks.length ? [...new Set(fallbacks)].join("; ") : null,
     table: "",
   };
@@ -771,6 +814,9 @@ function diagnosticRow(
         : "";
     return {
       test: `${row?.["Unadjusted test"] ?? "Sensitivity and specificity with exact binomial confidence intervals"}${compared}${clustered}`,
+      // The bootstrap is how the intervals are made and stays in the footnote;
+      // comparing the curves is a second analysis, so the map names it.
+      short: `${row?.["Unadjusted short"] || row?.["Unadjusted test"] || "Sensitivity and specificity"}${indexTests.length > 1 ? "; AUCs compared by DeLong's test" : ""}`,
       fallback: row?.["Unadjusted fallback"] || null,
     };
   };
@@ -780,7 +826,7 @@ function diagnosticRow(
   let outcome = anchorOf(facts, chain);
   let predictors: string[] = [];
   let effect = accuracyMeasure;
-  let unadjusted: { test: string; fallback: string | null };
+  let unadjusted: { test: string; short: string; fallback: string | null };
 
   if (!explore) {
     const question = questionOf(chain);
@@ -796,6 +842,7 @@ function diagnosticRow(
         // The grade's label as written: it is usually a surname - Gleason,
         // Bethesda - and a first letter lower-cased reads as a typo.
         test: `${row?.["Unadjusted test"] ?? "Spearman rank correlation with a 95% confidence interval"}, for each index test with the ${byName.get(outcome)?.label ?? outcome}${clustered}`,
+        short: row?.["Unadjusted short"] || "Spearman correlation",
         fallback: null,
       };
     } else {
@@ -806,11 +853,14 @@ function diagnosticRow(
       const results = byName.get(reference ?? "")?.options?.length ?? facts.groups.length;
       const row = matchKey(tests(), `${typeOf(outcome)}/${results > 2 ? "many_groups" : "two_groups"}`);
       const isSkewed = chain.distribution === "skewed" || skewed.has(outcome);
-      const { test, fallback } = row ? resolveSkew(isSkewed, row) : { test: "", fallback: null };
+      const { test, fallback, short } = row
+        ? resolveSkew(isSkewed, row)
+        : { test: "", fallback: null, short: "" };
       effect =
         matchKey(effectMeasures(), `other|${typeOf(outcome)}`)?.["Effect measure"] ?? "Mean difference";
       unadjusted = {
         test: `${test}, for each of ${listed(indexTests.map(labelOf))} between the results of ${reference ? labelOf(reference) : "the reference standard"}${clustered}`,
+        short,
         fallback,
       };
     }
@@ -823,6 +873,7 @@ function diagnosticRow(
     if (explore.kind === "subgroup" || explore.kind === "interaction") {
       unadjusted = {
         test: `The area under the ROC curve of ${listed(indexTests.map(labelOf))}, with a DeLong interval, estimated separately within each category of ${listed(others.map(labelOf))}, and the areas compared between categories by a z-test for independent curves${clustered}`,
+        short: "AUC within each category, compared by z-test",
         fallback: null,
       };
     } else if (explore.kind === "derivation") {
@@ -845,9 +896,17 @@ function diagnosticRow(
           : []),
       ];
       const joined = parts.join("; ");
+      // One name for each part above, in the same order and on the same
+      // conditions, so the map names every analysis the sentence runs.
+      const shortParts = [
+        ...(numbers.length > 1 ? ["Spearman correlation"] : []),
+        ...(numbers.length ? ["Mann-Whitney test"] : []),
+        ...(categories.length ? ["Chi-square test", "Mann-Whitney or Kruskal-Wallis test"] : []),
+      ];
       effect = numbers.length > 1 ? "Correlation coefficient" : "Difference between the reference-standard results";
       unadjusted = {
         test: `${joined[0]?.toUpperCase() ?? ""}${joined.slice(1)}${clustered}`,
+        short: shortParts.join("; "),
         fallback: numbers.length ? null : "Fisher's exact test where any expected count is below 5",
       };
     }
