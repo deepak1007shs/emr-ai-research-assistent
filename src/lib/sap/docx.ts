@@ -16,6 +16,7 @@ import type { ShellTable } from "../study/types.ts";
 import type { SapBuild } from "./build.ts";
 import { DIAGNOSTIC_NOTE } from "../study/diagnostic.ts";
 import { labelOf } from "../variables/name.ts";
+import { SECTION_2_LINE, VARIABLE_HEADINGS, variableRows } from "./variable-list.ts";
 import {
   MAP_LINE,
   PICOT_LINE,
@@ -258,6 +259,13 @@ export async function buildSapDocx(
       ),
     );
   }
+
+  /* Section 2 */
+  body.push(
+    heading("Section 2 - Master Variable List", HeadingLevel.HEADING_1),
+    italic(SECTION_2_LINE),
+    grid(VARIABLE_HEADINGS, variableRows(build)),
+  );
 
   /* The Analysis Map */
   body.push(heading("Analysis Map", HeadingLevel.HEADING_1), italic(MAP_LINE));

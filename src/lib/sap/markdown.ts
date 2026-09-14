@@ -4,6 +4,7 @@ import { BLOCK_ORDER } from "../study/vocabulary.ts";
 import type { SapBuild } from "./build.ts";
 import { DIAGNOSTIC_NOTE } from "../study/diagnostic.ts";
 import { labelOf } from "../variables/name.ts";
+import { SECTION_2_LINE, VARIABLE_HEADINGS, variableRows } from "./variable-list.ts";
 
 /**
  * The plan, rendered top to bottom.
@@ -168,6 +169,11 @@ export function renderSapMarkdown(build: SapBuild): string {
       ),
     );
   }
+
+  /* Section 2 */
+  say("## Section 2 - Master Variable List");
+  say(italic(SECTION_2_LINE));
+  say(grid(VARIABLE_HEADINGS, variableRows(build)));
 
   /* The Analysis Map */
   // Labels, never the names code uses. See `labelOf`.

@@ -3,6 +3,7 @@ import { idaPreg } from "../facts/fixture.ts";
 import { bannedWordsIn } from "../render/house-style.ts";
 import { buildSap } from "./build.ts";
 import { renderSapMarkdown } from "./markdown.ts";
+import { SECTION_2_LINE } from "./variable-list.ts";
 import {
   MAP_LINE,
   PICOT_LINE,
@@ -29,6 +30,7 @@ describe("the plan, end to end", () => {
       "# STATISTICAL ANALYSIS PLAN",
       "## PICO",
       "## Section 1 - Objectives as Answerable Questions",
+      "## Section 2 - Master Variable List",
       "## Analysis Map",
       "## Section 6 - Shell (Dummy) Tables",
     ];
@@ -41,7 +43,13 @@ describe("the plan, end to end", () => {
   });
 
   it("carries the fixed rationale lines word for word", () => {
-    for (const fixed of [PICOT_LINE, SECTION_1_LINE, MAP_LINE, SECTION_6_LINE]) {
+    for (const fixed of [
+      PICOT_LINE,
+      SECTION_1_LINE,
+      SECTION_2_LINE,
+      MAP_LINE,
+      SECTION_6_LINE,
+    ]) {
       expect(sap()).toContain(`*${fixed}*`);
     }
   });

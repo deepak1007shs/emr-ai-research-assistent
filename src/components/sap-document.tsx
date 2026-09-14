@@ -2,6 +2,11 @@ import type { ShellTable } from "@/lib/study/types";
 import type { SapBuild } from "@/lib/sap/build";
 import { DIAGNOSTIC_NOTE } from "@/lib/study/diagnostic";
 import { labelOf as words } from "@/lib/variables/name";
+import {
+  SECTION_2_LINE,
+  VARIABLE_HEADINGS,
+  variableRows,
+} from "@/lib/sap/variable-list";
 
 /**
  * How a variable is written for a reader: its label, not the name code uses.
@@ -175,6 +180,41 @@ export function SapDocument({ build }: { build: SapBuild }) {
             </div>
           );
         })}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold">Section 2. Master Variable List</h2>
+        <p className="text-xs italic text-muted">{SECTION_2_LINE}</p>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr>
+                {VARIABLE_HEADINGS.map((headingText) => (
+                  <th
+                    key={headingText}
+                    className="border border-line px-2 py-1.5 text-left font-semibold"
+                  >
+                    {headingText}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {variableRows(build).map((row) => (
+                <tr key={row[0]}>
+                  {row.map((cell, i) => (
+                    <td
+                      key={i}
+                      className={`border border-line px-2 py-1.5 align-top break-words${i === 0 ? " font-semibold" : ""}`}
+                    >
+                      {cell}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="space-y-3">
