@@ -1,17 +1,16 @@
 import { spaced } from "../render/plain.ts";
-import type { AnalysisRow, ShellTable } from "../study/types.ts";
+import type { ShellTable } from "../study/types.ts";
 import { BLOCK_ORDER } from "../study/vocabulary.ts";
 import type { SapBuild } from "./build.ts";
-import { DIAGNOSTIC_NOTE } from "../study/diagnostic.ts";
-import { labelOf } from "../variables/name.ts";
 import { SECTION_2_LINE, VARIABLE_HEADINGS, variableRows } from "./variable-list.ts";
+import { MAP_HEADINGS, mapRows, unitLine } from "./analysis-map.ts";
 
 /**
  * The plan, rendered top to bottom.
  *
  * Section 7.2 of the written process gives the order and this follows it
- * exactly: title, PICOT, Section 1, the Analysis Map, Section 6. Nothing here
- * decides anything. Every sentence is either a fixed line, a value from the
+ * exactly: title, PICOT, Section 1, Section 2, the Analysis Map, Section 6.
+ * Nothing here decides anything. Every sentence is either a fixed line, a value from the
  * build, or a template with the value slotted in, which is what makes two runs
  * produce one file.
  *
@@ -67,40 +66,6 @@ function grid(headings: string[], rows: string[][]): string {
   return lines.join("\n");
 }
 
-/** The test cell of the Analysis Map, in the fixed order rule 4.9 gives. */
-function testCell(row: AnalysisRow, label: (name: string) => string): string {
-  const parts: string[] = [];
-  if (row.unadjusted) {
-    const fallback = row.unadjusted.fallback
-      ? ` (fallback: ${row.unadjusted.fallback})`
-      : "";
-    parts.push(
-      `Unadjusted: ${row.unadjusted.test}${fallback} → T${row.unadjusted.table}`,
-    );
-  }
-  if (row.adjusted) {
-    const covariates = row.adjusted.covariates.map((c) => label(c.var)).join(", ");
-    const fallback = row.adjusted.fallback
-      ? ` (fallback: ${row.adjusted.fallback})`
-      : "";
-    const fit = row.adjusted.fit_table ? ` (fit T${row.adjusted.fit_table})` : "";
-    parts.push(
-      `Adjusted: ${row.adjusted.model}${covariates ? ` + ${covariates}` : ""}${fallback} → T${row.adjusted.table}${fit}`,
-    );
-  }
-  if (row.exception === "estimation") {
-    parts.push("Estimation objective: summary with a confidence interval, no p value.");
-  }
-  if (row.exception === "safety") {
-    parts.push("Safety outcome: reported, not modelled.");
-  }
-  if (row.exception === "too_few_events") {
-    parts.push("Too few events to fit a model: descriptive only.");
-  }
-  if (row.exception === "diagnostic") parts.push(DIAGNOSTIC_NOTE);
-  return parts.join("; ");
-}
-
 /** One shell table: the bold title, the empty grid, the italic footnote. */
 function shell(table: ShellTable): string {
   const label = table.fit_table_of
@@ -122,8 +87,7 @@ function shell(table: ShellTable): string {
 /* ---- the document ---------------------------------------------------- */
 
 export function renderSapMarkdown(build: SapBuild): string {
-  const { facts, picot, objectives, analysis, tables, figures, rules, pinned } =
-    build;
+  const { facts, picot, objectives, tables, figures, rules, pinned } = build;
   const out: string[] = [];
   // Every line goes through the house style on its way out, so what is shown
   // on screen and what is downloaded have the same punctuation. `spaced` and
@@ -176,26 +140,10 @@ export function renderSapMarkdown(build: SapBuild): string {
   say(grid(VARIABLE_HEADINGS, variableRows(build)));
 
   /* The Analysis Map */
-  // Labels, never the names code uses. See `labelOf`.
-  const label = (name: string) => labelOf(build.variables, name);
   say("## Analysis Map");
   say(italic(MAP_LINE));
-  say(
-    grid(
-      ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical test → Table"],
-      analysis.map((row) => {
-        const objective = objectives.find((o) => o.id === row.objective);
-        const family = (objective?.family ?? "").toUpperCase();
-        return [
-          `${family} - ${row.objective}`,
-          label(row.outcome),
-          row.predictors.map(label).join(", ") || "none",
-          `${row.data_type.replace(/_/g, " ")}, ${row.unit_of_analysis}, ${row.count}`,
-          testCell(row, label),
-        ];
-      }),
-    ),
-  );
+  say(unitLine(build));
+  say(grid(MAP_HEADINGS, mapRows(build)));
 
   /* Section 6 */
   say("## Section 6 - Shell (Dummy) Tables");

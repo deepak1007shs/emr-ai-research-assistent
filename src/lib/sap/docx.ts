@@ -14,9 +14,8 @@ import { HOUSE_BORDER, HOUSE_STYLES, spaced } from "../render/house-style.ts";
 import { BLOCK_ORDER } from "../study/vocabulary.ts";
 import type { ShellTable } from "../study/types.ts";
 import type { SapBuild } from "./build.ts";
-import { DIAGNOSTIC_NOTE } from "../study/diagnostic.ts";
-import { labelOf } from "../variables/name.ts";
 import { SECTION_2_LINE, VARIABLE_HEADINGS, variableRows } from "./variable-list.ts";
+import { MAP_HEADINGS, mapRows, unitLine } from "./analysis-map.ts";
 import {
   MAP_LINE,
   PICOT_LINE,
@@ -146,13 +145,10 @@ export async function buildSapDocx(
   build: SapBuild,
   variant: SapVariant = "full",
 ): Promise<Buffer> {
-  const { facts, picot, objectives, analysis, tables, figures, rules, pinned } =
-    build;
+  const { facts, picot, objectives, tables, figures, rules, pinned } = build;
   const body: Block[] = [];
 
   const short = variant === "short";
-  // Labels, never the names code uses. See `labelOf`.
-  const label = (name: string) => labelOf(build.variables, name);
 
   body.push(
     new Paragraph({
@@ -268,37 +264,11 @@ export async function buildSapDocx(
   );
 
   /* The Analysis Map */
-  body.push(heading("Analysis Map", HeadingLevel.HEADING_1), italic(MAP_LINE));
   body.push(
-    grid(
-      ["Objective", "Outcome", "Predictor(s)", "Data type", "Statistical test to Table"],
-      analysis.map((row) => {
-        const family =
-          objectives.find((o) => o.id === row.objective)?.family ?? "";
-        const parts: string[] = [];
-        if (row.unadjusted) {
-          parts.push(`Unadjusted: ${row.unadjusted.test} to T${row.unadjusted.table}`);
-        }
-        if (row.adjusted) {
-          const covariates = row.adjusted.covariates.map((c) => label(c.var)).join(", ");
-          parts.push(
-            `Adjusted: ${row.adjusted.model}${covariates ? ` + ${covariates}` : ""} to T${row.adjusted.table}${row.adjusted.fit_table ? ` (fit T${row.adjusted.fit_table})` : ""}`,
-          );
-        }
-        if (row.exception === "safety") parts.push("Safety outcome: reported, not modelled.");
-        if (row.exception === "estimation") {
-          parts.push("Estimation objective: interval, no p value.");
-        }
-        if (row.exception === "diagnostic") parts.push(DIAGNOSTIC_NOTE);
-        return [
-          `${family.toUpperCase()} - ${row.objective}`,
-          label(row.outcome),
-          row.predictors.map(label).join(", ") || "none",
-          `${row.data_type.replace(/_/g, " ")}, ${row.unit_of_analysis}, ${row.count}`,
-          parts.join("; "),
-        ];
-      }),
-    ),
+    heading("Analysis Map", HeadingLevel.HEADING_1),
+    italic(MAP_LINE),
+    para(unitLine(build)),
+    grid(MAP_HEADINGS, mapRows(build)),
   );
 
   if (short) {

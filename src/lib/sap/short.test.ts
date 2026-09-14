@@ -86,11 +86,13 @@ describe("the short plan", () => {
       expect(full, row.letter).toContain(row.value);
     }
     // The map's table numbers point at tables only the full plan prints, and
-    // they are the same numbers in both.
+    // they are the same numbers in both. Matched as a whole entry of the Table
+    // cell ("T4, T8"), so the number 8 cannot pass on the strength of "T8a".
     for (const row of build.analysis) {
       if (!row.adjusted?.table) continue;
-      expect(short, row.objective).toContain(`to T${row.adjusted.table}`);
-      expect(full, row.objective).toContain(`to T${row.adjusted.table}`);
+      const entry = new RegExp(`(^|\\n|, )T${row.adjusted.table}(,|\\n|$)`, "m");
+      expect(short, row.objective).toMatch(entry);
+      expect(full, row.objective).toMatch(entry);
     }
   });
 

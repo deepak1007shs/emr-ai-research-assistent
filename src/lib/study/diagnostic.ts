@@ -121,9 +121,16 @@ export function indexTestsOf(facts: FactsSheet, chain: OutcomeChain): VariableNa
     : measured.filter((name) => name !== anchor);
 }
 
-/** What the Analysis Map says in place of an adjusted model. */
+/**
+ * What the Analysis Map says in place of an adjusted model.
+ *
+ * Short, because it is one cell of a grid. "A diagnostic question" and not
+ * "diagnostic accuracy": the rows that print it include a correlation with a
+ * grade, a comparison between reference-standard results, and an accuracy
+ * objective inside a cohort, and only some of those estimate accuracy.
+ */
 export const DIAGNOSTIC_NOTE =
-  "Diagnostic question: estimated against the reference standard and not adjusted, because there is no exposure effect to hold anything constant for.";
+  "Not applicable: a diagnostic question, with no exposure effect to adjust for";
 
 /** How the groups are named: arms in a trial, results in a diagnostic study. */
 export function groupWord(facts: FactsSheet): string {

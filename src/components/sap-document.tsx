@@ -1,20 +1,11 @@
 import type { ShellTable } from "@/lib/study/types";
 import type { SapBuild } from "@/lib/sap/build";
-import { DIAGNOSTIC_NOTE } from "@/lib/study/diagnostic";
-import { labelOf as words } from "@/lib/variables/name";
 import {
   SECTION_2_LINE,
   VARIABLE_HEADINGS,
   variableRows,
 } from "@/lib/sap/variable-list";
-
-/**
- * How a variable is written for a reader: its label, not the name code uses.
- *
- * The name is lower case with underscores and is often the outcome's whole
- * sentence. The variable list already carries the words a person reads.
- */
-const labelOf = (build: SapBuild, name: string) => words(build.variables, name);
+import { MAP_HEADINGS, mapRows, unitLine } from "@/lib/sap/analysis-map";
 
 /**
  * The plan on screen, laid out the way the .docx lays it out.
@@ -95,8 +86,7 @@ function Shell({ table }: { table: ShellTable }) {
 }
 
 export function SapDocument({ build }: { build: SapBuild }) {
-  const { facts, picot, objectives, analysis, tables, figures, rules, pinned } =
-    build;
+  const { facts, picot, objectives, tables, figures, rules, pinned } = build;
 
   return (
     <article className="card space-y-8 p-6">
@@ -223,71 +213,32 @@ export function SapDocument({ build }: { build: SapBuild }) {
           One row per objective, the heart of the plan. Every question is linked
           to its test and to the empty results table it will fill.
         </p>
+        <p className="text-sm">{unitLine(build)}</p>
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-xs">
             <thead>
               <tr>
-                {["Objective", "Outcome", "Predictors", "Data type", "Test → Table"].map(
-                  (heading) => (
-                    <th
-                      key={heading}
-                      className="border border-line px-2 py-1.5 text-left font-semibold"
-                    >
-                      {heading}
-                    </th>
-                  ),
-                )}
+                {MAP_HEADINGS.map((headingText) => (
+                  <th
+                    key={headingText}
+                    className="border border-line px-2 py-1.5 text-left font-semibold"
+                  >
+                    {headingText}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {analysis.map((row) => (
-                <tr key={row.objective}>
-                  <td className="border border-line px-2 py-1.5 align-top font-semibold">
-                    {row.objective}
-                  </td>
-                  {/*
-                    The label, not the name. A variable is named for code -
-                    `amputation_primary_or_secondary_of_the_injured_extremity_within_30_days_of_injury` -
-                    and printed raw it is unreadable and, having no spaces, it
-                    forces the column as wide as itself and leaves every other
-                    row a tall empty box.
-                  */}
-                  <td className="border border-line px-2 py-1.5 align-top break-words">
-                    {labelOf(build, row.outcome)}
-                  </td>
-                  <td className="border border-line px-2 py-1.5 align-top break-words">
-                    {row.predictors.map((name) => labelOf(build, name)).join(", ") ||
-                      "none"}
-                  </td>
-                  <td className="border border-line px-2 py-1.5 align-top">
-                    {row.data_type}, {row.count}
-                  </td>
-                  <td className="border border-line px-2 py-1.5 align-top break-words">
-                    {row.unadjusted && (
-                      <div>
-                        Unadjusted: {row.unadjusted.test} → T{row.unadjusted.table}
-                      </div>
-                    )}
-                    {row.adjusted && (
-                      <div>
-                        Adjusted: {row.adjusted.model}
-                        {row.adjusted.covariates.length
-                          ? ` + ${row.adjusted.covariates
-                              .map((c) => labelOf(build, c.var))
-                              .join(", ")}`
-                          : ""}{" "}
-                        → T{row.adjusted.table}
-                        {row.adjusted.fit_table ? ` (fit T${row.adjusted.fit_table})` : ""}
-                      </div>
-                    )}
-                    {row.exception === "safety" && (
-                      <div>Safety outcome: reported, not modelled.</div>
-                    )}
-                    {row.exception === "estimation" && (
-                      <div>Estimation objective: interval, no p value.</div>
-                    )}
-                    {row.exception === "diagnostic" && <div>{DIAGNOSTIC_NOTE}</div>}
-                  </td>
+              {mapRows(build).map((row) => (
+                <tr key={row[0]}>
+                  {row.map((cell, i) => (
+                    <td
+                      key={i}
+                      className={`border border-line px-2 py-1.5 align-top break-words${i === 0 ? " font-semibold" : ""}`}
+                    >
+                      {cell}
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>
