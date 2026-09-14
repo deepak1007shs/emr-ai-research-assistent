@@ -87,3 +87,35 @@ export type JobRow = {
   created_at: string;
   updated_at: string;
 };
+
+/** The plan row as far as deciding what to show needs it. */
+type PlanRow = { status: string; plan: unknown; error: string | null };
+
+/**
+ * Which plan the page shows.
+ *
+ * A stopped build leaves its row with no plan and no error, on purpose: the
+ * next build resumes that row's batch rather than paying for a second one, and
+ * a row marked failed would never be resumed. The page used to read such a row
+ * as a build still running, said so until another build finished, and hid the
+ * plan built before it. Whether a build is running is the jobs table's to say,
+ * not the row's.
+ *
+ * - `running`: the newest row is unfinished and a plan build is live.
+ * - `previous`: it is unfinished, nothing is building, and an earlier plan
+ *   finished - show that one.
+ * - `stopped`: it is unfinished, nothing is building, and nothing earlier
+ *   finished.
+ * - `newest`: anything else, which the page handles as it always has.
+ */
+export function planToShow(
+  newest: PlanRow | null,
+  buildIsLive: boolean,
+  finishedPlanExists: boolean,
+): "running" | "previous" | "stopped" | "newest" {
+  if (!newest) return "newest";
+  const unfinished = newest.status !== "failed" && !newest.plan && !newest.error;
+  if (!unfinished) return "newest";
+  if (buildIsLive) return "running";
+  return finishedPlanExists ? "previous" : "stopped";
+}

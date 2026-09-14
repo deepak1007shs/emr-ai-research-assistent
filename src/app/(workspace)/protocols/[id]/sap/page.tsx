@@ -9,6 +9,7 @@ import type { FactsSheet } from "@/lib/study/types";
 import { UsagePanel } from "@/components/usage-panel";
 import { blockers, warnings, type SapBuild } from "@/lib/sap/build";
 import type { TokenUsage } from "@/lib/protocol/pricing";
+import { isStalled, planToShow } from "@/lib/jobs/plan";
 
 export const metadata = {
   title: "Statistical Analysis Plan — EMR AI Research Assistant",
@@ -45,16 +46,41 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: plan }, { data: protocolRow }] = await Promise.all([
-    supabase
-      .from("sap_plans")
-      .select("id, status, error, facts, plan, markdown, model, usage, created_at")
-      .eq("protocol_id", id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase.from("protocols").select("filename").eq("id", id).maybeSingle(),
-  ]);
+  const COLUMNS = "id, status, error, facts, plan, markdown, model, usage, created_at";
+  const [{ data: newest }, { data: finished }, { data: job }, { data: protocolRow }] =
+    await Promise.all([
+      supabase
+        .from("sap_plans")
+        .select(COLUMNS)
+        .eq("protocol_id", id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      // The newest plan that finished, for when the newest build did not.
+      supabase
+        .from("sap_plans")
+        .select(COLUMNS)
+        .eq("protocol_id", id)
+        .eq("status", "ready")
+        .not("plan", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      // Whether a plan build is running now, which the row alone cannot say.
+      supabase
+        .from("jobs")
+        .select("status, updated_at")
+        .eq("protocol_id", id)
+        .in("kind", ["sap", "both"])
+        .eq("status", "running")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase.from("protocols").select("filename").eq("id", id).maybeSingle(),
+    ]);
+
+  const shown = planToShow(newest, Boolean(job && !isStalled(job)), Boolean(finished));
+  const plan = shown === "previous" ? finished : newest;
 
   const filename = protocolRow?.filename ?? "this protocol";
 
@@ -71,6 +97,24 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
             <BuildButton kind="sap" protocolId={id} exists={false} />
           </NotBuilt>
         </div>
+      </div>
+    );
+  }
+
+  if (shown === "stopped") {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
+        <section className="card mx-auto max-w-[var(--sheet-w)] p-6">
+          <h1 className="text-base font-semibold">The last build was stopped</h1>
+          <p className="mt-1.5 text-sm text-ink-3">
+            It was stopped before it finished, and no earlier plan was built for
+            this protocol. Building again picks up what the stopped build had
+            already paid for, where there is anything to pick up.
+          </p>
+          <div className="mt-4">
+            <BuildButton kind="sap" protocolId={id} exists={false} />
+          </div>
+        </section>
       </div>
     );
   }
@@ -157,6 +201,13 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
 
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
         <div className="mx-auto w-full max-w-[var(--sheet-w)] space-y-6">
+          {shown === "previous" && (
+            <p className="no-print card p-4 text-sm">
+              The last build was stopped before it finished. This is the plan
+              built on {new Date(plan.created_at).toLocaleDateString()}.
+            </p>
+          )}
+
           {plan.usage && (
             <UsagePanel usage={plan.usage as TokenUsage} model={plan.model} what="plan" />
           )}

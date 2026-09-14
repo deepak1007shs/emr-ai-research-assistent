@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STAGES, STAGE_LABEL, isStalled, stagesOf } from "./plan.ts";
+import { STAGES, STAGE_LABEL, isStalled, planToShow, stagesOf } from "./plan.ts";
 
 /**
  * The job plan: which stages a job runs, in which order, and when a job is
@@ -46,5 +46,36 @@ describe("a job whose server died", () => {
   it("is never stalled once it has finished, however long ago", () => {
     const row = { ...at(600), status: "done" };
     expect(isStalled(row, row.now)).toBe(false);
+  });
+});
+
+describe("which plan the page shows", () => {
+  // A stopped build leaves its row with no plan and no error, on purpose: the
+  // next build resumes its batch, and on 14 Sep 2026 that collected an answer
+  // already paid for. The page read that row as a build still running, said so
+  // until another build finished, and hid the plan built before it.
+  const unfinished = { status: "ready", plan: null, error: null };
+  const finished = { status: "ready", plan: { tables: [] }, error: null };
+  const failed = { status: "failed", plan: null, error: "Gate A stopped the plan." };
+
+  it("says a build is running only while one is", () => {
+    expect(planToShow(unfinished, true, true)).toBe("running");
+    expect(planToShow(unfinished, true, false)).toBe("running");
+  });
+
+  it("shows the last finished plan when the newest build was stopped", () => {
+    expect(planToShow(unfinished, false, true)).toBe("previous");
+  });
+
+  it("says the build was stopped when there is nothing earlier to show", () => {
+    expect(planToShow(unfinished, false, false)).toBe("stopped");
+  });
+
+  it("leaves a finished or failed row to the page as it was", () => {
+    for (const row of [finished, failed]) {
+      expect(planToShow(row, false, true)).toBe("newest");
+      expect(planToShow(row, true, false)).toBe("newest");
+    }
+    expect(planToShow(null, false, false)).toBe("newest");
   });
 });
