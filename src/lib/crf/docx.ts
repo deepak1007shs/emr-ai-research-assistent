@@ -80,9 +80,21 @@ function cell(text: string, width: number, bold = false) {
     },
     // One paragraph per line, so the two readers of an agreement study sit on
     // their own lines inside the one answer cell.
+    // A bold TODO, as the plan prints one, rather than the asterisks that mark
+    // it in the markdown: a field the protocol left undefined says so on paper.
     children: spaced(text)
       .split("\n")
-      .map((part) => new Paragraph({ children: [run(part, BODY, bold)] })),
+      .map(
+        (part) =>
+          new Paragraph({
+            children: part
+              .split(/(\*\*TODO:\*\*)/)
+              .filter(Boolean)
+              .map((piece) =>
+                piece === "**TODO:**" ? run("TODO:", BODY, true) : run(piece, BODY, bold),
+              ),
+          }),
+      ),
   });
 }
 

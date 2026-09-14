@@ -82,6 +82,8 @@ export function responseFor(field: Pick<CrfField, "type" | "unit" | "options">):
       return DATE;
     case "single_select":
     case "multi_select":
+      // A line to write on until the categories are stated, never nothing.
+      if (hasNoChoices(field)) return WRITTEN;
       return (field.options ?? [])
         .map((option) => `${BOX} ${option}`)
         .join(BETWEEN);
@@ -103,7 +105,23 @@ export function responseFor(field: Pick<CrfField, "type" | "unit" | "options">):
  * instruction is a thing that gets applied to four fields out of five, and the
  * fifth is the one filled in wrong.
  */
-export function labelFor(field: Pick<CrfField, "label" | "type">): string {
+/** A choice field is one the form answers by ticking. */
+const CHOICE: FieldType[] = ["single_select", "multi_select", "single_select_text"];
+
+/**
+ * A choice with fewer than two choices has nothing to tick.
+ *
+ * The reading leaves categories out where the protocol does not state them, and
+ * S2-4 reports that in the plan. The form used to print such a field as an empty
+ * cell under "Single-select", which looks finished and cannot be filled in.
+ */
+export const hasNoChoices = (field: Pick<CrfField, "type" | "options">) =>
+  CHOICE.includes(field.type) && (field.options?.length ?? 0) < 2;
+
+export function labelFor(field: Pick<CrfField, "label" | "type" | "options">): string {
+  if (hasNoChoices(field)) {
+    return `${field.label} **TODO:** the protocol states no categories; list them before the form is used`;
+  }
   return field.type === "multi_select"
     ? `${field.label} (tick all that apply)`
     : field.label;

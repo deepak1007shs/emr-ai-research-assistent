@@ -165,6 +165,12 @@ export const CHECKS: Check[] = [
     rule: "Numbering restarts at 1 in every section, every section has a heading, no response is pre-filled, and no continuous variable is banded." },
   { id: "CRF-2", step: "step8", type: "warn",
     rule: "Option wording is taken from the fixed terminology list." },
+  // Not in the written process. Added on 14 Sep 2026 after Dr Vishal's form
+  // passed every check with its dates as text fields and two single-selects that
+  // had nothing to tick: CRF-1 and CRF-2 test how a form is laid out, and none
+  // asked whether a field could be filled in.
+  { id: "CRF-3", step: "step8", type: "block",
+    rule: "Every field can be answered as its variable is typed: its field type is the one its data type owes, and every choice lists at least two choices." },
 
   /* ---- Gate C: the form against the tables --------------------------- */
   { id: "C7-1", step: "after8", type: "block", gate: "C",

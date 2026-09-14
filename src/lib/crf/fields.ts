@@ -11,6 +11,7 @@ import type {
 import type { FieldType } from "../study/vocabulary.ts";
 import { chainOfObjective } from "../objectives/build.ts";
 import { STUDY } from "../variables/build.ts";
+import { fieldTypeOf } from "./response.ts";
 
 /**
  * Steps C1 to C6: which fields the form carries, and why each one is on it.
@@ -316,8 +317,20 @@ export function buildFieldList(input: FieldInput): FieldList {
   // hospital number belongs on the form is a decision for the investigator.
   const todos: string[] = [];
   const identifiers = variables.filter((v) => v.roles[STUDY] === "administrative");
+  // Each as the type the reading gave it. Every identifier used to be a line of
+  // text, and Dr Vishal's form asked for the date of admission and the date of
+  // surgery as words, when the reading had typed both as dates.
   for (const variable of identifiers) {
-    infra(variable.label, variable.timepoints, "text", [{ infrastructure: true }]);
+    infrastructure.push({
+      source: "infrastructure",
+      label: variable.label,
+      variable: null,
+      timepoints: variable.timepoints,
+      needed: [],
+      traces: [{ infrastructure: true }],
+      options: variable.options,
+      type: fieldTypeOf(variable, null),
+    });
   }
   if (identifiers.length) {
     todos.push(

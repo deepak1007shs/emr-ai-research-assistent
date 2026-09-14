@@ -8,7 +8,7 @@ import type {
   Variable,
   VariableName,
 } from "../study/types.ts";
-import { responseFor } from "./response.ts";
+import { fieldTypeOf, hasNoChoices, responseFor } from "./response.ts";
 
 /**
  * Step 8's own checks, and Gate C.
@@ -116,6 +116,36 @@ export function step8Checks(input: CrfCheckInput): CheckResult[] {
           pass: false,
           failing: crf1,
           message: `${crf1.join("; ")}. A form is filled in by somebody who has never read the plan, and each of these is a place they would have to guess.`,
+        },
+  );
+
+  /* CRF-3: every field can be answered as its variable is typed. */
+  // A field's type is the one its data type owes. An identifier carries no
+  // variable name - it is capture infrastructure - so it is matched to its
+  // variable by the label the build copied from that variable, not by guessing
+  // from the words.
+  const administrative = new Map(
+    variables.filter((v) => v.roles.study === "administrative").map((v) => [v.label, v]),
+  );
+  const mistyped = fields.filter((f) => {
+    const variable =
+      byName.get(f.source_variable as VariableName) ??
+      (f.source_variable === "infrastructure" ? administrative.get(f.label) : undefined);
+    return variable !== undefined && f.type !== fieldTypeOf(variable, null);
+  });
+  const choiceless = fields.filter((f) => hasNoChoices(f));
+  const crf3 = [
+    ...mistyped.map((f) => `${name(f)}: collected as ${f.type.replace(/_/g, " ")}`),
+    ...choiceless.map((f) => `${name(f)}: no categories to choose from`),
+  ];
+  results.push(
+    crf3.length === 0
+      ? ok("CRF-3", "Every field can be answered as its variable is typed: a date asks for a date, and every choice lists its choices.")
+      : {
+          id: "CRF-3",
+          pass: false,
+          failing: crf3,
+          message: `${crf3.join("; ")}. A field that cannot be answered the way its variable is analysed is filled in however the person holding the pen decides.`,
         },
   );
 
