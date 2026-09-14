@@ -12,7 +12,7 @@ import { CHECKS, checkById, checksAt, checksAtGate } from "./registry.ts";
 const FROM_THE_DOCUMENT = [
   "G-A1", "G-A2", "G-A3", "G-A4",
   "S1-1", "S1-2", "S1-3", "S1-4", "S1-5",
-  "S2-1", "S2-2", "S2-3", "S2-4", "S2-5",
+  "S2-1", "S2-2", "S2-3", "S2-4", "S2-5", "S2-6", "S2-7",
   "S3-1",
   "S4-1", "S4-2", "S4-3", "S4-4", "S4-5", "S4-6", "S4-7", "S4-8",
   "S5-1", "S5-2", "S5-3",
@@ -61,10 +61,13 @@ describe("the check registry", () => {
 
   it("warns only where the process says to warn", () => {
     // Two from the process, both at Step 4, plus the terminology check at Step
-    // 8. S4-6 is the one addition, and it warns for the same reason the other
-    // two do: it names a decision the investigator has to take, not a fault in
-    // the plan. Everything else stops the next step.
+    // 8. S4-6 is one addition, and it warns for the same reason the other two
+    // do: it names a decision the investigator has to take, not a fault in the
+    // plan. S2-7 is the other: a blood pressure recorded as systolic alone is
+    // worth fixing and does not stop a plan being drawn. Everything else stops
+    // the next step.
     expect(CHECKS.filter((c) => c.type === "warn").map((c) => c.id)).toEqual([
+      "S2-7",
       "S4-4",
       "S4-5",
       "S4-6",
@@ -75,7 +78,7 @@ describe("the check registry", () => {
 
   it("finds the checks of a step", () => {
     expect(checksAt("step2").map((c) => c.id)).toEqual([
-      "S2-1", "S2-2", "S2-3", "S2-4", "S2-5",
+      "S2-1", "S2-2", "S2-3", "S2-4", "S2-5", "S2-6", "S2-7",
     ]);
     expect(checksAt("stage1").every((c) => c.gate === "A")).toBe(true);
   });

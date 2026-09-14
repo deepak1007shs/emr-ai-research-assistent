@@ -82,6 +82,14 @@ export const CHECKS: Check[] = [
     rule: "Every categorical variable lists its options; every numerical variable has a unit." },
   { id: "S2-5", step: "step2", type: "block",
     rule: "Every variable serves an objective, a descriptive block or a population definition, or is administrative." },
+  // S2-6 and S2-7 are not in the written process. Added on 14 Sep 2026 after Dr
+  // Vishal's reading derived the duration of ischaemia from two times typed as
+  // free text, and recorded the proforma's "BP" as systolic alone. The plan and
+  // the form were built on both without a check noticing.
+  { id: "S2-6", step: "step2", type: "block",
+    rule: "Every number computed from other measures is computed from numbers, dates or date-times, never free text." },
+  { id: "S2-7", step: "step2", type: "warn",
+    rule: "A measurement taken as a pair is recorded whole: systolic with diastolic blood pressure." },
 
   /* ---- Step 3: exploratory ------------------------------------------ */
   { id: "S3-1", step: "step3", type: "block",

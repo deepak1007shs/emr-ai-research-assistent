@@ -26,6 +26,16 @@ const ok = (id: string, message: string): CheckResult => ({
 const NUMERIC = ["continuous", "count", "time_to_event"];
 const CATEGORICAL = ["binary", "nominal", "ordinal"];
 
+/** Measurements always taken as a pair. S2-7 reads this. */
+const PAIRS = [
+  {
+    name: "Blood pressure",
+    whole: "systolic and diastolic",
+    one: /systolic/i,
+    other: /diastolic/i,
+  },
+];
+
 export function step2Checks(
   facts: FactsSheet,
   objectives: Objective[],
@@ -124,6 +134,51 @@ export function step2Checks(
           pass: false,
           failing: undrawable.map((v) => v.name),
           message: `${undrawable.map((v) => v.name).join(", ")} has neither a unit nor a list of categories. A row cannot be drawn for it and a field cannot collect it.`,
+        },
+  );
+
+  /* S2-6: a number can be computed from what is collected. */
+  // A derived number's inputs have to be numbers, dates or date-times. Dr
+  // Vishal's reading derived the duration of ischaemia from two times typed as
+  // free text, with no date beside them, and the plan built on it without a
+  // word: nobody can subtract "around 10 pm" from "early morning".
+  const byName = new Map(facts.measures.map((m) => [m.name, m]));
+  const uncomputable = facts.measures.flatMap((m) =>
+    NUMERIC.includes(m.type)
+      ? m.derived_from
+          .filter((input) => byName.get(input)?.type === "text")
+          .map((input) => `${m.name} from ${input}`)
+      : [],
+  );
+  results.push(
+    uncomputable.length === 0
+      ? ok("S2-6", "Every number computed from other measures is computed from numbers, dates or date-times.")
+      : {
+          id: "S2-6",
+          pass: false,
+          failing: uncomputable,
+          message: `${uncomputable.join("; ")}: a number cannot be computed from free text. Record each input as a number, a date, or a date with its time.`,
+        },
+  );
+
+  /* S2-7: a measurement taken as a pair is recorded whole. */
+  // One side of a pair on the list and not the other. Clinical pairs only, named
+  // here rather than guessed at: a proforma's "BP" became systolic blood
+  // pressure alone, and the form never asked for the diastolic.
+  const halves = facts.measures.map((m) => `${m.name} ${m.label}`);
+  const unpaired = PAIRS.filter(
+    ({ one, other }) => halves.some((h) => one.test(h)) !== halves.some((h) => other.test(h)),
+  );
+  results.push(
+    unpaired.length === 0
+      ? ok("S2-7", "Every measurement taken as a pair is recorded whole.")
+      : {
+          id: "S2-7",
+          pass: false,
+          failing: unpaired.map((p) => p.name),
+          message: unpaired
+            .map((p) => `${p.name} is recorded as one value: ${p.whole}. Record both, even where only one is analysed; they are taken together and written down together.`)
+            .join(" "),
         },
   );
 
