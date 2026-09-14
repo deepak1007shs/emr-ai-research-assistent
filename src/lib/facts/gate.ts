@@ -93,9 +93,17 @@ function missingLinks(chain: OutcomeChain): string[] {
   if (!filled(chain.how)) gaps.push("how it is measured");
   if (!filled(chain.instrument)) gaps.push("the instrument");
   if (!chain.time.length) gaps.push("when it is measured");
-  if (!filled(chain.unit)) gaps.push("the unit");
+  // A unit is what a number is measured in. A category has none: a thesis whose
+  // primary outcome was the type of bile duct injury under five classification
+  // systems was stopped here three times for a unit it could not have. Its
+  // categories, where the protocol leaves them out, are S2-4's to report in a
+  // plan that is built - the rule 37a6ea0 set for every other measure.
+  if (NUMERIC.includes(chain.type) && !filled(chain.unit)) gaps.push("the unit");
   return gaps;
 }
+
+/** The outcome types measured in a unit. */
+const NUMERIC: OutcomeChain["type"][] = ["continuous", "count", "time_to_event"];
 
 export function gateA(facts: FactsSheet): CheckResult[] {
   const results: CheckResult[] = [];
@@ -128,7 +136,9 @@ export function gateA(facts: FactsSheet): CheckResult[] {
     failing: gaps.length ? ["primary"] : [],
     message: gaps.length
       ? `The primary outcome does not say ${gaps.join(", ")}. Every table below it would rest on that gap.`
-      : "The primary outcome names what is measured, how, with which instrument, when and in what unit.",
+      : NUMERIC.includes(facts.primary.type)
+        ? "The primary outcome names what is measured, how, with which instrument, when and in what unit."
+        : "The primary outcome names what is measured, how, with which instrument and when.",
   });
 
   /* G-A3: the groups are named, and every outcome has a time. */

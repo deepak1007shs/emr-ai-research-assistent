@@ -201,7 +201,9 @@ export function buildPicot(facts: FactsSheet): Picot {
     {
       letter: "O",
       element: "Outcome",
-      value: `${facts.primary.what} (${facts.primary.unit}, ${facts.primary.instrument})${
+      // The unit only where there is one: a categorical outcome has none, and
+      // printed blank it read "(, Strasberg classification)".
+      value: `${facts.primary.what} (${[facts.primary.unit, facts.primary.instrument].filter((part) => part.trim()).join(", ")})${
         secondary ? `; secondarily ${secondary}` : ""
       }`,
     },

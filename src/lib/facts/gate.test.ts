@@ -48,6 +48,34 @@ describe("Gate A", () => {
     }
   });
 
+  // A thesis on bile duct injury, 14 Sep 2026, was stopped here three times: its
+  // primary outcome is the injury's type under five classification systems,
+  // which has categories and no unit, and the reading rightly left the unit
+  // blank. A unit is what a number is measured in. Categories left unstated are
+  // S2-4's to report, in a plan that is built.
+  it("does not ask a categorical primary outcome for a unit", () => {
+    for (const type of ["nominal", "ordinal", "binary"] as const) {
+      const facts = { ...idaPreg, primary: { ...idaPreg.primary, type, unit: "" } };
+      expect(said(facts, "G-A2").pass, type).toBe(true);
+    }
+  });
+
+  it("still asks a numeric primary outcome for its unit", () => {
+    for (const type of ["continuous", "count", "time_to_event"] as const) {
+      const facts = { ...idaPreg, primary: { ...idaPreg.primary, type, unit: "" } };
+      const result = said(facts, "G-A2");
+      expect(result.pass, type).toBe(false);
+      expect(result.message).toContain("the unit");
+    }
+  });
+
+  it("prints no empty unit in the PICO outcome line", () => {
+    const facts = { ...idaPreg, primary: { ...idaPreg.primary, type: "nominal" as const, unit: "" } };
+    const outcome = buildSap(facts).picot.rows.find((r) => r.letter === "O")!.value;
+    expect(outcome).not.toMatch(/\(\s*,/);
+    expect(outcome).toContain(`(${idaPreg.primary.instrument})`);
+  });
+
   it("refuses a primary outcome with no time point", () => {
     const facts = { ...idaPreg, primary: { ...idaPreg.primary, time: [] } };
     expect(said(facts, "G-A2").pass).toBe(false);
