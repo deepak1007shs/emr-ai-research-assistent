@@ -1329,8 +1329,17 @@ export function numberTheMap(
 ): AnalysisRow[] {
   // Which kind of table answers which half of a row. A ratio table carries the
   // crude and the adjusted estimate in one grid, so it answers both.
-  const UNADJUSTED = ["unadjusted", "summary_test", "per_time_point", "ratio", "safety", "proportions", "correlation", "summary", "accuracy", "correlation_index", "by_reference", "accuracy_by_subgroup"];
-  const ADJUSTED = ["adjusted", "rate_of_change", "ratio", "subgroup", "cox"];
+  //
+  // `screen` is the unadjusted half of an association, one row per factor;
+  // `survival` and `cumulative_incidence` are the Kaplan-Meier and the Gray's
+  // test of a time to event; `distribution` is an ordered or unordered outcome
+  // by group; `prediction_model` carries the model and its discrimination, so
+  // like `ratio` it answers both halves. Each was added to the tables without being added
+  // here, and each printed its analysis against a table with no number. New kinds go at
+  // the end of a list, where they can number only a row that had nothing.
+  // S7-12 now fails on that, so the next kind forgotten here is caught.
+  const UNADJUSTED = ["unadjusted", "summary_test", "per_time_point", "ratio", "safety", "proportions", "correlation", "summary", "accuracy", "correlation_index", "by_reference", "accuracy_by_subgroup", "screen", "survival", "cumulative_incidence", "distribution", "prediction_model"];
+  const ADJUSTED = ["adjusted", "rate_of_change", "ratio", "subgroup", "cox", "prediction_model"];
 
   return analysis.map((row) => {
     const mine = tables.filter((t) => t.fills.includes(row.objective));

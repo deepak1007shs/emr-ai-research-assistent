@@ -280,20 +280,35 @@ export function gateB(input: GateBInput): CheckResult[] {
       .filter((n) => !tables.some((t) => t.number === n))
       .map((n) => `${row.objective} points at Table ${n}`),
   );
+  // An analysis with no number at all. The line above cannot see one, because
+  // an empty number is filtered out before it is looked up, and for as long as
+  // that was the whole check every association objective printed "to T" and
+  // passed. A fit number is left out: Appendix B gives no exploratory model a
+  // fit table, so an empty one there is the rule.
+  const unnumbered = analysis.flatMap((row) => [
+    ...(row.unadjusted && !row.unadjusted.table ? [`${row.objective} unadjusted`] : []),
+    ...(row.adjusted && !row.adjusted.table ? [`${row.objective} adjusted`] : []),
+  ]);
   const counts =
     input.pinned.tables === numbered.length &&
     input.pinned.fits === tables.length - numbered.length &&
     input.pinned.figures === input.figures.length;
   results.push(
-    dangling.length === 0 && counts
+    dangling.length === 0 && unnumbered.length === 0 && counts
       ? ok("S7-12", "Every number in the Analysis Map is a table in Section 6, and the pinned count is the count.")
       : {
           id: "S7-12",
           pass: false,
-          failing: dangling.length ? dangling : [`${input.pinned.tables}`],
+          failing: dangling.length
+            ? dangling
+            : unnumbered.length
+              ? unnumbered
+              : [`${input.pinned.tables}`],
           message: dangling.length
             ? `${dangling.join("; ")}, which does not exist. A number pointing at nothing is worse than no number: it points at a table that exists and is not the one it means.`
-            : `The plan pins ${input.pinned.tables} tables and ${numbered.length} are drawn. The pinned count is the contract with the results chapter.`,
+            : unnumbered.length
+              ? `${unnumbered.join("; ")} names no table. Every analysis in the map is reported in a table of Section 6, and the map is how a reader finds it.`
+              : `The plan pins ${input.pinned.tables} tables and ${numbered.length} are drawn. The pinned count is the contract with the results chapter.`,
         },
   );
 
