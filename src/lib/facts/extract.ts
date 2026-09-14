@@ -92,25 +92,36 @@ const INSTRUCTION = `Record the Locked Protocol Facts Sheet for this protocol.
 
 Work through it in this order before you write anything.
 
-1. What kind of study is this, judged by what was done rather than by what the protocol
+1. The aims and objectives section, first and word for word. Copy each objective as the
+   protocol states it, in its order, and say for each what it is about and which factors it
+   asks after. Then read the methodology and add any objective it states that the objectives
+   section does not repeat, marking it as coming from the methodology. Never merge two
+   objectives, never split one, and never drop one because another covers the same outcome.
+   A study asking about the duration of ischaemia and about shock states two objectives, not
+   one about both.
+2. What kind of study is this, judged by what was done rather than by what the protocol
    calls itself. A timing word such as "prospective" names no design: a prospective study
    can be a trial, a cohort or a case series, and each owes different tables.
-2. Who is studied, what is given or observed, and against what.
-3. Every distinct thing the study records, as the measure dictionary: its name, how it is
+3. Who is studied, what is given or observed, and against what.
+4. Every distinct thing the study records, as the measure dictionary: its name, how it is
    written on a form, its type, its unit or its list of categories, which descriptive table
    it belongs to, and whether it is computed from other measures.
-4. The visit schedule, naming measures from the dictionary and nothing else. Enrolment
+5. The visit schedule, naming measures from the dictionary and nothing else. Enrolment
    records the descriptors and the administrative items as well as the outcomes.
-5. The primary outcome, walked all the way down: what, how, with which instrument, at which
-   visits, in what unit, of what type, what its values are expected to look like, and, for
-   a binary outcome, how common it is expected to be.
-6. Each secondary outcome the same way, including any that appears only in the methods.
-7. Anything in the aims or the hypothesis that is not a formal objective, as an exploratory
-   idea: the question, what kind it is, the outcome it is asked of and the other measures it
-   involves. The hypothesis often names a variable the study never collects, and that is
-   exactly what this field is for.
-8. The covariates an adjusted model would hold constant, and the proforma triaged item by
-   item.
+6. One outcome chain for each objective you listed in step 1, in the same order: the first
+   is the primary, the rest are the secondaries. Each is walked all the way down: what, how,
+   with which instrument, at which visits, in what unit, of what type, what its values are
+   expected to look like, and, for a binary outcome, how common it is expected to be. Each
+   carries its own kind, its own factors, and the confounders its own model holds constant.
+   Two objectives that report the same measure are still two chains: the factors differ, and
+   that is the whole of what they are asking. An objective whose factors are buried in
+   another objective's adjustment set has not been answered.
+7. Anything in the aims or the hypothesis that is not one of those objectives, as an
+   exploratory idea: the question, what kind it is, the outcome it is asked of and the other
+   measures it involves. The hypothesis often names a variable the study never collects, and
+   that is exactly what this field is for. Nothing that is already an objective belongs here.
+8. Every point the protocol leaves open that had to be settled, and who settled it, and then
+   the proforma triaged item by item.
 9. The sample size as it stands, and every question still waiting for the investigator.
 
 Then return the Facts Sheet as one JSON object that matches the schema in your

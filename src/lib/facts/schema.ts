@@ -178,8 +178,8 @@ export const FACTS_JSON_SCHEMA = {
         },
       },
     },
-    primary: { ...outcomeChain, description: "The one primary outcome. If the protocol names more than one, choose the one the title and aim promise and list the rest in open_items." },
-    secondary: { type: "array", items: outcomeChain, description: "Each secondary outcome, with the same chain. Include one that appears only in the methods." },
+    primary: { ...outcomeChain, description: "The first objective in `stated_objectives`, as an outcome chain. Where the protocol marks one objective primary, that one; otherwise the one the title and the aim promise." },
+    secondary: { type: "array", items: outcomeChain, description: "One chain for each remaining objective in `stated_objectives`, in the same order, including those found only in the methodology. One objective, one chain: two objectives that report the same measure are two entries here, because the factors each asks about are what make them different questions. An objective answered inside another objective's adjustment set has not been answered." },
     stated_objectives: {
       type: "array",
       description: "Every objective this study has, and nothing else. Read the aims and objectives section first, one entry for each objective, in the order it lists them: never merge two into one, never split one into two, and never leave one out because another objective covers the same outcome. Then read the methodology, and add any objective it states that the objectives section does not repeat - an outcome it says will be assessed, a score it says will be compared - marking it as coming from the methodology. A measurement the methodology merely says will be recorded is a variable, not an objective. Nothing else belongs here: this is the list the whole analysis is built from and checked against.",

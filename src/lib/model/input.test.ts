@@ -107,7 +107,16 @@ const REVIEW = "7f83f9a7cbbdf781";
 // objectives and are analysed. Saying which is which lets the plan tell the
 // investigator to add it to the objectives section, rather than quietly
 // answering a question the protocol never asked in the place it asks them.
-const FACTS = "245bfe0a836ac40e";
+// Moved again, 245bfe0a836ac40e to 7b079e633193c7b4, for the instruction that
+// makes each objective its own question. The reading used to be asked for "the
+// primary outcome" and "each secondary outcome", and a protocol stating five
+// objectives - ischaemia, mechanism, anatomical level, shock and lactate,
+// fasciotomy - came back with two: four of them folded into one model, three of
+// those four demoted to its adjustment set. An objective answered inside
+// another objective's adjustment set has not been answered. The objectives
+// section is now read first, and one outcome chain is owed to each objective in
+// it, carrying that objective's own factors.
+const FACTS = "7b079e633193c7b4";
 
 describe("what the model receives", () => {
   process.env.ANTHROPIC_API_KEY = "test";
