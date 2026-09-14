@@ -3,9 +3,9 @@ import { extractProtocol, type ExtractedProtocol } from "../protocol/extract.ts"
 import { MODEL, analyzeProtocol } from "../protocol/analyze.ts";
 import { build as renderMarkdown } from "../render/markdown.ts";
 import { extractFacts } from "../facts/extract.ts";
-import { blockers, buildSap, warnings } from "../sap/build.ts";
+import { blockers, warnings } from "../sap/build.ts";
+import { planColumns } from "../sap/stored.ts";
 import { gateA } from "../facts/gate.ts";
-import { renderSapMarkdown } from "../sap/markdown.ts";
 import type { SapBuild } from "../sap/build.ts";
 import { buildCrf, crfBlockers, crfWarnings } from "../crf/build.ts";
 import { renderCrfMarkdown } from "../crf/markdown.ts";
@@ -329,15 +329,11 @@ async function runSap(
     }
 
     await report.step("Building the objectives, the variables and the analysis map");
-    const built = buildSap(extracted.facts);
+    const { built, plan, markdown, pinned } = planColumns(extracted.facts);
     const failed = blockers(built);
     const warned = warnings(built);
 
     await report.step("Drawing the shell tables");
-    const markdown = renderSapMarkdown(built);
-
-    const { facts, ...plan } = built;
-    void facts;
 
     const { error: updateError } = await db
       .from("sap_plans")
@@ -346,7 +342,7 @@ async function runSap(
         facts: extracted.facts,
         plan,
         markdown,
-        pinned: built.pinned,
+        pinned,
         model: extracted.model,
         usage: extracted.usage,
       })

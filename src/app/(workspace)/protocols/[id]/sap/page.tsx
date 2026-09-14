@@ -10,6 +10,8 @@ import { UsagePanel } from "@/components/usage-panel";
 import { blockers, warnings, type SapBuild } from "@/lib/sap/build";
 import type { TokenUsage } from "@/lib/protocol/pricing";
 import { isStalled, planToShow } from "@/lib/jobs/plan";
+import { buildableFromReading } from "@/lib/sap/stored";
+import { BuildFromReading } from "@/components/build-from-reading";
 
 export const metadata = {
   title: "Statistical Analysis Plan — EMR AI Research Assistant",
@@ -119,6 +121,29 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
     );
   }
 
+  // Stopped at Gate A under a rule since corrected: the reading passes now, so
+  // the plan is built from it, and the protocol is not read or paid for again.
+  // Shown in place of the Gate A card, which would list no failing check.
+  if (buildableFromReading(plan)) {
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
+        <section className="card mx-auto max-w-[var(--sheet-w)] space-y-3 p-6">
+          <h1 className="text-base font-semibold">This reading can now be built into a plan</h1>
+          <p className="max-w-prose text-sm text-ink-3">
+            Gate A stopped this plan when the protocol was read, under a check that
+            has since been corrected. The reading passes it now. The plan is built
+            from the reading already stored: the protocol is not read again, and
+            nothing is charged.
+          </p>
+          <BuildFromReading planId={plan.id} />
+          <div className="border-t border-line pt-3">
+            <BuildButton kind="sap" protocolId={id} exists rebuildLabel="Read the protocol again instead (billed)" />
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   // Stopped at Gate A: the protocol was read and paid for, the facts are kept,
   // and the page shows what they say beside the checks that stopped it.
   if (plan.status === "failed" && plan.facts && !plan.plan) {
@@ -126,10 +151,11 @@ export default async function SapPage({ params }: PageProps<"/protocols/[id]/sap
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
         <div className="mx-auto max-w-[var(--sheet-w)] space-y-4">
           <GateAStopped facts={plan.facts as FactsSheet} />
+          {/* Above the cost panel, where it is seen: below it, it was missed. */}
+          <BuildButton kind="sap" protocolId={id} exists rebuildLabel="Read the protocol again" />
           {plan.usage && (
             <UsagePanel usage={plan.usage as TokenUsage} model={plan.model} what="plan" />
           )}
-          <BuildButton kind="sap" protocolId={id} exists rebuildLabel="Read the protocol again" />
         </div>
       </div>
     );
