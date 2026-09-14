@@ -373,7 +373,8 @@ export function buildTables(
         title: `Correlation of ${by?.label.toLowerCase() ?? "the second variable"} with ${lower(label2(outcomeVariable))}`,
         columns: ["Outcome pair", "ρ", "95% CI", "p"],
         rows: [blank(`${by?.label ?? "?"} and ${outcomeVariable?.label ?? "?"}`)],
-        footnote: `${row.unadjusted?.test ?? "rank correlation"}; exploratory`,
+        // The fallback as well as the test, as every other table prints it.
+        footnote: `${row.unadjusted ? footnoteFor(row.unadjusted) : "rank correlation"}; exploratory`,
         fit_table_of: null,
         fills: [outcome.id],
         variables: outcome.reuses,
@@ -405,7 +406,7 @@ export function buildTables(
         "Difference (95% CI)",
       ],
       rows: strata,
-      footnote: `${row.adjusted?.model ?? "regression with an interaction term"}; exploratory`,
+      footnote: `${row.adjusted ? footnoteFor(row.adjusted) : "regression with an interaction term"}; exploratory`,
       fit_table_of: null,
       fills: [outcome.id],
       variables: outcome.reuses,
@@ -902,7 +903,13 @@ function drawTable(args: DrawArgs): ShellTable {
           blank(`${codes[0] ?? "Exposed"} versus ${codes[1] ?? "reference"} - adjusted`),
           blank(`${codes[1] ?? "Reference"} - 1 (reference)`),
         ],
-        footnote: footnoteFor(level.adjusted, level.adjusted?.model),
+        // Both halves, because the table reports both: its first row is the
+        // crude comparison and its second the adjusted one. Naming the model
+        // alone left the crude row's test, and its fallback, printed only in
+        // the Analysis Map.
+        footnote: level.unadjusted
+          ? `${footnoteFor(level.unadjusted)} for the unadjusted comparison; ${footnoteFor(level.adjusted, level.adjusted?.model)} for the adjusted`
+          : footnoteFor(level.adjusted, level.adjusted?.model),
         fills: [level.objective],
       };
 
@@ -1045,9 +1052,10 @@ function drawTable(args: DrawArgs): ShellTable {
           "Area under the curve",
           ...(indexTests.length > 1 ? ["Areas under the curve compared, p (DeLong)"] : []),
         ].map(blank),
-        footnote: isDiagnostic(facts)
-          ? `${footnoteFor(level.unadjusted)}. Predictive values depend on how common the condition is here and do not transfer to a setting with a different prevalence`
-          : "predictive values depend on how common the condition is here and do not transfer to a setting with a different prevalence",
+        // The test in every study, not only a diagnostic one. An accuracy
+        // objective inside a cohort printed the prevalence note alone, and the
+        // table could not say which test its numbers came from.
+        footnote: `${footnoteFor(level.unadjusted)}. Predictive values depend on how common the condition is here and do not transfer to a setting with a different prevalence`,
         fills: [level.objective],
       };
     }

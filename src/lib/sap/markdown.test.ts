@@ -123,8 +123,10 @@ describe("the plan, end to end", () => {
   });
 
   it("names the test under every table, with its fallback", () => {
+    // Table 10 reports the crude and the adjusted comparison in one grid, so it
+    // names both, each with its fallback. It used to name the model alone.
     expect(sap()).toContain(
-      "*Footnote: test used = Log-binomial regression, planned on the assumption that the outcome is common (fallback: Modified Poisson regression with robust variance)*",
+      "*Footnote: test used = Chi-square test (fallback: Fisher's exact test where any expected count is below 5) for the unadjusted comparison; Log-binomial regression, planned on the assumption that the outcome is common (fallback: Modified Poisson regression with robust variance) for the adjusted*",
     );
   });
 
