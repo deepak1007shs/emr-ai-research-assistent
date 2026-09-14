@@ -98,7 +98,21 @@ function summaryOf(variable: Variable, skewed: Set<string>): string {
  * Yes before No and Male before Female because that is the order the dictionary
  * holds them in.
  */
+/** Types a descriptive table has no row for. */
+const UNSUMMARISED: string[] = ["date", "datetime", "phone"];
+
 function rowsFor(variable: Variable, skewed: Set<string>): TableRow[] {
+  // Free text is counted only once somebody decides what it is counted as:
+  // "Radiograph findings - n (%)" has no categories to put a number beside.
+  if (variable.type === "text") {
+    return [
+      {
+        label: `${variable.label} - n (%) **TODO:** free text; state the categories it is coded into`,
+        variable: variable.name,
+        indent: false,
+      },
+    ];
+  }
   if (variable.options?.length) {
     return variable.options.map((option) => ({
       label: `${variable.label} - ${option}`,
@@ -201,8 +215,11 @@ export function buildTables(
   }
 
   for (const block of blocks) {
+    // A date, a moment or a telephone number is not a characteristic anybody
+    // summarises: Dr Vishal's plan printed "Time of injury - n (%)". Each is on the
+    // form as an input or an identifier, and no row of this table is for it.
     const members = facts.measures
-      .filter((m) => m.block === block)
+      .filter((m) => m.block === block && !UNSUMMARISED.includes(m.type))
       .map((m) => byName.get(m.name))
       .filter((v): v is Variable => Boolean(v));
 

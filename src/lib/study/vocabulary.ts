@@ -49,6 +49,13 @@ export type Frame = "PICO" | "PECO";
  * Decision table B is keyed on this together with the comparison, so the list
  * is closed and every analysis variable must end up on one of these. `date` and
  * `text` exist for administrative variables, which are never analysed.
+ *
+ * `datetime` and `phone` were added on 14 Sep 2026. Without them a reading of Dr
+ * Vishal's protocol typed the time of injury, the time of revascularisation and
+ * a mobile number as `text`, because nothing else on the list fitted, and the
+ * form asked for each as a line of words: a clock time a duration is computed
+ * from, with no date beside it, and a telephone number anyone could write any
+ * way at all.
  */
 export type DataType =
   | "continuous"
@@ -57,7 +64,11 @@ export type DataType =
   | "nominal"
   | "ordinal"
   | "date"
+  /** A date with its clock time: anything timed within a day, and any moment a duration is computed from. */
+  | "datetime"
   | "text"
+  /** A telephone number. Collected as digits, never analysed. */
+  | "phone"
   | "time_to_event";
 
 /** Which family an objective belongs to, and therefore which multiplicity rule. */
@@ -137,6 +148,8 @@ export type FieldType =
   | "text"
   | "number"
   | "date"
+  | "datetime"
+  | "phone"
   | "single_select"
   | "multi_select"
   | "single_select_text";

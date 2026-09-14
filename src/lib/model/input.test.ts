@@ -116,7 +116,17 @@ const REVIEW = "7f83f9a7cbbdf781";
 // another objective's adjustment set has not been answered. The objectives
 // section is now read first, and one outcome chain is owed to each objective in
 // it, carrying that objective's own factors.
-const FACTS = "7b079e633193c7b4";
+// Moved again on 14 Sep 2026, 7b079e633193c7b4 to edf843cc6346584e, for what a
+// measure can be and how it is recorded. Dr Vishal's reading typed the time of
+// injury, the time of revascularisation and a mobile number as text, because the
+// type list had no clock time and no telephone number, and recorded the
+// proforma's "BP" as systolic alone; a reading of the same protocol two days
+// earlier had typed the times as dates and split the pressure. The type list
+// gains datetime and phone, the type field says when to use each, and step 4 of
+// the instruction says a time is recorded with its date, a pair is two measures,
+// and missing categories are said rather than guessed. Revert schema.ts and
+// extract.ts alone and the previous hash returns.
+const FACTS = "edf843cc6346584e";
 
 describe("what the model receives", () => {
   process.env.ANTHROPIC_API_KEY = "test";

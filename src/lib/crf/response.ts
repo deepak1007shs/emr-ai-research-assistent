@@ -24,6 +24,10 @@ const NUMERIC = "________";
 const BETWEEN = "   ";
 /** Two spaces before the mask's own note, which sets it apart from the blanks. */
 const DATE = "___ / ___ / ______  (DD/MM/YYYY)";
+/** The date and the clock time, so a duration across midnight can be computed. */
+const DATETIME = "___ / ___ / ______  ___ : ___  (DD/MM/YYYY HH:MM, 24-hour)";
+/** Digits on a line, and the word that says so. */
+const PHONE = "______________________  (digits)";
 const BOX = "☐";
 
 /**
@@ -40,7 +44,9 @@ const FOR_TYPE: Record<DataType, FieldType> = {
   nominal: "single_select",
   ordinal: "single_select",
   date: "date",
+  datetime: "datetime",
   text: "text",
+  phone: "phone",
   // A time to an event is collected as the date it happened, never as a
   // duration: a duration is computed from two dates, and a form that asks for
   // it asks somebody to do arithmetic at the bedside.
@@ -80,6 +86,10 @@ export function responseFor(field: Pick<CrfField, "type" | "unit" | "options">):
       return field.unit ? `${NUMERIC} ${field.unit}` : NUMERIC;
     case "date":
       return DATE;
+    case "datetime":
+      return DATETIME;
+    case "phone":
+      return PHONE;
     case "single_select":
     case "multi_select":
       // A line to write on until the categories are stated, never nothing.

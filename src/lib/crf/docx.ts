@@ -47,11 +47,13 @@ const COLUMNS = [5, 33, 15, 47].map((share) => Math.round((TEXT_WIDTH * share) /
 
 const HEADINGS = ["S.No.", "Field / Variable", "Field type", "Response"];
 
-/** The five types, as the form prints them. */
+/** The field types, as the form prints them. */
 const PRINTED: Record<string, string> = {
   text: "Text",
   number: "Number",
   date: "Date",
+  datetime: "Date and time",
+  phone: "Phone number",
   single_select: "Single-select",
   multi_select: "Multi-select",
   single_select_text: "Single-select + text",

@@ -21,6 +21,8 @@ const PRINTED: Record<string, string> = {
   text: "Text",
   number: "Number",
   date: "Date",
+  datetime: "Date and time",
+  phone: "Phone number",
   single_select: "Single-select",
   multi_select: "Multi-select",
   single_select_text: "Single-select + text",

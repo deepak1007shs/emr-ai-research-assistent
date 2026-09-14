@@ -105,7 +105,13 @@ Work through it in this order before you write anything.
 3. Who is studied, what is given or observed, and against what.
 4. Every distinct thing the study records, as the measure dictionary: its name, how it is
    written on a form, its type, its unit or its list of categories, which descriptive table
-   it belongs to, and whether it is computed from other measures.
+   it belongs to, and whether it is computed from other measures. A time of day is a
+   datetime, recorded with its date, and so is every moment a duration is computed from:
+   an interval that crosses midnight cannot be computed from two clock times. A telephone
+   number is a phone. A proforma item that is several values taken together is one measure
+   for each: "BP" is systolic and diastolic blood pressure. A categorical measure lists
+   every category the protocol gives; where it gives none, leave the list empty and say
+   so among the open questions.
 5. The visit schedule, naming measures from the dictionary and nothing else. Enrolment
    records the descriptors and the administrative items as well as the outcomes.
 6. One outcome chain for each objective you listed in step 1, in the same order: the first

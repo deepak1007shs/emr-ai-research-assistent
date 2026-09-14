@@ -83,10 +83,10 @@ export function step8Checks(input: CrfCheckInput): CheckResult[] {
     // wrote in: a Bethesda category failed on a form with nothing wrong.
     const options = [...(field.options ?? [])].sort((a, b) => b.length - a.length);
     const emptied = drawn
-      .replace(/\(DD\/MM\/YYYY\)/g, "")
+      .replace(/\(DD\/MM\/YYYY( HH:MM, 24-hour)?\)|\(digits\)/g, "")
       .replace(field.unit ? new RegExp(escape(field.unit), "g") : /(?!)/g, "")
       .replace(new RegExp(options.map((o) => escape(o)).join("|") || "(?!)", "g"), "")
-      .replace(/[_☐/]/g, "")
+      .replace(/[_☐/:]/g, "")
       .replace(/Other:|\s+/g, "");
     return emptied.length > 0;
   });

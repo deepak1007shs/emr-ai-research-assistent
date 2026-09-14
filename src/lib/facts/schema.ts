@@ -27,8 +27,8 @@ const DESIGNS = [
 ] as const;
 
 const DATA_TYPES = [
-  "continuous", "count", "binary", "nominal", "ordinal", "date", "text",
-  "time_to_event",
+  "continuous", "count", "binary", "nominal", "ordinal", "date", "datetime",
+  "text", "phone", "time_to_event",
 ] as const;
 
 const CHAIN_KINDS = ["comparison", "association", "accuracy", "estimation"] as const;
@@ -157,7 +157,7 @@ export const FACTS_JSON_SCHEMA = {
         properties: {
           name: { ...str, description: "Lower case, words joined by underscores: 'serum_ferritin'." },
           label: { ...str, description: "How it is written on a form: 'Serum ferritin'." },
-          type: { type: "string", enum: DATA_TYPES },
+          type: { type: "string", enum: DATA_TYPES, description: "datetime for a moment with its clock time - a time of injury, of surgery, of revascularisation - and for anything a duration is computed from within a day; date where the day is enough; phone for a telephone number; text only for words nobody will count." },
           unit: { type: "string", description: "For a numeric measure. Empty for a categorical one." },
           options: { type: ["array", "null"], items: { type: "string" }, description: "For a categorical measure, every category in print order, Yes before No and Male before Female. Null for a numeric one. A list, never a sentence: a range written as prose cannot be drawn as rows." },
           block: { type: "string", description: "For a baseline characteristic, the words that finish its table's title: 'demographic and obstetric characteristics', 'haematological and iron profile', 'comorbidities'. Measures sharing these words share a table, and two blocks are never merged. Empty for an outcome, an administrative field, or a variable that only defines an analysis set." },
