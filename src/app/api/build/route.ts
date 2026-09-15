@@ -11,7 +11,7 @@ export const runtime = "nodejs";
  * run of both documents rather than on a single response. Nothing is streamed
  * back; the browser has long gone by the time the work is half done.
  */
-export const maxDuration = 3600;
+export const maxDuration = 300;
 
 const KINDS: JobKind[] = ["review", "sap", "both", "crf"];
 
