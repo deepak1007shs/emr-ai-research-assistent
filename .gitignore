@@ -54,3 +54,7 @@ jay-study-spec.json
 
 # Visual brainstorming sessions
 .superpowers/
+
+# screen recordings and videos: never part of the code
+*.mov
+*.mp4
