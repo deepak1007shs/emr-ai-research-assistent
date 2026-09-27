@@ -138,12 +138,27 @@ The checklist is not printed in either document.
 
 ### Storage
 
-Migration `0019_review_checklist.sql` adds to `reviews`:
+Migration `0019_review_checklist.sql` adds one column to `reviews`: `checklist jsonb`,
+holding the whole run — version, model, whether the text could be read, every verified
+result, and the checklist's own token usage. It is written as soon as the checklist
+finishes, **before** the review is sent, so a build that dies and resumes its review batch
+shapes the review with the same findings the batch was sent with.
 
-- `checklist jsonb` — every check result, after verification
-- `checklist_version text`
+The checklist's usage is stored apart from `reviews.usage` because it is priced at Sonnet 5
+rates and `usage` at the review model's; tokens from two price lists cannot be summed and
+priced once.
 
-Reviews without these render exactly as before.
+Reviews without the column render exactly as before.
+
+### Result meanings
+
+- `FAIL` — the problem is present. Raised as an issue. A FAIL with an empty quote is kept
+  (absence has nothing to quote) and its body line reads `Protocol says: nothing on this.`
+- `NOT_STATED` — the protocol says too little to judge. Raised as an issue.
+- `PASS`, `NOT_APPLICABLE` — not raised.
+- `needs_review: true` — the quote was not found, the check was not answered, or its group
+  failed. Shown in the panel, never raised. A FAIL whose quote is not found becomes
+  `NOT_STATED` with `needs_review: true`.
 
 ### In the app
 
@@ -167,9 +182,12 @@ The user never loses a review because of the checklist.
 
 ### Cost
 
-Checklist token usage is added to the review's existing `usage` record, so the live meter,
-the per-review breakdown and the home-page total include it. `pricing.ts` gains the Sonnet 5
-rates if missing. The real per-review figure is measured in the live check and reported.
+Checklist usage is stored inside `reviews.checklist` and priced at Sonnet 5 rates
+(already in `pricing.ts`). The job's running cost adds it in dollars; the review page shows
+a second "What this checklist cost" panel; the home-page total adds it to each review
+without counting it as a review. The real per-review figure is measured in the live check.
+Sonnet 5 rejects `temperature`, so none is sent; repeatability rests on the fixed list, the
+small groups and strict structured output.
 
 ### Automated tests (vitest, no API key)
 
