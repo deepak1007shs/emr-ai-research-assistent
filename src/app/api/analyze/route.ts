@@ -6,6 +6,7 @@ import {
   extractProtocol,
   type ExtractedProtocol,
 } from "@/lib/protocol/extract";
+import { ownsPath } from "@/lib/protocol/upload-path";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -28,6 +29,12 @@ export async function POST(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+
+  // A file the browser has already put in storage. Only its path comes here,
+  // because a Vercel function will not accept a body over 4.5 MB.
+  if (request.headers.get("content-type")?.includes("application/json")) {
+    return saveUploaded(supabase, user.id, await request.json().catch(() => null));
+  }
 
   let protocol: ExtractedProtocol;
   let bytes: Buffer;
@@ -91,6 +98,58 @@ export async function POST(request: NextRequest) {
   }
 
   await supabase.from("protocols").update({ storage_path: storagePath }).eq("id", row.id);
+
+  return NextResponse.json({ protocolId: row.id });
+}
+
+type Supabase = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * Records a protocol the browser uploaded itself.
+ *
+ * The file is read back and parsed here for the same reason as before: an
+ * unreadable file should be a plain 400 on the page the user is looking at.
+ * A file refused here is removed again, so the bucket keeps only protocols.
+ */
+async function saveUploaded(supabase: Supabase, userId: string, body: unknown) {
+  const { storagePath, filename, mime } = (body ?? {}) as Record<string, unknown>;
+  if (!ownsPath(userId, storagePath) || typeof filename !== "string" || !filename) {
+    return NextResponse.json({ error: "That upload could not be found." }, { status: 400 });
+  }
+  const type = typeof mime === "string" && mime ? mime : "application/octet-stream";
+
+  const download = await supabase.storage.from("protocols").download(storagePath);
+  if (download.error || !download.data) {
+    return NextResponse.json({ error: "That upload could not be found." }, { status: 400 });
+  }
+
+  let protocol: ExtractedProtocol;
+  try {
+    const bytes = Buffer.from(await download.data.arrayBuffer());
+    protocol = await extractProtocol(bytes, filename, type);
+  } catch (error) {
+    await supabase.storage.from("protocols").remove([storagePath]);
+    const message =
+      error instanceof ExtractionError ? error.message : "That file could not be read.";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+
+  const { data: row, error: insertError } = await supabase
+    .from("protocols")
+    .insert({
+      owner: userId,
+      filename: protocol.filename,
+      mime: type,
+      char_count: protocol.kind === "text" ? protocol.text.length : null,
+      storage_path: storagePath,
+    })
+    .select("id")
+    .single();
+
+  if (insertError) {
+    await supabase.storage.from("protocols").remove([storagePath]);
+    return NextResponse.json({ error: insertError.message }, { status: 500 });
+  }
 
   return NextResponse.json({ protocolId: row.id });
 }

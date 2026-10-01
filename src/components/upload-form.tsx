@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { MAX_UPLOAD_BYTES, uploadPath } from "@/lib/protocol/upload-path";
 
 /**
  * Uploads a protocol and starts its review.
@@ -26,18 +28,51 @@ export function UploadForm() {
     setError(null);
     setStatus("Reading the file");
 
-    const form = new FormData();
-    if (file) form.set("file", file);
-    else form.set("text", text);
-
     const fail = (message: string) => {
       setError(message);
       setStatus(null);
     };
 
+    // A file goes straight to storage, and only its path goes to the server:
+    // Vercel refuses a function request over 4.5 MB, which a thesis protocol
+    // with its annexures easily is. Pasted text is small and still posts.
+    let request: RequestInit;
+    if (file) {
+      if (file.size > MAX_UPLOAD_BYTES) {
+        return fail(
+          `That file is ${(file.size / 1024 / 1024).toFixed(1)} MB, above the ${
+            MAX_UPLOAD_BYTES / 1024 / 1024
+          } MB limit. Upload just the protocol, without the CVs and scanned annexures.`,
+        );
+      }
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return fail("You are signed out. Sign in again and upload the file.");
+
+      setStatus("Uploading the file");
+      const path = uploadPath(user.id, crypto.randomUUID(), file.name);
+      const { error: uploadError } = await supabase.storage
+        .from("protocols")
+        .upload(path, file, { contentType: file.type || undefined });
+      if (uploadError) return fail(`The file could not be uploaded: ${uploadError.message}`);
+
+      setStatus("Reading the file");
+      request = {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storagePath: path, filename: file.name, mime: file.type }),
+      };
+    } else {
+      const form = new FormData();
+      form.set("text", text);
+      request = { method: "POST", body: form };
+    }
+
     let protocolId: string;
     try {
-      const response = await fetch("/api/analyze", { method: "POST", body: form });
+      const response = await fetch("/api/analyze", request);
       const body = await response.json().catch(() => ({}));
       if (!response.ok) return fail(body.error ?? "The upload was rejected.");
       protocolId = body.protocolId as string;
